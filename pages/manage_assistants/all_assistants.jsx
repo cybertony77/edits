@@ -108,9 +108,9 @@ export default function AllAssistants() {
         // Only digits: exact match for id
         filtered = filtered.filter(assistant => assistant.id.toString() === term);
       } else {
-        // Otherwise: starts with for name
+        // Otherwise: includes for name
         filtered = filtered.filter(assistant =>
-          assistant.name && assistant.name.toLowerCase().startsWith(term)
+          assistant.name && assistant.name.toLowerCase().includes(term)
         );
       }
     }
@@ -201,8 +201,8 @@ export default function AllAssistants() {
           {filteredAssistants.length === 0 ? (
             <div className="no-results">
               {searchTerm
-                ? "No assistants found with the search term."
-                : "No assistants found."
+                ? "❌ No assistants found with the search term."
+                : "❌ No assistants found."
               }
             </div>
           ) : (

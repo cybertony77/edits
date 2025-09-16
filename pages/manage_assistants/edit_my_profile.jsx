@@ -41,7 +41,7 @@ export default function EditMyProfile() {
   // Handle profile error
   useEffect(() => {
     if (profileError) {
-      setError("Failed to fetch profile");
+      setError("❌ Failed to fetch profile");
     }
   }, [profileError]);
 
@@ -94,7 +94,7 @@ export default function EditMyProfile() {
     
     // Check if there are any changes
     if (!hasChanges()) {
-      setError("No changes detected. Please modify at least one field before saving.");
+      setError("❌ No changes detected. Please modify at least one field before saving.");
       return;
     }
     
@@ -106,7 +106,7 @@ export default function EditMyProfile() {
     // Validate phone number if it was changed
     if (changedFields.phone) {
       if (changedFields.phone.length !== 11) {
-        setError("Phone number must be exactly 11 digits");
+        setError("❌ Phone number must be exactly 11 digits");
         return;
       }
     }
@@ -132,7 +132,7 @@ export default function EditMyProfile() {
         setForm(prev => ({ ...prev, password: "" }));
       },
       onError: () => {
-        setError("Failed to update profile");
+        setError("❌ Failed to update profile");
       }
     });
   };
@@ -261,7 +261,6 @@ export default function EditMyProfile() {
                 name="name"
                 value={form.name}
                 onChange={handleChange}
-                required
               />
             </div>
             <div className="form-group">
@@ -271,7 +270,6 @@ export default function EditMyProfile() {
                 name="id"
                 value={form.id}
                 onChange={handleChange}
-                required
               />
             </div>
             <div className="form-group">
@@ -290,7 +288,6 @@ export default function EditMyProfile() {
                   const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 11);
                   handleChange({ target: { name: 'phone', value } });
                 }}
-                required
               />
               <small style={{ color: '#6c757d', fontSize: '0.85rem', marginTop: '4px', display: 'block' }}>
                 Must be exactly 11 digits (e.g., 01234567890)
@@ -338,8 +335,8 @@ export default function EditMyProfile() {
               {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
         </button>
           </form>
-          {success && <div className="success-message">Profile updated successfully!</div>}
-          {error && <div className="error-message">{error}</div>}
+          {success && <div className="success-message">✅ Profile updated successfully!</div>}
+          {error && <div className="error-message">❌ {error}</div>}
         </div>
       </div>
     </div>

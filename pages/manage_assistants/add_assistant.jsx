@@ -357,10 +357,10 @@ export default function AddAssistant() {
             </button>
           </form>
           {success && (
-            <div className="success-message">Assistant added successfully!</div>
+            <div className="success-message">✅ Assistant added successfully!</div>
           )}
           {error && (
-            <div className="error-message">{error}</div>
+            <div className="error-message">❌ {error}</div>
           )}
         </div>
       </div>

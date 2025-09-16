@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Title from "../../components/Title";
 import RoleSelect from "../../components/RoleSelect";
-import { useAssistant, useUpdateAssistant } from '../../lib/api/assistants';
+import { useAssistant, useAssistants, useUpdateAssistant } from '../../lib/api/assistants';
 
 function decodeJWT(token) {
   try {
@@ -22,9 +22,12 @@ export default function EditAssistant() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [searchResults, setSearchResults] = useState([]); // Store multiple search results
+  const [showSearchResults, setShowSearchResults] = useState(false); // Show/hide search results
 
   // React Query hooks
   const { data: assistant, isLoading: assistantLoading, error: assistantError } = useAssistant(searchId, { enabled: !!searchId });
+  const { data: allAssistants } = useAssistants(); // Get all assistants for name search
   const updateAssistantMutation = useUpdateAssistant();
 
   useEffect(() => {
@@ -76,7 +79,7 @@ export default function EditAssistant() {
   // Handle assistant error
   useEffect(() => {
     if (assistantError) {
-      setError("Assistant not found.");
+      setError("❌ Assistant not found.");
     }
   }, [assistantError]);
 
@@ -84,15 +87,47 @@ export default function EditAssistant() {
     e.preventDefault();
     setError("");
     setSuccess(false);
+    setSearchResults([]);
+    setShowSearchResults(false);
+    
+    const searchTerm = id.trim();
     
     // Check if trying to edit "tony" - prevent this
-    if (id && id.toLowerCase() === "tony") {
-      setError("You can't Edit tony");
+    if (searchTerm.toLowerCase() === "tony") {
+      setError("❌ You can't Edit Tony");
       return;
     }
     
-    // Set the search ID to trigger the fetch
-    setSearchId(id);
+    // Check if it's a numeric ID
+    if (/^\d+$/.test(searchTerm)) {
+      // It's a numeric ID, search directly
+      setSearchId(searchTerm);
+    } else {
+      // It's a name or username, search through all assistants (case-insensitive, includes)
+      if (allAssistants) {
+        const matchingAssistants = allAssistants.filter(assistant => 
+          (assistant.name && assistant.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (assistant.id && assistant.id.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+        
+        if (matchingAssistants.length === 1) {
+          // Single match, use it directly
+          const foundAssistant = matchingAssistants[0];
+          setSearchId(foundAssistant.id.toString());
+          setId(foundAssistant.id.toString());
+        } else if (matchingAssistants.length > 1) {
+          // Multiple matches, show selection
+          setSearchResults(matchingAssistants);
+          setShowSearchResults(true);
+          setError(`❌ Found ${matchingAssistants.length} assistants. Please select one.`);
+        } else {
+          setError(`❌ No assistant found with name or username starting with "${searchTerm}"`);
+          setSearchId("");
+        }
+      } else {
+        setError("❌ Assistant data not loaded. Please try again.");
+      }
+    }
   };
 
   // Clear assistant data when ID input is emptied
@@ -107,7 +142,18 @@ export default function EditAssistant() {
       setStep(1);
       setError("");
       setSuccess(false);
+      setSearchResults([]);
+      setShowSearchResults(false);
     }
+  };
+
+  // Handle assistant selection from search results
+  const handleAssistantSelect = (selectedAssistant) => {
+    setSearchId(selectedAssistant.id.toString());
+    setId(selectedAssistant.id.toString());
+    setSearchResults([]);
+    setShowSearchResults(false);
+    setError("");
   };
 
   const handleChange = (e) => {
@@ -143,13 +189,13 @@ export default function EditAssistant() {
     
     // Check if trying to edit "tony" - prevent this
     if (assistant && assistant.name && assistant.name.toLowerCase() === "tony") {
-      setError("Cannot edit assistant 'tony'. This is a protected system user.");
+      setError("❌ You can't Edit Tony");
       return;
     }
     
     // Check if there are any changes
     if (!hasChanges()) {
-      setError("No changes detected. Please modify at least one field before saving.");
+      setError("❌ No changes detected. Please modify at least one field before saving.");
       return;
     }
     
@@ -165,7 +211,7 @@ export default function EditAssistant() {
     if (changedFields.phone) {
       const assistantPhone = changedFields.phone.toString();
       if (assistantPhone.length !== 11) {
-        setError("Assistant phone number must be exactly 11 digits");
+        setError("❌ Assistant phone number must be exactly 11 digits");
         return;
       }
       payload.phone = assistantPhone; // Keep as string to preserve leading zeros exactly
@@ -190,9 +236,9 @@ export default function EditAssistant() {
         },
         onError: (err) => {
           if (err.response?.status === 409) {
-            setError("Assistant ID already exists.");
+            setError("❌ Assistant ID already exists.");
           } else {
-            setError(err.response?.data?.error || "Failed to update assistant.");
+            setError(err.response?.data?.error || "❌ Failed to update assistant.");
           }
         }
       }
@@ -200,7 +246,7 @@ export default function EditAssistant() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ padding: "20px 5px 20px 5px" }}>
       <div style={{ maxWidth: 600, margin: "40px auto", padding: 24 }}>
         <style jsx>{`
           .header {
@@ -421,19 +467,71 @@ export default function EditAssistant() {
                  <Title backText="Back to Manage Assistants" href="/manage_assistants" style={{ '--button-width': '180px' }}>Edit Assistant</Title>
         
           <div className="form-container">
-          <form onSubmit={handleIdSubmit} className="fetch-form">
-                <input
-              className="fetch-input"
-                  name="id"
-                  placeholder="Enter assistant ID"
-                  value={id}
-              onChange={handleIdChange}
-                  required
-                />
-            <button type="submit" disabled={assistantLoading} className="fetch-btn">
-              {assistantLoading ? "Loading..." : "🔍 Search"}
-        </button>
+            
+            <form onSubmit={handleIdSubmit} className="fetch-form">
+              <input
+                className="fetch-input"
+                name="id"
+                placeholder="Enter assistant Username, Name"
+                value={id}
+                onChange={handleIdChange}
+              />
+              <button type="submit" disabled={assistantLoading} className="fetch-btn">
+                {assistantLoading ? "Loading..." : "🔍 Search"}
+              </button>
             </form>
+            
+            {/* Show search results if multiple matches found */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div style={{ 
+                marginTop: "16px", 
+                padding: "16px", 
+                background: "#f8f9fa", 
+                borderRadius: "8px", 
+                border: "1px solid #dee2e6" 
+              }}>
+                <div style={{ 
+                  marginBottom: "12px", 
+                  fontWeight: "600", 
+                  color: "#495057" 
+                }}>
+                  Select an assistant:
+                </div>
+                {searchResults.map((assistant) => (
+                  <button
+                    key={assistant.id}
+                    onClick={() => handleAssistantSelect(assistant)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "12px 16px",
+                      margin: "8px 0",
+                      background: "white",
+                      border: "1px solid #dee2e6",
+                      borderRadius: "6px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "#e9ecef";
+                      e.target.style.borderColor = "#1FA8DC";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "white";
+                      e.target.style.borderColor = "#dee2e6";
+                    }}
+                  >
+                    <div style={{ fontWeight: "600", color: "#1FA8DC" }}>
+                      {assistant.name} (ID: {assistant.id})
+                    </div>
+                    <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
+                      {assistant.role} • {assistant.phone}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         
         {step === 2 && (
@@ -458,7 +556,6 @@ export default function EditAssistant() {
                   placeholder="Edit assistant username"
                   value={form.id}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -469,7 +566,6 @@ export default function EditAssistant() {
                   placeholder="Edit assistant's name"
                   value={form.name}
                   onChange={handleChange}
-                  required
                 />
               </div>
               <div className="form-group">
@@ -488,7 +584,7 @@ export default function EditAssistant() {
                     const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 11);
                     handleChange({ target: { name: 'phone', value } });
                   }}
-                  required
+
                 />
                 <small style={{ color: '#6c757d', fontSize: '0.85rem', marginTop: '4px', display: 'block' }}>
                   Must be exactly 11 digits (e.g., 12345678901)
@@ -537,7 +633,6 @@ export default function EditAssistant() {
                 <RoleSelect 
                   selectedRole={form.role}
                   onRoleChange={(role) => setForm({ ...form, role })}
-                  required={true}
                 />
               </div>
               <button type="submit" disabled={updateAssistantMutation.isPending || !hasChanges()} className="submit-btn">
@@ -546,7 +641,7 @@ export default function EditAssistant() {
             </form>
           </div>
         )}
-        {success && <div className="success-message">Assistant updated successfully!</div>}
+        {success && <div className="success-message">✅ Assistant updated successfully!</div>}
         {error && <div className="error-message">{error}</div>}
       </div>
     </div>

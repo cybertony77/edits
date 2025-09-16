@@ -21,7 +21,22 @@ export default function QRGenerator() {
   const inputRef = useRef(null);
 
   // Handle responsive QR code sizing
-  
+  useEffect(() => {
+    const computeResponsiveSizes = () => {
+      if (typeof window === 'undefined') return;
+      const vw = window.innerWidth || 1024;
+      // Leave comfortable padding around the QR container on small screens
+      const available = Math.max(180, Math.min(360, Math.floor(vw * 0.82)));
+      setQrSize(available);
+      // Keep logo roughly a quarter of QR size for good readability
+      setLogoSize(Math.round(available * 0.24));
+    };
+
+    computeResponsiveSizes();
+    window.addEventListener('resize', computeResponsiveSizes);
+    return () => window.removeEventListener('resize', computeResponsiveSizes);
+  }, []);
+
   useEffect(() => {
     if (router.isReady) {
       const { mode, id } = router.query;
@@ -219,12 +234,11 @@ export default function QRGenerator() {
   return (
     <div style={{ 
       minHeight: "100vh",
-      padding: "20px 5px 20px 5px"
+      padding: "20px"
     }}>
       <div style={{ 
         maxWidth: 600, 
         margin: "40px auto", 
-        padding: 24,
         display: "flex",
         flexDirection: "column",
         alignItems: "stretch"
@@ -317,10 +331,21 @@ export default function QRGenerator() {
           background: linear-gradient(180deg, #1FA8DC 0%, #FEB954 100%);
           padding: 24px;
           box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-          margin: 0 auto;
+          margin-left: auto;
+          margin-right: auto;
           text-align: center;
-          width: fit-content;
+          width: 100%;
+          max-width: 440px;
           min-height: 400px;
+        }
+        /* Ensure QR canvas/SVG scales with container on small screens */
+        .qr-container canvas,
+        .qr-container svg {
+          max-width: 100%;
+          height: auto !important;
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
         }
         .qr-display {
           display: flex;
@@ -330,12 +355,16 @@ export default function QRGenerator() {
           margin: 25px 0 0 0;
           width: 100%;
           text-align: center;
+          margin-left: auto;
+          margin-right: auto;
         }
         .qr-center-wrapper {
           width: 100%;
           display: flex;
           justify-content: center;
           align-items: center;
+          margin-left: auto;
+          margin-right: auto;
         }
         .qr-id-text {
           margin-top: 15px;
@@ -402,18 +431,22 @@ export default function QRGenerator() {
         }
         @media (max-width: 768px) {
           .qr-container {
-            padding: 20px;
+            padding: 16px;
             margin: 0 auto;
-            max-width: 100vw;
+            max-width: 92vw;
           }
           .qr-center-wrapper {
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
+            margin-left: auto;
+            margin-right: auto;
           }
           .qr-display {
-            width: auto;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
           }
           .qr-btn {
             padding: 14px 0;
@@ -434,17 +467,21 @@ export default function QRGenerator() {
         }
         @media (max-width: 480px) {
           .qr-container {
-            padding: 16px;
-            max-width: 100vw;
+            padding: 12px;
+            max-width: 92vw;
           }
           .qr-center-wrapper {
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
+            margin-left: auto;
+            margin-right: auto;
           }
           .qr-display {
-            width: auto;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
           }
           .qr-btn {
             padding: 12px 0;

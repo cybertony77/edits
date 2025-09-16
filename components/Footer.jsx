@@ -28,7 +28,6 @@ export default function Footer() {
           .footer {
             font-size: 12px !important;
             padding: 10px 0 !important;
-            margin-top: -30px !important;
           }
         }
       `}</style>

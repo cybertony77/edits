@@ -35,10 +35,11 @@ export default function Dashboard() {
 
   return (
     <div style={{ 
-      height: "100vh",
+      // height: "calc(100dvh - 10rem)",
       padding: "10px 10px 5px 10px",
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      overflow: 'auto'
     }}>
       <div className="main-container" style={{ maxWidth: 600, margin: "10px auto", textAlign: "center" }}>
         <div style={{ 

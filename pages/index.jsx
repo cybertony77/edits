@@ -307,7 +307,7 @@ export default function Login() {
 
         <div className="login-container">
           <div className="logo-section">
-            <Image src="/logo.png" alt="Logo" width={80} height={80} className="logo-icon" priority />
+            <Image src="/logo.png" alt="Logo" width={90} height={90} className="logo-icon" priority />
             <h1 className="title">Assistant Login</h1>
             <p className="subtitle">Welcome back! Please sign in to continue</p>
           </div>

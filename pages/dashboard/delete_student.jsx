@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import BackToDashboard from "../../components/BackToDashboard";
 import Title from '../../components/Title';
-import { useStudent, useDeleteStudent } from '../../lib/api/students';
+import { useStudents, useStudent, useDeleteStudent } from '../../lib/api/students';
 
 export default function DeleteStudent() {
   const router = useRouter();
@@ -12,8 +12,11 @@ export default function DeleteStudent() {
   const [error, setError] = useState("");
   const [lastCheckedId, setLastCheckedId] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [searchResults, setSearchResults] = useState([]); // Store multiple search results
+  const [showSearchResults, setShowSearchResults] = useState(false); // Show/hide search results
 
   // React Query hooks
+  const { data: allStudents } = useStudents();
   const { data: student, isLoading: studentLoading, error: studentError } = useStudent(searchId, { enabled: !!searchId });
   const deleteStudentMutation = useDeleteStudent();
 
@@ -41,15 +44,47 @@ export default function DeleteStudent() {
 
   const checkStudent = async () => {
     if (!studentId.trim()) {
-      setError("Please enter a student ID");
+      setError("Please enter a student ID or name");
       return;
     }
 
     setError("");
-    setLastCheckedId(studentId.trim());
+    setSearchResults([]);
+    setShowSearchResults(false);
     
-    // Set the search ID to trigger the fetch
-    setSearchId(studentId);
+    const searchTerm = studentId.trim();
+    setLastCheckedId(searchTerm);
+    
+    // Check if it's a numeric ID
+    if (/^\d+$/.test(searchTerm)) {
+      // It's a numeric ID, search directly
+      setSearchId(searchTerm);
+    } else {
+      // It's a name, search through all students (case-insensitive, includes)
+      if (allStudents) {
+        const matchingStudents = allStudents.filter(student => 
+          student.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        
+        if (matchingStudents.length === 1) {
+          // Single match, use it directly
+          const foundStudent = matchingStudents[0];
+          setSearchId(foundStudent.id.toString());
+          setLastCheckedId(foundStudent.id.toString()); // Update with actual ID for consistency
+          setStudentId(foundStudent.id.toString());
+        } else if (matchingStudents.length > 1) {
+          // Multiple matches, show selection
+          setSearchResults(matchingStudents);
+          setShowSearchResults(true);
+          setError(`Found ${matchingStudents.length} students. Please select one.`);
+        } else {
+          setError(`No student found with name starting with "${searchTerm}"`);
+          setSearchId("");
+        }
+      } else {
+        setError("Student data not loaded. Please try again.");
+      }
+    }
   };
 
   const deleteStudent = async () => {
@@ -57,7 +92,7 @@ export default function DeleteStudent() {
 
     setError("");
 
-    deleteStudentMutation.mutate(studentId, {
+    deleteStudentMutation.mutate(searchId, {
       onSuccess: () => {
         setDeleted(true);
         setShowConfirm(false); // Hide the modal after success
@@ -74,6 +109,18 @@ export default function DeleteStudent() {
     setError("");
     setDeleted(false);
     setLastCheckedId("");
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
+
+  // Handle student selection from search results
+  const handleStudentSelect = (selectedStudent) => {
+    setSearchId(selectedStudent.id.toString());
+    setStudentId(selectedStudent.id.toString());
+    setLastCheckedId(selectedStudent.id.toString());
+    setSearchResults([]);
+    setShowSearchResults(false);
+    setError("");
   };
 
   return (
@@ -335,9 +382,11 @@ export default function DeleteStudent() {
                   // Clear student info and error if input changes
                   if (newValue.trim() !== lastCheckedId) {
                     setError("");
+                    setSearchResults([]);
+                    setShowSearchResults(false);
                   }
                 }}
-                placeholder="Enter student ID (e.g., 1)"
+                placeholder="Enter student ID or Name"
                 disabled={studentLoading || deleteStudentMutation.isPending}
                 required
               />
@@ -349,9 +398,61 @@ export default function DeleteStudent() {
                 {studentLoading ? "Loading..." : "🔍 Search"}
               </button>
             </form>
+            
+            {/* Show search results if multiple matches found */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div style={{ 
+                marginTop: "16px", 
+                padding: "16px", 
+                background: "#f8f9fa", 
+                borderRadius: "8px", 
+                border: "1px solid #dee2e6" 
+              }}>
+                <div style={{ 
+                  marginBottom: "12px", 
+                  fontWeight: "600", 
+                  color: "#495057" 
+                }}>
+                  Select a student to delete:
+                </div>
+                {searchResults.map((student) => (
+                  <button
+                    key={student.id}
+                    onClick={() => handleStudentSelect(student)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "12px 16px",
+                      margin: "8px 0",
+                      background: "white",
+                      border: "1px solid #dee2e6",
+                      borderRadius: "6px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "#e9ecef";
+                      e.target.style.borderColor = "#dc3545";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "white";
+                      e.target.style.borderColor = "#dee2e6";
+                    }}
+                  >
+                    <div style={{ fontWeight: "600", color: "#dc3545" }}>
+                      {student.name} (ID: {student.id})
+                    </div>
+                    <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
+                      {student.grade} • {student.main_center}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {error && (
-              <div className="error-message">{error}</div>
+              <div className="error-message">❌ {error}</div>
             )}
 
             {student && (

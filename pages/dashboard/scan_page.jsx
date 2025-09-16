@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Html5QrcodeScanner, Html5Qrcode } from "html5-qrcode";
 import { useRouter } from "next/router";
 import { AVAILABLE_CENTERS } from "../../constants/centers";
 import Title from "../../components/Title";
 import AttendanceWeekSelect from "../../components/AttendanceWeekSelect";
 import CenterSelect from "../../components/CenterSelect";
-import { useStudent, useToggleAttendance, useUpdateHomework, useUpdatePayment, useUpdateQuizGrade } from "../../lib/api/students";
+import QRScanner from "../../components/QRScanner";
+import { useStudents, useStudent, useToggleAttendance, useUpdateHomework, useUpdatePayment, useUpdateQuizGrade } from "../../lib/api/students";
 
 // Helper to extract student ID from QR text (URL or plain number)
 function extractStudentId(qrText) {
@@ -30,8 +30,6 @@ export default function QR() {
   const [searchId, setSearchId] = useState(""); // Separate state for search
   const [error, setError] = useState("");
   const [attendSuccess, setAttendSuccess] = useState(false);
-  const [scanner, setScanner] = useState(null);
-  const [scannerState, setScannerState] = useState('idle'); // 'idle', 'scanning', 'paused'
   const [attendanceCenter, setAttendanceCenter] = useState("");
   const [selectedWeek, setSelectedWeek] = useState("");
   const [quizDegreeInput, setQuizDegreeInput] = useState("");
@@ -41,17 +39,26 @@ export default function QR() {
   const [optimisticHwDone, setOptimisticHwDone] = useState(null);
   const [optimisticPaidSession, setOptimisticPaidSession] = useState(null);
   const [optimisticAttended, setOptimisticAttended] = useState(null);
+  const [isQRScanned, setIsQRScanned] = useState(false); // Track if student was found via QR scan
+  const [searchResults, setSearchResults] = useState([]); // Store multiple search results
+  const [showSearchResults, setShowSearchResults] = useState(false); // Show/hide search results
   const router = useRouter();
 
   // React Query hooks with enhanced real-time updates
   const { data: rawStudent, isLoading: studentLoading, error: studentError } = useStudent(searchId, { 
     enabled: !!searchId,
-    // Enhanced real-time settings
-    refetchInterval: 5 * 1000, // Refetch every 5 seconds for real-time updates
+    // Optimized for fast error responses
+    refetchInterval: 2 * 1000, // Refetch every 2 seconds for faster updates
     refetchIntervalInBackground: true, // Continue when tab is not active
     refetchOnWindowFocus: true, // Immediate update when switching back to tab
     staleTime: 0, // Always consider data stale for immediate updates
+    gcTime: 1000, // Keep in cache for only 1 second to force fresh data
+    retry: 1, // Only retry once to show errors faster
+    retryDelay: 500, // Retry after 500ms instead of default longer delay
   });
+  
+  // Get all students for name-based search
+  const { data: allStudents } = useStudents();
   const toggleAttendanceMutation = useToggleAttendance();
   const updateHomeworkMutation = useUpdateHomework();
   const updatePaymentMutation = useUpdatePayment();
@@ -62,11 +69,15 @@ export default function QR() {
     const rememberedCenter = sessionStorage.getItem('lastAttendanceCenter');
     const rememberedWeek = sessionStorage.getItem('lastSelectedWeek');
     
+    console.log('Loading from session storage:', { rememberedCenter, rememberedWeek });
+    
     if (rememberedCenter) {
       setAttendanceCenter(rememberedCenter);
+      console.log('Center loaded from session storage:', rememberedCenter);
     }
     if (rememberedWeek) {
       setSelectedWeek(rememberedWeek);
+      console.log('Week loaded from session storage:', rememberedWeek);
     }
   }, []);
 
@@ -141,13 +152,55 @@ export default function QR() {
 
   const handleManualSubmit = async (e) => {
     e.preventDefault();
-    if (studentId.trim()) {
-      // Set the search ID to trigger the fetch
-      setSearchId(studentId.trim());
+    if (!studentId.trim()) return;
+    
+    const searchTerm = studentId.trim();
+    
+    // Mark that this is a manual search, not QR scan
+    setIsQRScanned(false);
+    setSearchResults([]);
+    setShowSearchResults(false);
+    
+    // Check if it's a numeric ID
+    if (/^\d+$/.test(searchTerm)) {
+      // It's a numeric ID, search directly
+      setSearchId(searchTerm);
+    } else {
+      // It's a name, search through all students (case-insensitive, includes)
+      if (allStudents) {
+        const matchingStudents = allStudents.filter(student => 
+          student.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        
+        if (matchingStudents.length === 1) {
+          // Single match, use it directly
+          const foundStudent = matchingStudents[0];
+          setSearchId(foundStudent.id.toString());
+          setStudentId(foundStudent.id.toString());
+        } else if (matchingStudents.length > 1) {
+          // Multiple matches, show selection
+          setSearchResults(matchingStudents);
+          setShowSearchResults(true);
+          setError(`Found ${matchingStudents.length} students. Please select one.`);
+        } else {
+          setError(`No student found with name starting with "${searchTerm}"`);
+          setSearchId("");
+        }
+      } else {
+        setError("Student data not loaded. Please try again.");
+      }
     }
   };
 
-
+  // Handle student selection from search results
+  const handleStudentSelect = (selectedStudent) => {
+    setSearchId(selectedStudent.id.toString());
+    setStudentId(selectedStudent.id.toString());
+    setSearchResults([]);
+    setShowSearchResults(false);
+    setError("");
+    setIsQRScanned(false); // Mark as manual search
+  };
 
   useEffect(() => {
     const token = sessionStorage.getItem("token");
@@ -158,229 +211,68 @@ export default function QR() {
     
   }, [studentId, student]);
 
-  // Open camera for scanning
-  const openCamera = () => {
-    setError("");
-    setScannerState('scanning');
-    
-    // Clear container
-    const qrReaderDiv = document.getElementById("qr-reader");
-    if (qrReaderDiv) {
-      qrReaderDiv.innerHTML = "";
-    }
-
-    setTimeout(() => {
-      const qrScanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { 
-          fps: 10, 
-          qrbox: { width: 300, height: 300 },
-          aspectRatio: 1.0,
-          videoConstraints: {
-            facingMode: "environment" // Force back camera
-          },
-          showTorchButtonIfSupported: false,
-          showZoomSliderIfSupported: false,
-          defaultZoomValueIfSupported: 1,
-          disableFlip: true
-        },
-        /* verbose= */ false
-      );
-
-      qrScanner.render((decodedText) => {
-        if (decodedText && decodedText !== studentId) {
-          setError("");
-          setAttendSuccess(false);
-          
-          const extractedId = extractStudentId(decodedText);
-          if (extractedId) {
-            setStudentId(extractedId);
-            setSearchId(extractedId);
-            // Pause scanner after successful scan
-            setScannerState('paused');
-            // Clear scanner and container immediately
-            setTimeout(() => {
-              try {
-                qrScanner.clear();
-                const qrReaderDiv = document.getElementById("qr-reader");
-                if (qrReaderDiv) {
-                  qrReaderDiv.innerHTML = "";
-                }
-              } catch (e) {
-                console.warn("Error clearing scanner:", e);
-              }
-            }, 100);
-          } else {
-            setError('Invalid QR code: not a valid student ID');
-          }
-        }
-      }, (errorMessage) => {
-        // Ignore most errors to avoid spam
-        if (errorMessage && typeof errorMessage === 'string') {
-          if (errorMessage.includes("NotAllowedError")) {
-            setError("Camera permission denied. Please allow camera access.");
-            setScannerState('idle');
-            // Clear scanner on error
-            setTimeout(() => {
-              try {
-                qrScanner.clear();
-                const qrReaderDiv = document.getElementById("qr-reader");
-                if (qrReaderDiv) {
-                  qrReaderDiv.innerHTML = "";
-                }
-              } catch (e) {
-                console.warn("Error clearing scanner:", e);
-              }
-            }, 100);
-          } else if (errorMessage.includes("NotReadableError") || errorMessage.includes("Could not start video source")) {
-            setError("Camera not available. Please check camera permissions.");
-            setScannerState('idle');
-            // Clear scanner on error
-            setTimeout(() => {
-              try {
-                qrScanner.clear();
-                const qrReaderDiv = document.getElementById("qr-reader");
-                if (qrReaderDiv) {
-                  qrReaderDiv.innerHTML = "";
-                }
-              } catch (e) {
-                console.warn("Error clearing scanner:", e);
-              }
-            }, 100);
-          }
-        }
+  // Auto-attend student function
+  const autoAttendStudent = async (studentId) => {
+    try {
+      console.log('🤖 Auto-attending student:', student.name, 'for week:', selectedWeek, 'center:', attendanceCenter);
+      
+      // Set optimistic state immediately
+      setOptimisticAttended(true);
+      
+      const weekNumber = getWeekNumber(selectedWeek);
+      
+      // Create attendance data
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const lastAttendance = `${day}/${month}/${year} in ${attendanceCenter}`;
+      
+      const attendanceData = { 
+        attended: true,
+        lastAttendance, 
+        lastAttendanceCenter: attendanceCenter, 
+        attendanceWeek: weekNumber 
+      };
+      
+      // Call the attendance API
+      toggleAttendanceMutation.mutate({
+        id: student.id,
+        attendanceData
       });
-
-      setScanner(qrScanner);
       
-      // Additional cleanup to remove default controls after render
-      setTimeout(() => {
-        const elementsToHide = [
-          '#qr-reader__dashboard_section',
-          '#qr-reader__dashboard_section_csr',
-          '#qr-reader__dashboard_section_swaplink',
-          '#qr-reader__header_message',
-          '#qr-reader__camera_selection',
-          '#qr-reader select',
-          '#qr-reader button:not(.stop-scanning-btn)',
-          '#qr-reader span'
-        ];
-        
-        elementsToHide.forEach(selector => {
-          const elements = document.querySelectorAll(selector);
-          elements.forEach(el => {
-            if (el && !el.classList.contains('stop-scanning-btn')) {
-              el.style.display = 'none';
-              el.style.visibility = 'hidden';
-              el.style.opacity = '0';
-              el.style.height = '0';
-              el.style.overflow = 'hidden';
-            }
-          });
-        });
-        
-        // Also try to remove by text content
-        const qrReaderDiv = document.getElementById('qr-reader');
-        if (qrReaderDiv) {
-          const allElements = qrReaderDiv.querySelectorAll('*');
-          allElements.forEach(el => {
-            if (el.textContent && 
-                (el.textContent.includes('Select Camera') || 
-                 el.textContent.includes('Stop Scanning') ||
-                 el.textContent.includes('camera'))) {
-              if (!el.classList.contains('stop-scanning-btn')) {
-                el.style.display = 'none';
-              }
-            }
-          });
-        }
-      }, 500);
-    }, 100);
+    } catch (error) {
+      console.error('Error in auto-attend:', error);
+      // Reset optimistic state on error
+      setOptimisticAttended(null);
+    }
   };
 
-  // Handle file upload for QR code
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setError("");
-      
-      try {
-        // Create a temporary div for scanning
-        const tempDiv = document.createElement('div');
-        tempDiv.id = 'temp-qr-scanner';
-        tempDiv.style.display = 'none';
-        document.body.appendChild(tempDiv);
-        
-        const html5QrCode = new Html5Qrcode("temp-qr-scanner");
-        
-        const decodedText = await html5QrCode.scanFile(file, true);
-        
-        console.log("QR Code from file:", decodedText);
-        setAttendSuccess(false);
-        
-        const extractedId = extractStudentId(decodedText);
-        if (extractedId) {
-          setStudentId(extractedId);
-          setSearchId(extractedId);
-          setScannerState('paused');
-        } else {
-          setError('Invalid QR code: not a valid student ID');
-        }
-        
-        // Cleanup
-        html5QrCode.clear();
-        document.body.removeChild(tempDiv);
-        
-      } catch (err) {
-        console.error("File scan error:", err);
-        setError('Could not read QR code from image. Please make sure the image contains a valid QR code.');
-        
-        // Cleanup on error
-        const tempDiv = document.getElementById('temp-qr-scanner');
-        if (tempDiv) {
-          document.body.removeChild(tempDiv);
-        }
-      }
-    }
-    // Reset file input
-    event.target.value = '';
-  };
-
-  // Scan again
-  const scanAgain = () => {
-    // Clear any existing scanner
-    if (scanner) {
-      try {
-        scanner.clear();
-      } catch (e) {
-        console.warn("Error clearing scanner:", e);
-      }
-      setScanner(null);
-    }
-    
-    // Clear the container completely
-    const qrReaderDiv = document.getElementById("qr-reader");
-    if (qrReaderDiv) {
-      qrReaderDiv.innerHTML = "";
-    }
-    
-    // Reset to idle state
-    setScannerState('idle');
+  // Handle QR code scanned from the QRScanner component
+  const handleQRCodeScanned = (scannedStudentId) => {
     setError("");
+    setAttendSuccess(false);
+    setStudentId(scannedStudentId);
+    setSearchId(scannedStudentId);
+    
+    // Only mark as QR scanned if center and week are already selected
+    // This prevents auto-attendance if student is scanned before selecting center/week
+    if (attendanceCenter && selectedWeek) {
+      setIsQRScanned(true); // Mark that this student was found via QR scan with conditions met
+    } else {
+      setIsQRScanned(false); // Don't auto-attend if conditions not met at scan time
+    }
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (scanner) {
-        try {
-          scanner.clear();
-        } catch (e) {
-          console.warn("Error clearing scanner on unmount:", e);
-        }
-      }
-    };
-  }, [scanner]);
+  // Handle QR scanner errors
+  const handleQRScannerError = (errorMessage) => {
+    // Handle both Error objects and strings
+    if (errorMessage instanceof Error) {
+      console.log(errorMessage.message || 'An error occurred');
+    } else {
+      console.log(errorMessage);
+    }
+  };
 
   // Auto-hide error after 6 seconds
   useEffect(() => {
@@ -390,12 +282,25 @@ export default function QR() {
     }
   }, [error]);
 
-  // Handle student errors from React Query
+  // Handle student errors from React Query with immediate feedback
   useEffect(() => {
     if (studentError) {
       setError("Student not found or unauthorized.");
     }
   }, [studentError]);
+
+  // Show immediate error when searchId changes but no student is found after a short delay
+  useEffect(() => {
+    if (searchId && !studentLoading) {
+      const timer = setTimeout(() => {
+        if (!rawStudent && !studentError) {
+          setError("Student not found or unauthorized.");
+        }
+      }, 1000); // Show error after 1 second if no data and no error
+      
+      return () => clearTimeout(timer);
+    }
+  }, [searchId, studentLoading, rawStudent, studentError]);
 
   // Clear optimistic state when student or week changes
   useEffect(() => {
@@ -403,6 +308,24 @@ export default function QR() {
     setOptimisticPaidSession(null);
     setOptimisticAttended(null);
   }, [student?.id, selectedWeek]);
+
+  // Auto-attend student when conditions are met (ONLY for QR scans with pre-selected center/week)
+  useEffect(() => {
+    // Only auto-attend if:
+    // 1. Student data is loaded
+    // 2. Center and week are selected
+    // 3. Student is not already attended
+    // 4. We haven't already set optimistic attendance
+    // 5. Student was found via QR scan AND center/week were already selected at scan time
+    if (student && attendanceCenter && selectedWeek && !student.attended_the_session && optimisticAttended === null && isQRScanned) {
+      // Add a small delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        autoAttendStudent(student.id);
+      }, 800); // 800ms delay for better UX
+      
+      return () => clearTimeout(timer);
+    }
+  }, [student, attendanceCenter, selectedWeek, optimisticAttended, isQRScanned]);
 
   // Reset HW/Paid optimistic states when attendance becomes false
   useEffect(() => {
@@ -420,18 +343,6 @@ export default function QR() {
 
 
 
-  const updateAttendanceWeek = async (week) => {
-    if (!student) return;
-    
-    try {
-      // Remember the selected week
-      if (week) {
-        sessionStorage.setItem('lastSelectedWeek', week);
-      }
-    } catch (err) {
-      console.error("Failed to update attendance week:", err);
-    }
-  };
 
   const toggleAttendance = async () => {
     if (!student || !selectedWeek || !attendanceCenter) return;
@@ -450,13 +361,7 @@ export default function QR() {
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
-      let hours = now.getHours();
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const formattedHours = String(hours).padStart(2, '0');
-      const lastAttendance = `${day}/${month}/${year} in ${attendanceCenter} at ${formattedHours}:${minutes} ${ampm}`;
+      const lastAttendance = `${day}/${month}/${year} in ${attendanceCenter}`;
       
       attendanceData = { 
         attended: true,
@@ -662,155 +567,7 @@ export default function QR() {
           transform: none;
           box-shadow: 0 2px 8px rgba(31, 168, 220, 0.2);
         }
-        .qr-container {
-          background: white;
-          border-radius: 16px;
-          padding: 24px;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-          margin-bottom: 24px;
-        }
-        .qr-reader {
-          border-radius: 12px;
-          overflow: hidden;
-          color: #000000;
-        }
-        .qr-reader * {
-          color: #000000 !important;
-        }
-        /* Hide scanner controls when in paused state */
-        .qr-container:has(.qr-controls) .qr-reader {
-          display: none !important;
-        }
-        /* Hide all default scanner controls - more aggressive approach */
-        #qr-reader__dashboard_section,
-        #qr-reader__dashboard_section_csr,
-        #qr-reader__dashboard_section_swaplink,
-        #qr-reader__header_message,
-        #qr-reader__camera_selection,
-        #qr-reader__camera_permission_button,
-        #qr-reader__scan_type_change,
-        div[id*="qr-reader__dashboard"],
-        div[id*="qr-reader__header"],
-        span[id*="qr-reader__status"] {
-          display: none !important;
-          visibility: hidden !important;
-          opacity: 0 !important;
-          height: 0 !important;
-          overflow: hidden !important;
-        }
-        
-        /* Hide all selects, buttons, and spans inside qr-reader */
-        #qr-reader select,
-        #qr-reader button,
-        #qr-reader span,
-        #qr-reader div:not(#qr-reader__scan_region):not([id*="video"]) {
-          display: none !important;
-          visibility: hidden !important;
-        }
-        
-        /* Only show the scan region */
-        #qr-reader__scan_region {
-          margin-bottom: 0 !important;
-          margin-top: 0 !important;
-        }
-        
-        /* Hide any text content */
-        #qr-reader *:not(video):not(canvas) {
-          color: transparent !important;
-          font-size: 0 !important;
-        }
-        .scanning-container {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-        .scanning-controls {
-          display: flex;
-          justify-content: center;
-          padding: 0 20px;
-        }
-        .stop-scanning-btn {
-          background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
-          color: white;
-          box-shadow: 0 4px 16px rgba(220, 53, 69, 0.3);
-        }
-        .stop-scanning-btn:hover {
-          background: linear-gradient(135deg, #c82333 0%, #dc3545 100%);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
-        }
-        .qr-controls {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 300px;
-          background: #f8f9fa;
-          border-radius: 12px;
-          border: 2px dashed #dee2e6;
-          padding: 20px;
-          text-align: center;
-          gap: 16px;
-        }
-        .qr-buttons {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          justify-content: center;
-        }
-        .qr-btn {
-          padding: 16px 32px;
-          border: none;
-          border-radius: 12px;
-          font-size: 1.1rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          min-width: 160px;
-          justify-content: center;
-        }
-        .camera-btn {
-          background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-          color: white;
-          box-shadow: 0 4px 16px rgba(40, 167, 69, 0.3);
-        }
-        .camera-btn:hover {
-          background: linear-gradient(135deg, #1e7e34 0%, #17a2b8 100%);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
-        }
-        .upload-btn {
-          background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-          color: white;
-          box-shadow: 0 4px 16px rgba(0, 123, 255, 0.3);
-        }
-        .upload-btn:hover {
-          background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
-        }
-        .scan-again-btn {
-          background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-          color: #212529;
-          box-shadow: 0 4px 16px rgba(255, 193, 7, 0.3);
-        }
-        .scan-again-btn:hover {
-          background: linear-gradient(135deg, #e0a800 0%, #d39e00 100%);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4);
-        }
-        .qr-message {
-          color: #6c757d;
-          font-size: 1rem;
-          font-weight: 500;
-          margin-bottom: 8px;
-        }
-        .file-input {
-          display: none;
-        }
+
         .error-message {
           background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
           color: white;
@@ -1003,32 +760,6 @@ export default function QR() {
             flex-direction: column;
             gap: 12px;
           }
-          .qr-controls {
-            min-height: 250px;
-            padding: 16px;
-            gap: 12px;
-          }
-          .qr-buttons {
-            gap: 12px;
-          }
-          .qr-btn {
-            padding: 14px 28px;
-            font-size: 1rem;
-            min-width: 140px;
-          }
-          .qr-message {
-            font-size: 0.95rem;
-          }
-          .scanning-container {
-            gap: 12px;
-          }
-          .scanning-controls {
-            padding: 0 16px;
-          }
-          .stop-scanning-btn {
-            padding: 12px 24px;
-            font-size: 0.95rem;
-          }
           .fetch-btn {
             width: 100%;
             padding: 14px 20px;
@@ -1055,36 +786,6 @@ export default function QR() {
             font-size: 0.8rem;
             padding: 6px 12px;
           }
-          .qr-controls {
-            min-height: 220px;
-            padding: 12px;
-            gap: 10px;
-          }
-          .qr-buttons {
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-          }
-          .qr-btn {
-            padding: 12px 24px;
-            font-size: 0.95rem;
-            min-width: auto;
-            width: 100%;
-          }
-          .qr-message {
-            font-size: 0.9rem;
-          }
-          .scanning-container {
-            gap: 10px;
-          }
-          .scanning-controls {
-            padding: 0 12px;
-          }
-          .stop-scanning-btn {
-            padding: 10px 20px;
-            font-size: 0.9rem;
-            width: 100%;
-          }
         }
       `}</style>
 
@@ -1095,12 +796,15 @@ export default function QR() {
                   <input
           className="manual-input"
           type="text"
-          placeholder="Enter student ID (e.g., 1)"
+          placeholder="Enter student ID or Name"
           value={studentId}
           onChange={(e) => {
             setStudentId(e.target.value);
             setSearchId(""); // Clear search ID to prevent auto-fetch
-            // Clear error and success when ID changes
+            setIsQRScanned(false); // Reset QR scan flag when input changes
+            setSearchResults([]);
+            setShowSearchResults(false);
+            // Clear error and success when input changes
             if (e.target.value !== studentId) {
               setError("");
               setAttendSuccess(false);
@@ -1111,56 +815,133 @@ export default function QR() {
             🔍 Search
           </button>
         </form>
+        
+        {/* Show search results if multiple matches found */}
+        {showSearchResults && searchResults.length > 0 && (
+          <div style={{ 
+            marginTop: "16px", 
+            padding: "16px", 
+            background: "#f8f9fa", 
+            borderRadius: "8px", 
+            border: "1px solid #dee2e6" 
+          }}>
+            <div style={{ 
+              marginBottom: "12px", 
+              fontWeight: "600", 
+              color: "#495057" 
+            }}>
+              Select a student:
+            </div>
+            {searchResults.map((student) => (
+              <button
+                key={student.id}
+                onClick={() => handleStudentSelect(student)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "12px 16px",
+                  margin: "8px 0",
+                  background: "white",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "6px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "#e9ecef";
+                  e.target.style.borderColor = "#1FA8DC";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "white";
+                  e.target.style.borderColor = "#dee2e6";
+                }}
+              >
+                <div style={{ fontWeight: "600", color: "#1FA8DC" }}>
+                  {student.name} (ID: {student.id})
+                </div>
+                <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
+                  {student.grade} • {student.main_center}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="qr-container">
-        {scannerState === 'idle' && (
-          <div className="qr-controls">
-            <div className="qr-message">
-              📱 Choose how to scan QR code
+      {/* Week and Center Selection - Always visible */}
+      <div style={{ 
+        background: 'white', 
+        borderRadius: 16, 
+        padding: 24, 
+        boxShadow: '0 8px 32px rgba(0,0,0,0.1)', 
+        marginBottom: 24 
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Attendance Center */}
+          <div>
+            <div style={{ 
+              fontWeight: 600, 
+              color: '#6c757d', 
+              fontSize: '0.9rem', 
+              marginBottom: 8,
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}>
+              Attendance Center
             </div>
-            <div className="qr-buttons">
-              <button className="qr-btn camera-btn" onClick={openCamera}>
-                📷 Open Camera
-              </button>
-              <label className="qr-btn upload-btn" htmlFor="qr-file-input">
-                📁 Upload QR Code
-              </label>
-              <input
-                id="qr-file-input"
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="file-input"
-              />
-            </div>
+            <CenterSelect
+              selectedCenter={attendanceCenter}
+              onCenterChange={(center) => {
+                setAttendanceCenter(center);
+                // Remember the selected center
+                if (center) {
+                  sessionStorage.setItem('lastAttendanceCenter', center);
+                } else {
+                  // Clear selection - remove from sessionStorage
+                  sessionStorage.removeItem('lastAttendanceCenter');
+                }
+              }}
+            />
           </div>
-        )}
-        
-        {scannerState === 'scanning' && (
-          <div className="scanning-container">
-            <div id="qr-reader" className="qr-reader"></div>
-            <div className="scanning-controls">
-              <button className="qr-btn stop-scanning-btn" onClick={scanAgain}>
-                ❌ Stop Scanning
-              </button>
+          
+          {/* Attendance Week */}
+          <div>
+            <div style={{ 
+              fontWeight: 600, 
+              color: '#6c757d', 
+              fontSize: '0.9rem', 
+              marginBottom: 8,
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}>
+              Attendance Week
             </div>
+            <AttendanceWeekSelect
+              selectedWeek={selectedWeek}
+              onWeekChange={(week) => {
+                console.log('Week selected:', week);
+                setSelectedWeek(week);
+                // Save to session storage
+                if (week) {
+                  sessionStorage.setItem('lastSelectedWeek', week);
+                  console.log('Week saved to session storage:', week);
+                } else {
+                  // Clear selection - remove from sessionStorage
+                  sessionStorage.removeItem('lastSelectedWeek');
+                  console.log('Week removed from session storage');
+                }
+              }}
+              required={true}
+            />
           </div>
-        )}
-        
-        {scannerState === 'paused' && (
-          <div className="qr-controls">
-            <div className="qr-message">
-              ✅ QR code scanned successfully
-            </div>
-            <div className="qr-buttons">
-              <button className="qr-btn scan-again-btn" onClick={scanAgain}>
-                🔄 Scan Again
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
+
+      <QRScanner 
+        onQRCodeScanned={handleQRCodeScanned}
+        onError={handleQRScannerError}
+      />
 
       {student && (
         <div className="student-card">
@@ -1188,22 +969,54 @@ export default function QR() {
           </div>
 
           <div className="status-row">
-            <span className={`status-badge ${(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) ? 'status-attended' : 'status-not-attended'}`}>
-              {(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) ? '✅ Attended' : '❌ Not Attended'}
+            <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
+              ? 'status-not-attended' 
+              : (optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                ? 'status-attended' 
+                : 'status-not-attended'}`}>
+              {(!attendanceCenter || !selectedWeek) 
+                ? '❌ Absent' 
+                : (optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                  ? '✅ Attended' 
+                  : '❌ Absent'}
             </span>
-            <span className={`status-badge ${(optimisticHwDone !== null ? optimisticHwDone : student.hwDone) ? 'status-attended' : 'status-not-attended'}`}>
-              {(optimisticHwDone !== null ? optimisticHwDone : student.hwDone) ? '✅ H.W: Done' : '❌ H.W: Not Done'}
+            <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
+              ? 'status-not-attended' 
+              : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
+                ? 'status-attended' 
+                : 'status-not-attended'}`}>
+              {(!attendanceCenter || !selectedWeek) 
+                ? '❌ H.W: Not Done' 
+                : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
+                  ? '✅ H.W: Done' 
+                  : '❌ H.W: Not Done'}
             </span>
-            <span className={`status-badge ${(optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) ? 'status-attended' : 'status-not-attended'}`}>
-              {(optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) ? '✅ Paid' : '❌ Not Paid'}
+            <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
+              ? 'status-not-attended' 
+              : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
+                ? 'status-attended' 
+                : 'status-not-attended'}`}>
+              {(!attendanceCenter || !selectedWeek) 
+                ? '❌ Not Paid' 
+                : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
+                  ? '✅ Paid' 
+                  : '❌ Not Paid'}
             </span>
-            <span className={`status-badge ${student.quizDegree ? 'status-attended' : 'status-not-attended'}`}>
-              {student.quizDegree ? `✅ Quiz: ${student.quizDegree}` : '❌ Quiz: ...'}
+            <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
+              ? 'status-not-attended' 
+              : student.quizDegree 
+                ? 'status-attended' 
+                : 'status-not-attended'}`}>
+              {(!attendanceCenter || !selectedWeek) 
+                ? '❌ Quiz: ...' 
+                : student.quizDegree 
+                  ? `✅ Quiz: ${student.quizDegree}` 
+                  : '❌ Quiz: ...'}
             </span>
           </div>
 
-          {/* Show current attendance info if student is attended */}
-          {(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) && student.lastAttendance && (
+          {/* Show current attendance info if student is attended AND center/week are selected */}
+          {(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) && student.lastAttendance && attendanceCenter && selectedWeek && (
             <div className="info-item">
               <div className="info-label">Attendance info:</div>
               <div className="info-value" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
@@ -1212,42 +1025,6 @@ export default function QR() {
             </div>
           )}
           
-          {/* Attendance Center - always show for all students */}
-          <div className="info-item select-item" style={{ marginBottom: 16 }}>
-            <div className="info-label">Attendance Center</div>
-            <CenterSelect
-              selectedCenter={attendanceCenter}
-              onCenterChange={(center) => {
-                setAttendanceCenter(center);
-                // Remember the selected center
-                if (center) {
-                  sessionStorage.setItem('lastAttendanceCenter', center);
-                } else {
-                  // Clear selection - remove from sessionStorage
-                  sessionStorage.removeItem('lastAttendanceCenter');
-                }
-              }}
-            />
-          </div>
-          
-          {/* Attendance Week - always show for both attended and non-attended students */}
-          <div className="info-item select-item" style={{ marginBottom: 16 }}>
-            <div className="info-label">Attendance Week</div>
-            <AttendanceWeekSelect
-              selectedWeek={selectedWeek}
-              onWeekChange={(week) => {
-                console.log('Week selected:', week);
-                setSelectedWeek(week);
-                if (week) {
-                  updateAttendanceWeek(week);
-                } else {
-                  // Clear selection - remove from sessionStorage
-                  sessionStorage.removeItem('lastSelectedWeek');
-                }
-              }}
-              required={true}
-            />
-          </div>
 
           {/* Warning message when week/center not selected */}
           {(!selectedWeek || !attendanceCenter) && (
@@ -1262,7 +1039,7 @@ export default function QR() {
               boxShadow: '0 2px 8px rgba(255, 193, 7, 0.3)',
               fontSize: '0.9rem'
             }}>
-              ⚠️ Please select both a week and attendance center to enable tracking
+              ⚠️ Please select both a attendance week and attendance center to enable tracking attendance
             </div>
           )}
 
@@ -1276,7 +1053,11 @@ export default function QR() {
               disabled={!attendanceCenter || !selectedWeek}
               style={{
                 width: '100%',
-                background: (optimisticAttended !== null ? optimisticAttended : student.attended_the_session) ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                background: (!attendanceCenter || !selectedWeek) 
+                  ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' // Default "Not Attended" state
+                  : (optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                    ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
+                    : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 10,
@@ -1288,7 +1069,11 @@ export default function QR() {
                 transition: 'all 0.3s ease'
               }}
             >
-              {(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) ? '❌ Mark as Not Attended' : '✅ Mark as Attended'}
+              {(!attendanceCenter || !selectedWeek) 
+                ? '✅ Mark as Attended' 
+                : (optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                  ? '❌ Mark as Absent' 
+                  : '✅ Mark as Attended'}
             </button>
 
             {/* Homework Toggle Button */}
@@ -1298,11 +1083,13 @@ export default function QR() {
               disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
               style={{
                 width: '100%',
-                background: !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                  ? 'linear-gradient(135deg, rgb(46, 165, 101) 0%, rgb(41, 196, 88) 100%)' // Gray when not attended
-                  : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
-                    ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
-                    : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                background: (!attendanceCenter || !selectedWeek) 
+                  ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' // Default "Not Done" state
+                  : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                      ? 'linear-gradient(135deg, #6c757d 0%, #495057 100%)' // Gray when not attended
+                    : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
+                      ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
+                      : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 10,
@@ -1314,11 +1101,13 @@ export default function QR() {
                 transition: 'all 0.3s ease'
               }}
             >
-              {!(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                ? '🚫 Must Attend First' 
-                : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
-                  ? '❌ Mark as H.W Not Done' 
-                  : '✅ Mark as H.W Done'}
+              {(!attendanceCenter || !selectedWeek) 
+                ? '✅ Mark as H.W Done' 
+                : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                  ? '🚫 Must Attend First' 
+                  : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
+                    ? '❌ Mark as H.W Not Done' 
+                    : '✅ Mark as H.W Done'}
             </button>
 
             {/* Payment Toggle Button */}
@@ -1328,11 +1117,13 @@ export default function QR() {
               disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
               style={{
                 width: '100%',
-                background: !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                  ? 'linear-gradient(135deg, rgb(46, 165, 101) 0%, rgb(41, 196, 88) 100%)' // Gray when not attended
-                  : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
-                    ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
-                    : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                background: (!attendanceCenter || !selectedWeek) 
+                  ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' // Default "Not Paid" state
+                  : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                    ? 'linear-gradient(135deg, #6c757d 0%, #495057 100%)' // Gray when not attended
+                    : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
+                      ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
+                      : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 10,
@@ -1344,11 +1135,13 @@ export default function QR() {
                 transition: 'all 0.3s ease'
               }}
             >
-              {!(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                ? '🚫 Must Attend First' 
-                : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
-                  ? '❌ Mark as Not Paid' 
-                  : '✅ Mark as Paid'}
+              {(!attendanceCenter || !selectedWeek) 
+                ? '✅ Mark as Paid' 
+                : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
+                  ? '🚫 Must Attend First' 
+                  : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
+                    ? '❌ Mark as Not Paid' 
+                    : '✅ Mark as Paid'}
             </button>
 
           </div>
@@ -1424,7 +1217,7 @@ export default function QR() {
       {/* Error message now appears below the student card */}
       {error && (
         <div className="error-message">
-          ❌ {error}
+          ❌ {typeof error === 'string' ? error : 'An error occurred'}
         </div>
       )}
       </div>

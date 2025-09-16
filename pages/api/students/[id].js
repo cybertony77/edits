@@ -80,10 +80,7 @@ export default async function handler(req, res) {
         if (dateMatch) {
           dateStr = `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}`;
         }
-        // Try to extract time (HH:mm AM/PM) - without seconds
-        const timeMatch = currentWeek.lastAttendance.match(/(\d{1,2}:\d{2} [AP]M)/);
-        const timeStr = timeMatch ? timeMatch[1] : '';
-        lastAttendance = `${dateStr} in ${currentWeek.lastAttendanceCenter} at ${timeStr}`;
+        lastAttendance = `${dateStr} in ${currentWeek.lastAttendanceCenter}`;
       }
       
       res.json({

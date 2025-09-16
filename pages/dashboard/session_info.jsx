@@ -35,6 +35,9 @@ export default function SessionInfo() {
     refetchOnMount: true, // Always refetch when component mounts/page entered
   });
 
+  // Require all filters to be selected to show any data
+  const allFiltersSelected = !!(selectedCenter && selectedGrade && selectedWeek);
+
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(""), 5000);
@@ -125,6 +128,10 @@ export default function SessionInfo() {
   };
 
   const handleFilter = () => {
+    if (!allFiltersSelected) {
+      setFiltered([]);
+      return;
+    }
     let filteredList = students;
     if (selectedGrade) {
       filteredList = filteredList.filter(s => s.grade && s.grade.toLowerCase().includes(selectedGrade.toLowerCase()));
@@ -165,7 +172,7 @@ export default function SessionInfo() {
     };
   };
 
-  const dataToCount = filtered !== null ? filtered : students;
+  const dataToCount = allFiltersSelected ? (filtered !== null ? filtered : students) : [];
 
   // Helper function to check if student attended in specific week
   const didStudentAttendInWeek = (student, weekNumber) => {
@@ -268,7 +275,7 @@ export default function SessionInfo() {
   }).length;
 
   // NAMC: Not Attended but Main Center (in specific week if selected)
-  const NAMC_students = dataToCount.filter(s => {
+  const NAMC_students = allFiltersSelected ? dataToCount.filter(s => {
     if (!selectedGrade || !selectedCenter) return false;
     
     const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
@@ -283,15 +290,15 @@ export default function SessionInfo() {
       // Check if NOT attended in any week
       return !s.weeks || !s.weeks.some(week => week.attended);
     }
-  });
+  }) : [];
   const NAMC = NAMC_students.length;
   const NAMC_ids = NAMC_students.map(s => s.id).join(', ');
 
   // Main Center denominator: all students with main_center === selectedCenter and grade === selectedGrade (regardless of attendance)
-  const mainCenterTotal = dataToCount.filter(s =>
+  const mainCenterTotal = allFiltersSelected ? dataToCount.filter(s =>
     s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase() &&
     s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '')
-  ).length;
+  ).length : 0;
 
   // NMC: Not Main Center Attended (in specific week if selected)
   const NMC = dataToCount.filter(s => {
@@ -321,7 +328,7 @@ export default function SessionInfo() {
   const MC_percent = mainCenterTotal > 0 ? Math.round((MC / mainCenterTotal) * 100) : 0;
 
   // Filtered students for table (by grade, center, and week if selected)
-  let filteredStudents = (filtered !== null ? filtered : students).filter(s => {
+  let filteredStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
     if (!selectedGrade || !selectedCenter) return false;
     
     const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
@@ -345,7 +352,7 @@ export default function SessionInfo() {
   }
 
   // Filter for not attended students (considering week if selected)
-  const notAttendedStudents = (filtered !== null ? filtered : students).filter(s => {
+  const notAttendedStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
     if (!selectedGrade || !selectedCenter) return false;
     
     const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
@@ -618,7 +625,7 @@ export default function SessionInfo() {
             onToggle={() => setOpenDropdown(openDropdown === 'grade' ? null : 'grade')}
             onClose={() => setOpenDropdown(null)}
           />
-          <div className="filter-label">Week (Optional)</div>
+          <div className="filter-label">Week</div>
           <AttendanceWeekSelect
             selectedWeek={selectedWeek}
             onWeekChange={(week) => {
@@ -633,6 +640,7 @@ export default function SessionInfo() {
             isOpen={openDropdown === 'week'}
             onToggle={() => setOpenDropdown(openDropdown === 'week' ? null : 'week')}
             onClose={() => setOpenDropdown(null)}
+            required={true}
           />
           <button type="submit" className="filter-btn">Filter Students</button>
         </form>

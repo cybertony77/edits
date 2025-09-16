@@ -1,8 +1,16 @@
 import Image from "next/image";
 import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
+import Title from "../components/Title";
 
 export default function ContactDeveloperPage() {
   const router = useRouter();
+  const [hasToken, setHasToken] = useState(false);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("token");
+    setHasToken(!!token);
+  }, []);
 
   return (
     <div style={{ 
@@ -51,6 +59,9 @@ export default function ContactDeveloperPage() {
         position: "relative",
         zIndex: 2
       }}>
+        {/* Show Title component only if user has token */}
+        {hasToken && <Title backText="Back" href={null}>Contact Developer</Title>}
+        
         <div style={{
           background: "rgba(255, 255, 255, 0.98)",
           backdropFilter: "blur(20px)",
@@ -427,73 +438,80 @@ export default function ContactDeveloperPage() {
             marginTop: "24px",
             flexDirection: "column"
           }}>
-            {/* Login Button */}
-            <button 
-              onClick={() => router.push('/')}
-              style={{
-                width: "100%",
-                background: "linear-gradient(135deg, #28a745 0%, #20c997 100%)",
-                border: "none",
-                borderRadius: "16px",
-                height: "50px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 4px 16px rgba(40, 167, 69, 0.3)",
-                transition: "all 0.3s ease",
-                fontSize: "1.1rem",
-                color: "white",
-                fontWeight: "600",
-                position: "relative",
-                overflow: "hidden"
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.transform = "translateY(-2px)";
-                e.target.style.boxShadow = "0 6px 20px rgba(40, 167, 69, 0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = "translateY(0)";
-                e.target.style.boxShadow = "0 4px 16px rgba(40, 167, 69, 0.3)";
-              }}
-            >
-              <span style={{ marginRight: "8px" }}>🔐</span>
-              Go to Login
-            </button>
+            {/* Show Login and Go Back buttons only if user doesn't have token */}
+            {!hasToken && (
+              <>
+                {/* Login Button */}
+                <button 
+                  onClick={() => router.push('/')}
+                  style={{
+                    width: "100%",
+                    background: "linear-gradient(135deg, #28a745 0%, #20c997 100%)",
+                    border: "none",
+                    borderRadius: "16px",
+                    height: "50px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 16px rgba(40, 167, 69, 0.3)",
+                    transition: "all 0.3s ease",
+                    fontSize: "1.1rem",
+                    color: "white",
+                    fontWeight: "600",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 6px 20px rgba(40, 167, 69, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 4px 16px rgba(40, 167, 69, 0.3)";
+                  }}
+                >
+                  <span style={{ marginRight: "8px" }}>🔐</span>
+                  Go to Login
+                </button>
 
-            {/* Back Button */}
-            <button 
-              onClick={() => router.back()}
-              style={{
-                width: "100%",
-                background: "linear-gradient(135deg, #1FA8DC 0%, #87CEEB 100%)",
-                border: "none",
-                borderRadius: "16px",
-                height: "50px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 4px 16px rgba(31, 168, 220, 0.3)",
-                transition: "all 0.3s ease",
-                fontSize: "1.1rem",
-                color: "white",
-                fontWeight: "600",
-                position: "relative",
-                overflow: "hidden"
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.transform = "translateY(-2px)";
-                e.target.style.boxShadow = "0 6px 20px rgba(31, 168, 220, 0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = "translateY(0)";
-                e.target.style.boxShadow = "0 4px 16px rgba(31, 168, 220, 0.3)";
-              }}
-            >
-              <span style={{ marginRight: "8px" }}>⬅️</span>
-              Go Back
-            </button>
+                {/* Back Button */}
+                <button 
+                  onClick={() => router.back()}
+                  style={{
+                    width: "100%",
+                    background: "linear-gradient(135deg, #1FA8DC 0%, #87CEEB 100%)",
+                    border: "none",
+                    borderRadius: "16px",
+                    height: "50px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 16px rgba(31, 168, 220, 0.3)",
+                    transition: "all 0.3s ease",
+                    fontSize: "1.1rem",
+                    color: "white",
+                    fontWeight: "600",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-2px)";
+                    e.target.style.boxShadow = "0 6px 20px rgba(31, 168, 220, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 4px 16px rgba(31, 168, 220, 0.3)";
+                  }}
+                >
+                  <span style={{ marginRight: "8px" }}>⬅️</span>
+                  Go Back
+                </button>
+              </>
+            )}
+
+
           </div>
         </div>
       </div>

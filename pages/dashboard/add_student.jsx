@@ -119,7 +119,7 @@ export default function AddStudent() {
     createStudentMutation.mutate(payload, {
       onSuccess: (data) => {
         setSuccess(true);
-        setSuccessMessage(`Student added successfully! ID: ${data.id}`); // Set success message with ID
+        setSuccessMessage(`✅ Student added successfully! ID: ${data.id}`); // Set success message with ID
         setNewId(data.id);
         setShowQRButton(true); // Show QR button after successful submission
       },
@@ -366,7 +366,7 @@ export default function AddStudent() {
             {showQRButton && (
               <div style={{ marginTop: 12 }}>
                 <button className="submit-btn" onClick={handleCreateQR}>
-                  ➡️ Create QR Code for this ID: {newId}
+                🏷️ Create QR Code for this ID: {newId}
                 </button>
               </div>
             )}

@@ -19,7 +19,7 @@ export function InputWithButton(props) {
     <TextInput
       radius="xl"
       size="md"
-      placeholder="Search by ID or Name"
+      placeholder="Search by ID, Name or School"
       rightSectionWidth={42}
       leftSection={<IconSearch size={18} stroke={1.5} />}
       rightSection={
@@ -49,6 +49,23 @@ export default function History() {
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null); // 'grade', 'center', 'week', or null
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Load remembered filter values from sessionStorage
+  useEffect(() => {
+    const rememberedGrade = sessionStorage.getItem('historySelectedGrade');
+    const rememberedCenter = sessionStorage.getItem('historySelectedCenter');
+    const rememberedWeek = sessionStorage.getItem('historySelectedWeek');
+    
+    if (rememberedGrade) {
+      setSelectedGrade(rememberedGrade);
+    }
+    if (rememberedCenter) {
+      setSelectedCenter(rememberedCenter);
+    }
+    if (rememberedWeek) {
+      setSelectedWeek(rememberedWeek);
+    }
+  }, []);
 
   // React Query hook with real-time updates - 5 second polling
   const { data: students = [], isLoading, error, refetch, isRefetching, dataUpdatedAt } = useStudentsHistory({
@@ -162,12 +179,13 @@ export default function History() {
     // Only keep students who have matching records after filtering
     filtered = filtered.filter(student => student.historyRecords.length > 0);
 
-    // Search filter (by id or name)
+    // Search filter (by id, name (includes), or school (includes))
     if (searchTerm.trim() !== "") {
       const term = searchTerm.trim().toLowerCase();
       filtered = filtered.filter(student =>
         student.id.toString().includes(term) ||
-        (student.name && student.name.toLowerCase().includes(term))
+        (student.name && student.name.toLowerCase().includes(term)) ||
+        (student.school && student.school.toLowerCase().includes(term))
       );
     }
 
@@ -286,7 +304,15 @@ export default function History() {
               <label className="filter-label">Filter by Grade</label>
               <GradeSelect
                 selectedGrade={selectedGrade}
-                onGradeChange={setSelectedGrade}
+                onGradeChange={(grade) => {
+                  setSelectedGrade(grade);
+                  // Remember the selected grade
+                  if (grade) {
+                    sessionStorage.setItem('historySelectedGrade', grade);
+                  } else {
+                    sessionStorage.removeItem('historySelectedGrade');
+                  }
+                }}
                 isOpen={openDropdown === 'grade'}
                 onToggle={() => setOpenDropdown(openDropdown === 'grade' ? null : 'grade')}
                 onClose={() => setOpenDropdown(null)}
@@ -296,7 +322,15 @@ export default function History() {
               <label className="filter-label">Filter by Center</label>
               <CenterSelect
                 selectedCenter={selectedCenter}
-                onCenterChange={setSelectedCenter}
+                onCenterChange={(center) => {
+                  setSelectedCenter(center);
+                  // Remember the selected center
+                  if (center) {
+                    sessionStorage.setItem('historySelectedCenter', center);
+                  } else {
+                    sessionStorage.removeItem('historySelectedCenter');
+                  }
+                }}
                 isOpen={openDropdown === 'center'}
                 onToggle={() => setOpenDropdown(openDropdown === 'center' ? null : 'center')}
                 onClose={() => setOpenDropdown(null)}
@@ -306,7 +340,15 @@ export default function History() {
               <label className="filter-label">Filter by Week</label>
               <AttendanceWeekSelect
                 selectedWeek={selectedWeek}
-                onWeekChange={setSelectedWeek}
+                onWeekChange={(week) => {
+                  setSelectedWeek(week);
+                  // Remember the selected week
+                  if (week) {
+                    sessionStorage.setItem('historySelectedWeek', week);
+                  } else {
+                    sessionStorage.removeItem('historySelectedWeek');
+                  }
+                }}
                 isOpen={openDropdown === 'week'}
                 onToggle={() => setOpenDropdown(openDropdown === 'week' ? null : 'week')}
                 onClose={() => setOpenDropdown(null)}

@@ -21,7 +21,7 @@ export default function BackToDashboard({ style = {}, className = "", text = "Ba
         gap: 8,
         ...style
       }}
-      onClick={() => router.push(href)}
+      onClick={() => href ? router.push(href) : router.back()}
     >
       <span style={{ fontSize: "1.2em", marginRight: 6 }}>←</span> {text}
     </button>
