@@ -2,15 +2,34 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import Title from "../components/Title";
+import apiClient from "../lib/axios";
 
 export default function ContactDeveloperPage() {
   const router = useRouter();
   const [hasToken, setHasToken] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    setHasToken(!!token);
+    const checkAuth = async () => {
+      try {
+        const res = await apiClient.get("/api/auth/me");
+        if (res.status === 200) {
+          setHasToken(true);
+        } else {
+          setHasToken(false);
+        }
+      } catch (err) {
+        setHasToken(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
   }, []);
+
+  if (loading) {
+    return <div style={{ textAlign: "center", marginTop: 50 }}>Checking session...</div>;
+  }
 
   return (
     <div style={{ 

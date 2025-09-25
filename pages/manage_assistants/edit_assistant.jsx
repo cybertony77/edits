@@ -4,14 +4,6 @@ import Title from "../../components/Title";
 import RoleSelect from "../../components/RoleSelect";
 import { useAssistant, useAssistants, useUpdateAssistant } from '../../lib/api/assistants';
 
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
-
 export default function EditAssistant() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -32,18 +24,9 @@ export default function EditAssistant() {
 
   useEffect(() => {
     // Only allow admin
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("token") : null;
-    if (!token) {
-      // Use window.location to avoid router conflicts
-      window.location.href = "/";
-      return;
-    }
-    const decoded = token ? decodeJWT(token) : null;
-    if (!decoded || decoded.role !== "admin") {
-      console.log("🚫 Access denied: User is not admin, redirecting to dashboard");
-      // Use window.location to avoid router conflicts
-      window.location.href = "/dashboard";
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
+    // Admin access is now handled by _app.js
   }, []);
 
   useEffect(() => {
@@ -92,11 +75,13 @@ export default function EditAssistant() {
     
     const searchTerm = id.trim();
     
-    // Check if trying to edit "tony" - prevent this
+    // Block editing the reserved username "tony"
     if (searchTerm.toLowerCase() === "tony") {
-      setError("❌ You can't Edit Tony");
+      setError("❌ You can't Edit tony's account");
       return;
     }
+    
+    // Allow editing any username, including "tony"
     
     // Check if it's a numeric ID
     if (/^\d+$/.test(searchTerm)) {
@@ -149,6 +134,10 @@ export default function EditAssistant() {
 
   // Handle assistant selection from search results
   const handleAssistantSelect = (selectedAssistant) => {
+    if (selectedAssistant?.id && selectedAssistant.id.toLowerCase() === 'tony') {
+      setError("❌ You can't Edit the 'tony' account");
+      return;
+    }
     setSearchId(selectedAssistant.id.toString());
     setId(selectedAssistant.id.toString());
     setSearchResults([]);
@@ -187,9 +176,9 @@ export default function EditAssistant() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Check if trying to edit "tony" - prevent this
-    if (assistant && assistant.name && assistant.name.toLowerCase() === "tony") {
-      setError("❌ You can't Edit Tony");
+    // Block editing the reserved username "tony"
+    if (assistant && assistant.id && assistant.id.toLowerCase() === "tony") {
+      setError("❌ You can't Edit the 'tony' account");
       return;
     }
     

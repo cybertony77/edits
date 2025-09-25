@@ -1,17 +1,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import bcrypt from "bcryptjs";
 import Title from "../../components/Title";
 import RoleSelect from "../../components/RoleSelect";
 import { useCreateAssistant, useCheckUsername } from '../../lib/api/assistants';
-
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
 
 export default function AddAssistant() {
   const router = useRouter();
@@ -27,18 +18,9 @@ export default function AddAssistant() {
 
   useEffect(() => {
     // Only allow admin
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("token") : null;
-    if (!token) {
-      // Use window.location to avoid router conflicts
-      window.location.href = "/";
-      return;
-    }
-    const decoded = token ? decodeJWT(token) : null;
-    if (!decoded || decoded.role !== "admin") {
-      console.log("🚫 Access denied: User is not admin, redirecting to dashboard");
-      // Use window.location to avoid router conflicts
-      window.location.href = "/dashboard";
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
+    // Admin access is now handled by _app.js
   }, []);
 
   useEffect(() => {

@@ -3,31 +3,14 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Title from '../../components/Title';
 
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
-
 export default function ManageAssistants() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
-    if (!token) {
-      // Use window.location to avoid router conflicts
-      window.location.href = "/";
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
     
-    const decoded = token ? decodeJWT(token) : null;
-    if (!decoded || decoded.role !== 'admin') {
-      console.log("🚫 Access denied: User is not admin, redirecting to dashboard");
-      // Use window.location to avoid router conflicts
-      window.location.href = '/dashboard';
-    }
+    // Admin access is now handled by _app.js
   }, []);
 
   return (

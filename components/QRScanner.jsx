@@ -5,6 +5,7 @@ const QRScanner = ({ onQRCodeScanned, onError }) => {
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
   const sessionRef = useRef(0); // 🔑 cancels stale callbacks
+  const fileInputRef = useRef(null);
 
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
@@ -183,6 +184,48 @@ const QRScanner = ({ onQRCodeScanned, onError }) => {
     }
   };
 
+  const handleUploadClick = () => {
+    try {
+      setError('');
+      if (fileInputRef.current) fileInputRef.current.click();
+    } catch (err) {
+      console.error('Upload click error:', err);
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    try {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const dataUrl = reader.result;
+          const qrReader = new BrowserQRCodeReader();
+          const result = await qrReader.decodeFromImageUrl(dataUrl);
+          const text = result.text ?? (result.getText?.() || '');
+          const studentId = extractStudentId(text);
+          if (studentId) {
+            onQRCodeScanned?.(studentId);
+          } else {
+            setError(`This QR Code Dont Have id Parameter, ${text}`);
+          }
+        } catch (err) {
+          console.error('Image decode error:', err);
+          setError('Could not decode QR from image');
+          if (onError) onError(err);
+        } finally {
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('File read error:', err);
+      setError('Failed to read the selected file');
+    }
+  };
+
   // Mark video ready once available
   useEffect(() => {
     if (isScanning && videoRef.current && !videoReady) setVideoReady(true);
@@ -221,7 +264,7 @@ const QRScanner = ({ onQRCodeScanned, onError }) => {
               onClick={startCamera} 
               disabled={!cameraSupported}
               style={{ 
-                padding: '16px 32px', 
+                padding: '16px 45px', 
                 border: 'none', 
                 borderRadius: 12, 
                 fontSize: '1.1rem', 
@@ -245,6 +288,35 @@ const QRScanner = ({ onQRCodeScanned, onError }) => {
             >
               📷 {cameraSupported ? 'Open Camera' : 'Camera Not Supported'}
             </button>
+            <button
+              onClick={handleUploadClick}
+              style={{
+                padding: '16px 32px',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: '1.1rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                minWidth: 160,
+                justifyContent: 'center',
+                background: 'linear-gradient(135deg, #1FA8DC 0%, #87CEEB 100%)',
+                color: 'white',
+                boxShadow: '0 4px 16px rgba(31, 168, 220, 0.3)'
+              }}
+            >
+              📂 Upload QR Code
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
           </div>
         </div>
       ) : (

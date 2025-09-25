@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Title from "../../components/Title";
-import { Table, ScrollArea } from '@mantine/core';
+import { Table, ScrollArea, Modal } from '@mantine/core';
 import { weeks } from "../../constants/weeks";
 import styles from '../../styles/TableScrollArea.module.css';
 import { useStudents, useStudent } from '../../lib/api/students';
@@ -16,6 +16,10 @@ export default function StudentInfo() {
   const [searchResults, setSearchResults] = useState([]); // Store multiple search results
   const [showSearchResults, setShowSearchResults] = useState(false); // Show/hide search results
   const router = useRouter();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsType, setDetailsType] = useState('absent');
+  const [detailsWeeks, setDetailsWeeks] = useState([]);
+  const [detailsTitle, setDetailsTitle] = useState('');
 
   // Get all students for name-based search
   const { data: allStudents } = useStudents();
@@ -84,11 +88,8 @@ export default function StudentInfo() {
   }, [studentError, searchId, student]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
   }, [router]);
 
   // Force refetch student data when searchId changes (when student is searched)
@@ -164,19 +165,90 @@ export default function StudentInfo() {
 
   // Helper function to get attendance status for a week
   const getWeekAttendance = (weekNumber) => {
-    if (!student || !student.weeks) return { attended: false, hwDone: false, paidSession: false, quizDegree: null, message_state: false, lastAttendance: null };
+    if (!student || !student.weeks) return { attended: false, hwDone: false, quizDegree: null, message_state: false, lastAttendance: null };
     
     const weekData = student.weeks.find(w => w.week === weekNumber);
-    if (!weekData) return { attended: false, hwDone: false, paidSession: false, quizDegree: null, message_state: false, lastAttendance: null };
+    if (!weekData) return { attended: false, hwDone: false, quizDegree: null, message_state: false, lastAttendance: null };
     
     return {
       attended: weekData.attended || false,
       hwDone: weekData.hwDone || false,
-      paidSession: weekData.paidSession || false,
       quizDegree: weekData.quizDegree || null,
+      comment: weekData.comment || null,
       message_state: weekData.message_state || false,
       lastAttendance: weekData.lastAttendance || null
     };
+  };
+
+  // Helper function to get available weeks (all weeks that exist in the database)
+  const getAvailableWeeks = () => {
+    if (!student || !student.weeks || student.weeks.length === 0) return [];
+    
+    // Return all weeks that exist in the database, sorted by week number
+    return student.weeks.sort((a, b) => a.week - b.week);
+  };
+
+  // Helper to compute totals for the student across all weeks
+  const getTotals = () => {
+    const weeks = Array.isArray(student?.weeks) ? student.weeks : [];
+    const absent = weeks.filter(w => w && w.attended === false).length;
+    const missingHW = weeks.filter(w => w && w.hwDone === false).length;
+    const unattendQuiz = weeks.filter(w => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null)).length;
+    return { absent, missingHW, unattendQuiz };
+  };
+
+  // Helpers to build detailed week lists
+  const getAbsentWeeks = (weeks) => {
+    if (!Array.isArray(weeks)) return [];
+    return weeks
+      .map((w, idx) => ({ idx, w }))
+      .filter(({ w }) => w && w.attended === false)
+      .map(({ idx, w }) => ({
+        week: (w.week ?? idx + 1),
+        quizDegree: w.quizDegree
+      }));
+  };
+
+  const getMissingHWWeeks = (weeks) => {
+    if (!Array.isArray(weeks)) return [];
+    return weeks
+      .map((w, idx) => ({ idx, w }))
+      .filter(({ w }) => w && w.hwDone === false)
+      .map(({ idx, w }) => ({
+        week: (w.week ?? idx + 1),
+        quizDegree: w.quizDegree
+      }));
+  };
+
+  const getUnattendQuizWeeks = (weeks) => {
+    if (!Array.isArray(weeks)) return [];
+    return weeks
+      .map((w, idx) => ({ idx, w }))
+      .filter(({ w }) => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null))
+      .map(({ idx, w }) => ({
+        week: (w.week ?? idx + 1),
+        quizDegree: w.quizDegree
+      }));
+  };
+
+  const openDetails = (type) => {
+    if (!student) return;
+    let title = '';
+    let weeksList = [];
+    if (type === 'absent') {
+      title = `Absent Sessions for ${student.name} • ID: ${student.id}`;
+      weeksList = getAbsentWeeks(student.weeks);
+    } else if (type === 'hw') {
+      title = `Missing Homework for ${student.name} • ID: ${student.id}`;
+      weeksList = getMissingHWWeeks(student.weeks);
+    } else if (type === 'quiz') {
+      title = `Unattended Quizzes for ${student.name} • ID: ${student.id}`;
+      weeksList = getUnattendQuizWeeks(student.weeks);
+    }
+    setDetailsType(type);
+    setDetailsWeeks(weeksList);
+    setDetailsTitle(title);
+    setDetailsOpen(true);
   };
 
   return (
@@ -451,85 +523,179 @@ export default function StudentInfo() {
                 <div className="detail-label">Main Center</div>
                 <div className="detail-value">{student.main_center}</div>
               </div>
+              <div className="detail-item">
+                <div className="detail-label">Main Comment</div>
+                <div className="detail-value">{student.main_comment || 'No Comment'}</div>
+              </div>
+              {(() => {
+                const totals = getTotals();
+                return (
+                  <>
+                    <div className="detail-item" onClick={() => openDetails('absent')} style={{ cursor: 'pointer' }}>
+                      <div className="detail-label">Total Absent Sessions</div>
+                      <div className="detail-value" style={{ color: '#dc3545', fontWeight: 600 }}>{totals.absent}</div>
+                    </div>
+                    <div className="detail-item" onClick={() => openDetails('hw')} style={{ cursor: 'pointer' }}>
+                      <div className="detail-label">Total Missing Homework</div>
+                      <div className="detail-value" style={{ color: '#fd7e14', fontWeight: 600 }}>{totals.missingHW}</div>
+                    </div>
+                    <div className="detail-item" onClick={() => openDetails('quiz')} style={{ cursor: 'pointer' }}>
+                      <div className="detail-label">Total Unattend Quizzes</div>
+                      <div className="detail-value" style={{ color: '#1FA8DC', fontWeight: 600 }}>{totals.unattendQuiz}</div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             
-            <div className="weeks-title">Attendance Records - All Weeks</div>
-            <ScrollArea h={400} type="hover" className={styles.scrolled}>
-              <Table striped highlightOnHover withTableBorder withColumnBorders style={{ minWidth: '950px' }}>
-                <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 10 }}>
-                  <Table.Tr>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Week</Table.Th>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Attendance Info</Table.Th>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Homework</Table.Th>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Payment</Table.Th>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Quiz Degree</Table.Th>
-                    <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Message Status</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {weeks.map((weekName, index) => {
-                    const weekNumber = index + 1;
-                    const weekData = getWeekAttendance(weekNumber);
-                    
-                    return (
-                      <Table.Tr key={weekName}>
-                        <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '120px', minWidth: '120px', textAlign: 'center' }}>
-                          {weekName}
-                        </Table.Td>
-                        <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
-                          <span style={{ 
-                            color: weekData.attended ? (weekData.lastAttendance ? '#212529' : '#28a745') : '#dc3545',
-                            fontWeight: 'bold',
-                            fontSize: '1rem'
-                          }}>
-                            {weekData.attended ? (weekData.lastAttendance || '✅ Yes') : '❌ Absent'}
-                          </span>
-                        </Table.Td>
-                        <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
-                          <span style={{ 
-                            color: weekData.hwDone ? '#28a745' : '#dc3545',
-                            fontWeight: 'bold',
-                            fontSize: '1rem'
-                          }}>
-                            {weekData.hwDone ? '✅ Done' : '❌ Not Done'}
-                          </span>
-                        </Table.Td>
-                        <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
-                          <span style={{ 
-                            color: weekData.paidSession ? '#28a745' : '#dc3545',
-                            fontWeight: 'bold',
-                            fontSize: '1rem'
-                          }}>
-                            {weekData.paidSession ? '✅ Paid' : '❌ Not Paid'}
-                          </span>
-                        </Table.Td>
-                        <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
-                          <span style={{ 
-                            fontWeight: 'bold',
-                            fontSize: '1rem',
-                            color: weekData.quizDegree !== null ? '#1FA8DC' : '#6c757d'
-                          }}>
-                            {weekData.quizDegree !== null ? weekData.quizDegree : '0/0'}
-                          </span>
-                        </Table.Td>
-                        <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>
-                          <span style={{ 
-                            color: weekData.message_state ? '#28a745' : '#dc3545',
-                            fontWeight: 'bold',
-                            fontSize: '1rem'
-                          }}>
-                            {weekData.message_state ? '✅ Sent' : '❌ Not Sent'}
-                          </span>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
+            <div className="weeks-title">All Weeks Records - Available Weeks ({getAvailableWeeks().length} weeks)</div>
+            {getAvailableWeeks().length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: '#6c757d',
+                fontSize: '1.1rem',
+                fontWeight: '500',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6'
+              }}>
+                📋 No weeks records found for this student
+              </div>
+            ) : (
+              <ScrollArea h={400} type="hover" className={styles.scrolled}>
+                <Table striped highlightOnHover withTableBorder withColumnBorders style={{ minWidth: '950px' }}>
+                  <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 10 }}>
+                    <Table.Tr>
+                      <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Week</Table.Th>
+                      <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Attendance Info</Table.Th>
+                      <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Homework</Table.Th>
+                      
+                      <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Quiz Degree</Table.Th>
+                      <Table.Th style={{ width: '200px', minWidth: '200px', textAlign: 'center' }}>Comment</Table.Th>
+                      <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Message Status</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {getAvailableWeeks().map((week) => {
+                      const weekName = `week ${String(week.week).padStart(2, '0')}`;
+                      const weekData = getWeekAttendance(week.week);
+                      
+                      return (
+                        <Table.Tr key={weekName}>
+                          <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '120px', minWidth: '120px', textAlign: 'center' }}>
+                            {weekName}
+                          </Table.Td>
+                          <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
+                            <span style={{ 
+                              color: weekData.attended ? (weekData.lastAttendance ? '#212529' : '#28a745') : '#dc3545',
+                              fontWeight: 'bold',
+                              fontSize: '1rem'
+                            }}>
+                              {weekData.attended ? (weekData.lastAttendance || '✅ Yes') : '❌ Absent'}
+                            </span>
+                          </Table.Td>
+                          <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
+                            <span style={{ 
+                              color: weekData.hwDone ? '#28a745' : '#dc3545',
+                              fontWeight: 'bold',
+                              fontSize: '1rem'
+                            }}>
+                              {weekData.hwDone ? '✅ Done' : '❌ Not Done'}
+                            </span>
+                          </Table.Td>
+                          
+                          <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
+                            {(() => {
+                              const value = weekData.quizDegree !== null && weekData.quizDegree !== undefined && weekData.quizDegree !== '' ? weekData.quizDegree : '0/0';
+                              if (value === "Didn't Attend The Quiz") {
+                                return <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Didn't Attend The Quiz</span>;
+                              }
+                              return (
+                                <span style={{ 
+                                  fontWeight: 'bold',
+                                  fontSize: '1rem',
+                                  color: '#1FA8DC'
+                                }}>
+                                  {value}
+                                </span>
+                              );
+                            })()}
+                          </Table.Td>
+                          <Table.Td style={{ width: '200px', minWidth: '200px', textAlign: 'center' }}>
+                            {(() => {
+                              const weekComment = weekData.comment;
+                              const val = (weekComment && String(weekComment).trim() !== '') ? weekComment : 'No Comment';
+                              return val;
+                            })()}
+                          </Table.Td>
+                          <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>
+                            <span style={{ 
+                              color: weekData.message_state ? '#28a745' : '#dc3545',
+                              fontWeight: 'bold',
+                              fontSize: '1rem'
+                            }}>
+                              {weekData.message_state ? '✅ Sent' : '❌ Not Sent'}
+                            </span>
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea>
+            )}
           </div>
         )}
         
+        <Modal
+          opened={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
+          title={detailsTitle}
+          centered
+          radius="md"
+          withCloseButton
+          closeButtonProps={{ variant: 'transparent', style: { color: '#dc3545' } }}
+          overlayProps={{ opacity: 0.15, blur: 2 }}
+        >
+          {(!detailsWeeks || detailsWeeks.length === 0) ? (
+            <div style={{ textAlign: 'center', color: '#6c757d', fontWeight: 600 }}>No weeks records found.</div>
+          ) : (
+            <Table withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th style={{ width: '140px', textAlign: 'center' }}>Week</Table.Th>
+                  <Table.Th style={{ textAlign: 'center' }}>
+                    {detailsType === 'absent' && 'Attendance Info'}
+                    {detailsType === 'hw' && 'Homework Status'}
+                    {detailsType === 'quiz' && 'Quiz Degree Status'}
+                  </Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {detailsWeeks.map((info) => (
+                  <Table.Tr key={`student-${searchId}-${info.week}`}>
+                    <Table.Td style={{ textAlign: 'center' }}>Week {String(info.week).padStart(2, '0')}</Table.Td>
+                    <Table.Td style={{ textAlign: 'center' }}>
+                      {detailsType === 'absent' && (
+                        <span style={{ color: '#dc3545', fontWeight: 700 }}>❌ Absent</span>
+                      )}
+                      {detailsType === 'hw' && (
+                        <span style={{ color: '#dc3545', fontWeight: 700 }}>❌ Not Done</span>
+                      )}
+                      {detailsType === 'quiz' && (
+                        <span style={{ color: '#1FA8DC', fontWeight: 700 }}>
+                          {info.quizDegree == null ? '0/0' : (info.quizDegree === "Didn't Attend The Quiz" ? "❌ Didn't Attend The Quiz" : String(info.quizDegree))}
+                        </span>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </Modal>
+
         {error && (
           <div className="error-message">
             ❌ {error}
@@ -539,3 +705,6 @@ export default function StudentInfo() {
     </div>
   );
 }
+
+// Modal rendering
+// Keep component-level return uncluttered by adding modal just before closing tags

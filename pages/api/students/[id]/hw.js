@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -37,19 +37,7 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -77,9 +65,11 @@ export default async function handler(req, res) {
     const weekIndex = weekNumber - 1; // Convert to array index
     
     // Update the specific week in the weeks array
+    // Handle both boolean and string values for hwDone
+    const hwValue = hwDone === "No Homework" ? "No Homework" : !!hwDone;
     const result = await db.collection('students').updateOne(
       { id: student_id },
-      { $set: { [`weeks.${weekIndex}.hwDone`]: !!hwDone } }
+      { $set: { [`weeks.${weekIndex}.hwDone`]: hwValue } }
     );
     
     if (result.matchedCount === 0) return res.status(404).json({ error: 'Student not found' });

@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../lib/authMiddleware';
 
 function loadEnvConfig() {
   try {
@@ -34,15 +34,7 @@ const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI;
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME;
 const JWT_SECRET = envConfig.JWT_SECRET || process.env.JWT_SECRET;
 
-async function authMiddleware(req) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    throw new Error('No token provided');
-  }
-  
-  const decoded = jwt.verify(token, JWT_SECRET);
-  return decoded;
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   const { id } = req.query;

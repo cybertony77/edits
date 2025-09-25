@@ -34,7 +34,10 @@ export default function Login() {
 
   useEffect(() => {
     // Check if user was redirected from a protected page
-    const redirectPath = sessionStorage.getItem("redirectAfterLogin");
+    const cookies = document.cookie.split(';');
+    const redirectCookie = cookies.find(cookie => cookie.trim().startsWith('redirectAfterLogin='));
+    const redirectPath = redirectCookie ? redirectCookie.split('=')[1] : null;
+    
     if (redirectPath && redirectPath !== "/" && redirectPath !== "/dashboard") {
       setRedirectMessage(`You must log in first to access: ${redirectPath}`);
     }
@@ -71,15 +74,17 @@ export default function Login() {
       { assistant_id, password },
       {
         onSuccess: (data) => {
-          // Check if there's a redirect path saved
-          const redirectPath = sessionStorage.getItem("redirectAfterLogin");
+          // Check if there's a redirect path saved in cookies
+          const cookies = document.cookie.split(';');
+          const redirectCookie = cookies.find(cookie => cookie.trim().startsWith('redirectAfterLogin='));
+          const redirectPath = redirectCookie ? redirectCookie.split('=')[1] : null;
           console.log("🔍 Redirect path found:", redirectPath);
           
           // Small delay to ensure token is stored and auth state updates
           setTimeout(() => {
             if (redirectPath && redirectPath !== "/" && redirectPath !== "/dashboard") {
-              // Clear the redirect path and redirect to intended page
-              sessionStorage.removeItem("redirectAfterLogin");
+              // Clear the redirect cookie and redirect to intended page
+              document.cookie = "redirectAfterLogin=; path=/; max-age=0";
               console.log("🔄 Redirecting to:", redirectPath);
               // Use window.location for more reliable redirect
               window.location.href = redirectPath;
@@ -265,20 +270,6 @@ export default function Login() {
             25% { transform: translateX(-5px); }
             75% { transform: translateX(5px); }
           }
-          .footer-text {
-            text-align: center;
-            margin-top: 24px;
-            color: #6c757d;
-            font-size: 0.9rem;
-          }
-          .footer-text a {
-            color: #87CEEB;
-            text-decoration: none;
-            font-weight: 600;
-          }
-          .footer-text a:hover {
-            text-decoration: underline;
-          }
           .form-input.error-border {
             border-color: #dc3545 !important;
             background: #fff5f5 !important;
@@ -423,10 +414,6 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="footer-text">
-            <p>TopPhysics Attendance System</p>
-            <p>Copyright &copy; {new Date().getFullYear()} - TopPhysics</p>
-          </div>
         </div>
     </div>
   );

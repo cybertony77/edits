@@ -1,9 +1,9 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -42,19 +42,7 @@ console.log('🔗 Using Mongo URI:', MONGO_URI);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 function sendWhatsAppMessage(phoneNumber, message) {
   return new Promise((resolve, reject) => {
@@ -173,12 +161,12 @@ export default async function handler(req, res) {
       // Use the requested week
       const weekIndex = requestedWeek - 1;
       currentWeek = student.weeks[weekIndex] || 
-        { week: requestedWeek, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, paidSession: false, quizDegree: null, message_state: false };
+        { week: requestedWeek, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
     } else {
       // Find the current week (last attended week or week 1 if none)
       currentWeek = student.weeks ? 
         student.weeks.find(w => w.attended) || student.weeks[0] : 
-        { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, paidSession: false, quizDegree: null, message_state: false };
+        { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
     }
 
     // Create the message
@@ -194,7 +182,6 @@ export default async function handler(req, res) {
     if (currentWeek.attended) {
       message += `
   • Homework: ${currentWeek.hwDone ? 'Done' : 'Not Done'}
-  • Paid Session: ${currentWeek.paidSession ? 'Yes' : 'No'}
   • Quiz Degree: ${currentWeek.quizDegree || '0/0'}`;
     }
 

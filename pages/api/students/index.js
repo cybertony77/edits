@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -37,19 +37,7 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   let client;
@@ -69,9 +57,10 @@ export default async function handler(req, res) {
       // Map the fields to match the new weeks structure
       const mappedStudents = students.map(student => {
         // Find the current week (last attended week or week 1 if none)
-        const currentWeek = student.weeks ? 
-          student.weeks.find(w => w.attended) || student.weeks[0] : 
-          { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, paidSession: false, quizDegree: null, message_state: false };
+        const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
+        const currentWeek = hasWeeks ?
+          (student.weeks.find(w => w.attended) || student.weeks[0]) :
+          { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
         
         return {
           id: student.id,
@@ -81,12 +70,12 @@ export default async function handler(req, res) {
           parents_phone: student.parentsPhone,
           center: student.center,
           main_center: student.main_center,
+          main_comment: (student.main_comment ?? student.comment ?? null),
           attended_the_session: currentWeek.attended,
           lastAttendance: currentWeek.lastAttendance,
           lastAttendanceCenter: currentWeek.lastAttendanceCenter,
           attendanceWeek: `week ${String(currentWeek.week).padStart(2, '0')}`,
           hwDone: currentWeek.hwDone,
-          paidSession: currentWeek.paidSession,
           quizDegree: currentWeek.quizDegree,
           school: student.school || null,
           age: student.age || null,
@@ -98,7 +87,7 @@ export default async function handler(req, res) {
       res.json(mappedStudents);
     } else if (req.method === 'POST') {
       // Add new student
-      const { name, grade, phone, parents_phone, main_center, age, school } = req.body;
+      const { name, grade, phone, parents_phone, main_center, age, school, main_comment, comment } = req.body;
       if (!name || !grade || !phone || !parents_phone || !main_center || age === undefined || !school) {
         return res.status(400).json({ error: 'All fields are required' });
       }
@@ -106,20 +95,8 @@ export default async function handler(req, res) {
       const lastStudent = await db.collection('students').find().sort({ id: -1 }).limit(1).toArray();
       const newId = lastStudent.length > 0 ? lastStudent[0].id + 1 : 1;
       
-      // Create weeks array for new student
+      // New students start with no weeks; weeks are created on demand
       const weeks = [];
-      for (let i = 1; i <= 20; i++) {
-        weeks.push({
-          week: i,
-          attended: false,
-          lastAttendance: null,
-          lastAttendanceCenter: null,
-          hwDone: false,
-          paidSession: false,
-          quizDegree: null,
-          message_state: false
-        });
-      }
       
       const student = {
         id: newId,
@@ -130,6 +107,7 @@ export default async function handler(req, res) {
         phone,
         parentsPhone: parents_phone,
         main_center,
+        main_comment: (main_comment ?? comment ?? null),
         weeks: weeks
       };
       await db.collection('students').insertOne(student);

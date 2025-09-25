@@ -63,7 +63,8 @@ export default function EditStudent() {
         parents_phone: student.parents_phone,
         main_center: student.main_center,
         school: student.school || "",
-        age: student.age || ""
+        age: student.age || "",
+        comment: student.main_comment || student.comment || ""
       };
       setOriginalStudent({ ...studentData });
       setFormData({ ...studentData }); // Also set the form data
@@ -180,10 +181,24 @@ export default function EditStudent() {
     
     const changes = {};
     Object.keys(formData).forEach(key => {
-      // Only include fields that have actually changed and are not undefined/null
-      if (formData[key] !== originalStudent[key] && 
-          formData[key] !== undefined && 
-          formData[key] !== null && 
+      // Special handling: allow clearing comment (empty string) -> send as null
+      if (key === 'comment') {
+        if (formData[key] !== originalStudent[key]) {
+          changes[key] = formData[key];
+        }
+        return;
+      }
+      // Special handling: allow clearing age (empty string) -> send as null
+      if (key === 'age') {
+        if (formData[key] !== originalStudent[key]) {
+          changes[key] = formData[key];
+        }
+        return;
+      }
+      // Only include fields that have actually changed and are not undefined/null/empty
+      if (formData[key] !== originalStudent[key] &&
+          formData[key] !== undefined &&
+          formData[key] !== null &&
           formData[key] !== '') {
         changes[key] = formData[key];
       }
@@ -251,8 +266,19 @@ export default function EditStudent() {
     if (changedFields.grade) {
       updatedStudent.grade = changedFields.grade.toLowerCase().replace(/\./g, '');
     }
-    if (changedFields.age) {
-      updatedStudent.age = Number(changedFields.age);
+    if (Object.prototype.hasOwnProperty.call(changedFields, 'age')) {
+      // Handle empty string or null age - set to null in database
+      if (changedFields.age === '' || changedFields.age === null || changedFields.age === undefined) {
+        updatedStudent.age = null;
+      } else {
+        updatedStudent.age = Number(changedFields.age);
+      }
+    }
+    // Normalize comment: empty string -> null, trim non-empty
+    if (Object.prototype.hasOwnProperty.call(changedFields, 'comment')) {
+      const c = changedFields.comment;
+      updatedStudent.main_comment = (typeof c === 'string' && c.trim() === '') ? null : (typeof c === 'string' ? c.trim() : c);
+      delete updatedStudent.comment;
     }
     
     console.log('🚀 Final payload being sent:', updatedStudent);
@@ -723,6 +749,18 @@ export default function EditStudent() {
                 isOpen={openDropdown === 'center'}
                 onToggle={() => setOpenDropdown(openDropdown === 'center' ? null : 'center')}
                 onClose={() => setOpenDropdown(null)}
+              />
+            </div>
+            <div className="form-group">
+              <label>Main Comment</label>
+              <textarea
+                className="form-input"
+                name="comment"
+                placeholder="Enter any notes about this student"
+                value={formData.comment || ''}
+                onChange={handleChange}
+                rows={3}
+                style={{ resize: 'vertical' }}
               />
             </div>
             <button type="submit" className="submit-btn" disabled={!hasChanges() || updateStudentMutation.isPending}>

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
-import { getApiBaseUrl } from '../config';
+import apiClient from '../lib/axios';
 
 export default function CenterSelect({ selectedCenter, onCenterChange, required = false, isOpen, onToggle, onClose }) {
   // Handle legacy props (value, onChange) for backward compatibility
@@ -10,22 +9,18 @@ export default function CenterSelect({ selectedCenter, onCenterChange, required 
   const actualOnToggle = onToggle || (() => setInternalIsOpen(!internalIsOpen));
   const actualOnClose = onClose || (() => setInternalIsOpen(false));
 
-  // Get token from sessionStorage (consistent with rest of app)
-  const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
+  // Authentication is now handled by _app.js with HTTP-only cookies
 
   // Fetch centers from API
   const { data: centers = [], isLoading, error } = useQuery({
     queryKey: ['centers'],
     queryFn: async () => {
       console.log('🔄 CenterSelect: Fetching centers data');
-      const response = await axios.get(`${getApiBaseUrl()}/api/centers`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await apiClient.get('/api/centers');
       const centerNames = response.data.centers.map(center => center.name);
       console.log('🔄 CenterSelect: Received centers:', centerNames);
       return centerNames;
     },
-    enabled: !!token,
     retry: 3,
     retryDelay: 1000,
     staleTime: 0, // Always consider data stale for immediate updates

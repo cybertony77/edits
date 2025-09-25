@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useProfile } from '../lib/api/auth';
+import apiClient from '../lib/axios';
 
 export default function UserMenu() {
   const [open, setOpen] = useState(false);
@@ -23,9 +24,14 @@ export default function UserMenu() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('token');
-    router.push('/');
+  const handleLogout = async () => {
+    try {
+      await apiClient.post('/api/auth/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      router.push('/');
+    }
   };
 
   const handleManageAssistants = () => {

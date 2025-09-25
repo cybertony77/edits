@@ -1,8 +1,8 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -39,20 +39,11 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
 async function requireAdmin(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized');
+  const user = await authMiddleware(req);
+  if (user.role !== 'admin') {
+    throw new Error('Forbidden: Admins only');
   }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') {
-      throw new Error('Forbidden: Admins only');
-    }
-    return decoded;
-  } catch (error) {
-    throw error;
-  }
+  return user;
 }
 
 export default async function handler(req, res) {

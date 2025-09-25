@@ -8,13 +8,7 @@ import styles from '../../styles/TableScrollArea.module.css';
 import { useAssistants } from '../../lib/api/assistants';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
+// Removed token-based checks; authentication is handled globally in _app.js
 
 export function InputWithButton(props) {
   const theme = useMantineTheme();
@@ -45,36 +39,11 @@ export default function AllAssistants() {
   // React Query hook
   const { data: assistants = [], isLoading, error, refetch } = useAssistants();
 
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
+  // Error handling UI is driven by `error` from React Query
+
+  // Admin access is enforced by _app.js; no token checks here
 
   useEffect(() => {
-    // Only allow admin
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      // Use window.location to avoid router conflicts
-      window.location.href = "/";
-      return;
-    }
-    const decoded = token ? decodeJWT(token) : null;
-    if (!decoded || decoded.role !== 'admin') {
-      console.log("🚫 Access denied: User is not admin, redirecting to dashboard");
-      // Use window.location to avoid router conflicts
-      window.location.href = "/dashboard";
-    }
-  }, []);
-
-  useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
-    
     // Check if mobile
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -92,7 +61,7 @@ export default function AllAssistants() {
       window.removeEventListener('resize', checkMobile);
       clearInterval(interval);
     };
-  }, [router]);
+  }, [router, refetch]);
 
   useEffect(() => {
     filterAssistants();

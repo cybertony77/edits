@@ -1,39 +1,28 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
-import { getApiBaseUrl } from '../../config';
+import apiClient from '../../lib/axios';
 import Title from '../../components/Title';
 
 // API functions
 const centersAPI = {
-  getCenters: async (token) => {
-    const response = await axios.get(`${getApiBaseUrl()}/api/centers`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  getCenters: async () => {
+    const response = await apiClient.get('/api/centers');
     return response.data.centers;
   },
 
-  createCenter: async (name, token) => {
-    const response = await axios.post(`${getApiBaseUrl()}/api/centers`, 
-      { name },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+  createCenter: async (name) => {
+    const response = await apiClient.post('/api/centers', { name });
     return response.data;
   },
 
-  updateCenter: async (id, name, token) => {
-    const response = await axios.put(`${getApiBaseUrl()}/api/centers/${id}`, 
-      { name },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+  updateCenter: async (id, name) => {
+    const response = await apiClient.put(`/api/centers/${id}`, { name });
     return response.data;
   },
 
-  deleteCenter: async (id, token) => {
-    const response = await axios.delete(`${getApiBaseUrl()}/api/centers/${id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  deleteCenter: async (id) => {
+    const response = await apiClient.delete(`/api/centers/${id}`);
     return response.data;
   }
 };
@@ -49,23 +38,12 @@ export default function Centers() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [centerToDelete, setCenterToDelete] = useState(null);
 
-  // Get token from sessionStorage (consistent with rest of app)
-  const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
-  
-  // Debug token
-  console.log('🔑 Token available:', !!token);
-  if (token) {
-    console.log('🔑 Token length:', token.length);
-    console.log('🔑 Token preview:', token.substring(0, 20) + '...');
-  } else {
-    console.log('❌ No token found in sessionStorage');
-  }
+  // Authentication is now handled by _app.js with HTTP-only cookies
 
   // Fetch centers
   const { data: centers = [], isLoading, error: fetchError } = useQuery({
     queryKey: ['centers'],
-    queryFn: () => centersAPI.getCenters(token),
-    enabled: !!token,
+    queryFn: () => centersAPI.getCenters(),
     retry: 3,
     retryDelay: 1000,
     refetchOnMount: true, // Always refetch when component mounts
@@ -80,7 +58,7 @@ export default function Centers() {
 
   // Create center mutation
   const createMutation = useMutation({
-    mutationFn: (name) => centersAPI.createCenter(name, token),
+    mutationFn: (name) => centersAPI.createCenter(name),
     onSuccess: () => {
       console.log('🔄 Centers: Invalidating query after creating center');
       queryClient.invalidateQueries({ queryKey: ['centers'] });
@@ -95,7 +73,7 @@ export default function Centers() {
 
   // Update center mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, name }) => centersAPI.updateCenter(id, name, token),
+    mutationFn: ({ id, name }) => centersAPI.updateCenter(id, name),
     onSuccess: () => {
       console.log('🔄 Centers: Invalidating query after updating center');
       queryClient.invalidateQueries({ queryKey: ['centers'] });
@@ -110,7 +88,7 @@ export default function Centers() {
 
   // Delete center mutation
   const deleteMutation = useMutation({
-    mutationFn: (id) => centersAPI.deleteCenter(id, token),
+    mutationFn: (id) => centersAPI.deleteCenter(id),
     onSuccess: () => {
       console.log('🔄 Centers: Invalidating query after deleting center');
       queryClient.invalidateQueries({ queryKey: ['centers'] });
@@ -175,10 +153,7 @@ export default function Centers() {
 
 
 
-  if (!token) {
-    router.push('/');
-    return null;
-  }
+  // Authentication is handled by _app.js with HTTP-only cookies
 
   if (fetchError) {
     console.error('Centers fetch error:', fetchError);

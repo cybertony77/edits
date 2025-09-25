@@ -32,13 +32,7 @@ export function InputWithButton(props) {
   );
 }
 
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
+// No client-side token handling; auth is enforced in _app.js
 
 export default function History() {
   const router = useRouter();
@@ -91,17 +85,8 @@ export default function History() {
   }, [isLoading, isRefetching, dataUpdatedAt, students.length]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
-    
-    const decoded = decodeJWT(token);
-    if (!decoded) {
-      router.push("/");
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
   }, [router]);
 
   useEffect(() => {
@@ -398,8 +383,9 @@ export default function History() {
                     <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Main Center</Table.Th>
                     <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Attendance Info</Table.Th>
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>HW Status</Table.Th>
-                    <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Paid Session</Table.Th>
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Quiz Degree</Table.Th>
+                    <Table.Th style={{ width: '160px', minWidth: '160px', textAlign: 'center' }}>Main Comment</Table.Th>
+                    <Table.Th style={{ width: '160px', minWidth: '160px', textAlign: 'center' }}>Week Comment</Table.Th>
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Message State</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
@@ -421,18 +407,42 @@ export default function History() {
                             color: record.hwDone ? '#28a745' : '#dc3545',
                             fontWeight: 'bold'
                           }}>
-                            {record.hwDone ? '✅ Done' : '❌ Not Done'}
+                            {record.hwDone ? '✓ Done' : '✗ Not Done'}
                           </span>
                         </Table.Td>
+                        
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>
-                          <span style={{ 
-                            color: record.paidSession ? '#28a745' : '#dc3545',
-                            fontWeight: 'bold'
-                          }}>
-                            {record.paidSession ? '✅ Paid' : '❌ Not Paid'}
-                          </span>
+                          {(() => {
+                            const value = (record.quizDegree !== undefined && record.quizDegree !== null && record.quizDegree !== '') ? record.quizDegree : '0/0';
+                            if (value === "Didn't Attend The Quiz") {
+                              return <span style={{ color: '#dc3545', fontWeight: 'bold' }}>✗ Didn't Attend The Quiz</span>;
+                            }
+                            return value;
+                          })()}
                         </Table.Td>
-                        <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{record.quizDegree || '0/0'}</Table.Td>
+                        <Table.Td style={{ width: '160px', minWidth: '160px', textAlign: 'center' }}>
+                          {(() => {
+                            try {
+                              const mainComment = (student.main_comment ?? '').toString();
+                              return mainComment.trim() !== '' ? mainComment : 'No Comment';
+                            } catch {
+                              return 'No Comment';
+                            }
+                          })()}
+                        </Table.Td>
+                        <Table.Td style={{ width: '160px', minWidth: '160px', textAlign: 'center' }}>
+                          {(() => {
+                            try {
+                              const weekIndex = ((record?.week ?? 0) - 1);
+                              const weekComment = (Array.isArray(student.weeks) && weekIndex >= 0)
+                                ? (student.weeks[weekIndex]?.comment ?? '').toString()
+                                : '';
+                              return weekComment.trim() !== '' ? weekComment : 'No Comment';
+                            } catch {
+                              return 'No Comment';
+                            }
+                          })()}
+                        </Table.Td>
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>
                           <span style={{ 
                             color: record.message_state ? '#28a745' : '#dc3545',

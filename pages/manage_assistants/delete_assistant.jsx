@@ -4,14 +4,6 @@ import Title from "../../components/Title";
 import ContactDeveloper from "../../components/ContactDeveloper";
 import { useAssistant, useAssistants, useDeleteAssistant } from '../../lib/api/assistants';
 
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
-
 export default function DeleteAssistant() {
   const router = useRouter();
   const [assistantId, setAssistantId] = useState("");
@@ -30,21 +22,10 @@ export default function DeleteAssistant() {
 
   useEffect(() => {
     // Only allow admin
-    const token = typeof window !== "undefined" ? sessionStorage.getItem("token") : null;
-    if (!token) {
-      // Use window.location to avoid router conflicts
-      window.location.href = "/";
-      return;
-    }
-    const decoded = token ? decodeJWT(token) : null;
-    if (!decoded || decoded.role !== "admin") {
-      console.log("🚫 Access denied: User is not admin, redirecting to dashboard");
-      // Use window.location to avoid router conflicts
-      window.location.href = "/dashboard";
-      return;
-    }
-    // Store current user info for comparison
-    setCurrentUser(decoded);
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
+    // Admin access is now handled by _app.js
+    // Current user info is now handled by _app.js
   }, []);
 
   useEffect(() => {
@@ -69,9 +50,9 @@ export default function DeleteAssistant() {
     
     const searchTerm = assistantId.trim();
     
-    // Check if trying to delete "tony" - prevent this
+    // Block deleting the reserved username "tony"
     if (searchTerm.toLowerCase() === "tony") {
-      setError("❌ You can't Delete Tony");
+      setError("❌ You can't Delete tony's account");
       return;
     }
     
@@ -120,9 +101,9 @@ export default function DeleteAssistant() {
   const deleteAssistant = async () => {
     if (!assistant) return;
     
-    // Check if trying to delete "tony" - prevent this
-    if (assistant.name && assistant.name.toLowerCase() === "tony") {
-      setError("❌ You can't Delete Tony");
+    // Block deleting the reserved username "tony"
+    if (assistant.id && assistant.id.toLowerCase() === "tony") {
+      setError("❌ You can't Delete the 'tony' account");
       return;
     }
     
@@ -156,6 +137,10 @@ export default function DeleteAssistant() {
 
   // Handle assistant selection from search results
   const handleAssistantSelect = (selectedAssistant) => {
+    if (selectedAssistant?.id && selectedAssistant.id.toLowerCase() === 'tony') {
+      setError("❌ You can't Delete the 'tony' account");
+      return;
+    }
     setSearchId(selectedAssistant.id.toString());
     setAssistantId(selectedAssistant.id.toString());
     setSearchResults([]);

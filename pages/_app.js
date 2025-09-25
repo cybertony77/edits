@@ -8,7 +8,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { getApiBaseUrl } from "../config";
-import axios from "axios";
+import apiClient from "../lib/axios";
 import Image from "next/image";
 import ErrorBoundary from "../components/ErrorBoundary";
 
@@ -212,18 +212,8 @@ export default function App({ Component, pageProps }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = sessionStorage.getItem("token");
-        
-        if (!token) {
-          setIsAuthenticated(false);
-          setIsLoading(false);
-          return;
-        }
-
-        // Validate token with server
-        const response = await axios.get(`${getApiBaseUrl()}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        // Check authentication with server (cookies are sent automatically)
+        const response = await apiClient.get('/api/auth/me');
 
         if (response.status === 200) {
           setIsAuthenticated(true);
@@ -238,13 +228,11 @@ export default function App({ Component, pageProps }) {
             }, 1000);
           }
         } else {
-          // Token invalid, remove it
-          sessionStorage.removeItem("token");
+          // Token invalid
           setIsAuthenticated(false);
         }
       } catch (error) {
-        // Token invalid or expired, remove it
-        sessionStorage.removeItem("token");
+        // Token invalid or expired
         setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
@@ -287,7 +275,8 @@ export default function App({ Component, pageProps }) {
       
       // Save the current path for redirect after login (except dashboard)
       if (router.pathname !== "/dashboard") {
-        sessionStorage.setItem("redirectAfterLogin", router.pathname);
+        // Store redirect path in a cookie or use router state
+        document.cookie = `redirectAfterLogin=${router.pathname}; path=/; max-age=300`; // 5 minutes
       }
       
       // Redirect after showing preloader for 1 second
@@ -304,10 +293,7 @@ export default function App({ Component, pageProps }) {
       // Only check if user is authenticated and trying to access admin pages
       if (isAuthenticated && adminPages.includes(router.pathname)) {
         try {
-          const token = sessionStorage.getItem("token");
-          const response = await axios.get(`${getApiBaseUrl()}/api/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const response = await apiClient.get('/api/auth/me');
           
           if (response.data.role !== 'admin') {
             setShowAccessDenied(true);
@@ -320,7 +306,6 @@ export default function App({ Component, pageProps }) {
         } catch (error) {
           console.error("❌ Error checking admin access:", error);
           // If token validation fails, redirect to login
-          sessionStorage.removeItem("token");
           setIsAuthenticated(false);
         }
       }
@@ -339,45 +324,8 @@ export default function App({ Component, pageProps }) {
     }
   }, [isAuthenticated]);
 
-  // Check token expiry and show warning 1 minute before expiration
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const checkTokenExpiry = () => {
-      try {
-        const token = sessionStorage.getItem("token");
-        if (!token) return;
-
-        // Decode JWT token to get expiry time
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        const expiryTime = payload.exp * 1000; // Convert to milliseconds
-        const currentTime = Date.now();
-        const timeUntilExpiry = expiryTime - currentTime;
-        
-        // Show warning 1 minute (60000ms) before expiry
-        if (timeUntilExpiry <= 60000 && timeUntilExpiry > 0) {
-          setShowExpiryWarning(true);
-        } else if (timeUntilExpiry <= 0) {
-          // Token has expired, redirect to login
-          sessionStorage.removeItem("token");
-          setIsAuthenticated(false);
-          setShowExpiryWarning(false);
-        } else {
-          setShowExpiryWarning(false);
-        }
-      } catch (error) {
-        console.error("Error checking token expiry:", error);
-      }
-    };
-
-    // Check immediately
-    checkTokenExpiry();
-    
-    // Check every 30 seconds
-    const interval = setInterval(checkTokenExpiry, 30000);
-    
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  // Note: Token expiry checking removed since we now use HTTP-only cookies
+  // The server will handle token validation and expiry
 
   // Show loading while checking authentication or during route changes
   if (isLoading || isRouteChanging) {
@@ -422,7 +370,7 @@ export default function App({ Component, pageProps }) {
             flexDirection: 'column', 
             minHeight: '100vh' 
           }}>
-            <Header />
+            {router.pathname !== "/" && <Header />}
             
             {/* Session Expiry Warning */}
             {showExpiryWarning && (
@@ -445,7 +393,7 @@ export default function App({ Component, pageProps }) {
             <div className="content" style={{ flex: 1 }}>
               <Component {...pageProps} />
             </div>
-            <Footer />
+            {router.pathname !== "/" && <Footer />}
           </div>
           <ReactQueryDevtools initialIsOpen={false} />
         </MantineProvider>

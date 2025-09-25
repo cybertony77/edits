@@ -1,8 +1,8 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -39,12 +39,9 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
 async function getAssistantFromToken(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return null;
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
+    const user = await authMiddleware(req);
+    return user;
   } catch {
     return null;
   }

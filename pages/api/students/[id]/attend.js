@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -37,19 +37,7 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -84,11 +72,38 @@ export default async function handler(req, res) {
     const weekNumber = attendanceWeek || 1;
     const weekIndex = weekNumber - 1; // Convert to array index
     
-    // Check if weeks array exists and has enough elements
-    if (!student.weeks || student.weeks.length <= weekIndex) {
-      console.log('❌ Week index out of bounds:', weekIndex, 'for student:', student_id);
-      return res.status(400).json({ error: 'Invalid week number' });
-    }
+    // Ensure the target week exists; if not, create weeks up to that index with default schema
+    const ensureWeeksExist = async () => {
+      const currentLength = Array.isArray(student.weeks) ? student.weeks.length : 0;
+      if (currentLength > weekIndex) return; // already exists
+
+      const start = currentLength + 1; // weeks are 1-based
+      const end = weekNumber; // inclusive
+      const additions = [];
+      for (let w = start; w <= end; w++) {
+        additions.push({
+          week: w,
+          attended: false,
+          lastAttendance: null,
+          lastAttendanceCenter: null,
+          hwDone: false,
+          quizDegree: null,
+          comment: null,
+          message_state: false,
+        });
+      }
+      if (additions.length > 0) {
+        console.log(`🧩 Creating missing weeks ${start}..${end} for student ${student_id}`);
+        await db.collection('students').updateOne(
+          { id: student_id },
+          { $push: { weeks: { $each: additions } } }
+        );
+        // Refresh student in-memory reference minimally by extending weeks length
+        student.weeks = (student.weeks || []).concat(additions);
+      }
+    };
+
+    await ensureWeeksExist();
     
     if (attended) {
       // Mark as attended
@@ -121,14 +136,14 @@ export default async function handler(req, res) {
       
     } else {
       // Mark as not attended (unattend)
-      // Also reset hw, paid, and quiz since student didn't attend
+      // Also reset hw and quiz since student didn't attend
       const updateQuery = {
         [`weeks.${weekIndex}.attended`]: false,
         [`weeks.${weekIndex}.lastAttendance`]: null,
         [`weeks.${weekIndex}.lastAttendanceCenter`]: null,
         [`weeks.${weekIndex}.hwDone`]: false,
-        [`weeks.${weekIndex}.paidSession`]: false,
         [`weeks.${weekIndex}.quizDegree`]: null,
+        [`weeks.${weekIndex}.comment`]: null,
         [`weeks.${weekIndex}.message_state`]: false
       };
       

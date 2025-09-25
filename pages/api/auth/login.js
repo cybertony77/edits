@@ -61,9 +61,15 @@ export default async function handler(req, res) {
     const token = jwt.sign(
       { assistant_id: assistant.id, name: assistant.name, role: assistant.role },
       JWT_SECRET,
-      { expiresIn: '2h' }
+      { expiresIn: '3h' }
     );
-    res.json({ token });
+    
+    // Set HTTP-only cookie with the token
+    res.setHeader('Set-Cookie', [
+      `token=${token}; HttpOnly; Secure=false; SameSite=Strict; Path=/; Max-Age=${3 * 60 * 60}` // 3 hours
+    ]);
+    
+    res.json({ success: true, message: 'Login successful' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   } finally {

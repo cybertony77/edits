@@ -19,8 +19,11 @@ export default function SessionInfo() {
   const [selectedWeek, setSelectedWeek] = useState('');
   const [filtered, setFiltered] = useState(null);
   const [showHW, setShowHW] = useState(false);
-  const [showPaid, setShowPaid] = useState(false);
+  
   const [showQuiz, setShowQuiz] = useState(false);
+  const [showComment, setShowComment] = useState(false); // legacy toggle: both main + week for attended table
+  const [showMainComment, setShowMainComment] = useState(false);
+  const [showWeekComment, setShowWeekComment] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null); // 'grade', 'center', 'week', or null
 
   // React Query hook with real-time updates - 5 second polling like history page
@@ -156,16 +159,32 @@ export default function SessionInfo() {
     if (!student.weeks || !weekNumber) return student;
     const weekIndex = weekNumber - 1;
     const weekData = student.weeks[weekIndex];
-    if (!weekData) return student;
     
-    return {
+    // If week data doesn't exist, return student with default week values
+    if (!weekData) {
+      return {
+        ...student,
+        attended_the_session: false,
+        lastAttendance: null,
+        lastAttendanceCenter: null,
+        hwDone: false,
+        
+        quizDegree: null,
+        comment: null,
+        message_state: false, // Default to false for non-existent weeks
+        // Store the week number for WhatsApp button to use
+        currentWeekNumber: weekNumber
+      };
+    }
+    
+      return {
       ...student,
       attended_the_session: weekData.attended,
       lastAttendance: weekData.lastAttendance,
       lastAttendanceCenter: weekData.lastAttendanceCenter,
       hwDone: weekData.hwDone,
-      paidSession: weekData.paidSession,
       quizDegree: weekData.quizDegree,
+      comment: weekData.comment,
       message_state: weekData.message_state,
       // Store the week number for WhatsApp button to use
       currentWeekNumber: weekNumber
@@ -221,23 +240,7 @@ export default function SessionInfo() {
     }).length :
     dataToCount.filter(s => !s.weeks || !s.weeks.some(week => week.hwDone)).length;
     
-  const paidCount = weekNumber ? 
-    dataToCount.filter(s => {
-      if (!s.weeks || !weekNumber) return false;
-      const weekIndex = weekNumber - 1;
-      const weekData = s.weeks[weekIndex];
-      return weekData && weekData.paidSession;
-    }).length :
-    dataToCount.filter(s => s.weeks && s.weeks.some(week => week.paidSession)).length;
-    
-  const notPaidCount = weekNumber ? 
-    dataToCount.filter(s => {
-      if (!s.weeks || !weekNumber) return false;
-      const weekIndex = weekNumber - 1;
-      const weekData = s.weeks[weekIndex];
-      return weekData && !weekData.paidSession;
-    }).length :
-    dataToCount.filter(s => !s.weeks || !s.weeks.some(week => week.paidSession)).length;
+  
 
   const centerCounts = {};
   dataToCount.forEach(s => {
@@ -656,26 +659,36 @@ export default function SessionInfo() {
             >
               {showHW ? 'Hide HW' : 'Show HW'}
             </button>
-            <button
-              className={`table-toggle-btn ${showPaid ? 'active' : ''}`}
-              onClick={() => setShowPaid(v => !v)}
-            >
-              {showPaid ? 'Hide Paid' : 'Show Paid'}
-            </button>
+            
             <button
               className={`table-toggle-btn ${showQuiz ? 'active' : ''}`}
               onClick={() => setShowQuiz(v => !v)}
             >
               {showQuiz ? 'Hide Quiz Degree' : 'Show Quiz Degree'}
             </button>
+            <button
+              className={`table-toggle-btn ${(showComment || showMainComment) ? 'active' : ''}`}
+              onClick={() => {
+                // legacy button toggles BOTH main+week for attended table
+                setShowComment(v => !v);
+                setShowMainComment(v => !v);
+                setShowWeekComment(v => !v);
+              }}
+            >
+              {(showComment || showMainComment || showWeekComment) ? 'Hide Comments' : 'Show Comments'}
+            </button>
           </div>
           <SessionTable
             data={filteredStudents}
             showHW={showHW}
-            showPaid={showPaid}
+            
             showQuiz={showQuiz}
+            showComment={false}
+            showMainComment={showComment || showMainComment}
+            showWeekComment={showComment || showWeekComment}
             height={300}
             showWhatsApp={true}
+            showStatsColumns={true}
             emptyMessage={selectedWeek ? 
               `No students attended in ${selectedCenter} for ${selectedGrade} in ${selectedWeek}.` :
               `No students found for selected grade and center.`
@@ -687,13 +700,17 @@ export default function SessionInfo() {
         {/* Second table: Not attended, grade and main_center match selection */}
         <div className="table-container" style={{ margin: '24px 0', background: '#fff', borderRadius: 12, padding: '18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)' }}>
           <div style={{ fontWeight: 600, marginBottom: 12, textAlign: 'center', color: '#000' }}>
-            {selectedWeek ? `Not Attended in ${selectedWeek}` : 'Not Attended Students'}
+          {selectedWeek ? `Not Attended in ${selectedWeek} (${notAttendedStudents.length} records)` : `Not Attended Students (${notAttendedStudents.length} records)`}
           </div>
           <SessionTable
             data={notAttendedStudents}
             height={300}
             showMainCenter={false}
+            showComment={false}
+            showMainComment={true}
+            showWeekComment={true}
             showWhatsApp={true}
+            showStatsColumns={true}
             emptyMessage={selectedWeek ? 
               `All students in ${selectedCenter} for ${selectedGrade} attended in ${selectedWeek}.` :
               `No students found for selected grade and center.`

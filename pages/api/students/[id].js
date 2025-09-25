@@ -2,6 +2,8 @@ import { MongoClient } from 'mongodb';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { getCookieValue } from '../../../lib/cookies';
+import { authMiddleware } from "../../../lib/authMiddleware"
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -37,19 +39,7 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   const { id } = req.query;
@@ -67,10 +57,11 @@ export default async function handler(req, res) {
       const student = await db.collection('students').findOne({ id: student_id });
       if (!student) return res.status(404).json({ error: 'Student not found' });
       
-      // Find the current week (last attended week or week 1 if none)
-      const currentWeek = student.weeks ? 
-        student.weeks.find(w => w.attended) || student.weeks[0] : 
-        { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, paidSession: false, quizDegree: null, message_state: false };
+      // Find the current week (last attended week or default if none)
+      const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
+      const currentWeek = hasWeeks ?
+        (student.weeks.find(w => w.attended) || student.weeks[0]) :
+        { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
       
       let lastAttendance = currentWeek.lastAttendance;
       if (currentWeek.lastAttendance && currentWeek.lastAttendanceCenter) {
@@ -91,12 +82,12 @@ export default async function handler(req, res) {
         parents_phone: student.parentsPhone,
         center: student.center,
         main_center: student.main_center,
+        main_comment: (student.main_comment ?? student.comment ?? null),
         attended_the_session: currentWeek.attended,
         lastAttendance: lastAttendance,
         lastAttendanceCenter: currentWeek.lastAttendanceCenter,
         attendanceWeek: `week ${String(currentWeek.week).padStart(2, '0')}`,
         hwDone: currentWeek.hwDone,
-        paidSession: currentWeek.paidSession,
         school: student.school || null,
         age: student.age || null,
         quizDegree: currentWeek.quizDegree,
@@ -105,7 +96,7 @@ export default async function handler(req, res) {
       });
     } else if (req.method === 'PUT') {
       // Edit student - handle partial updates properly
-      const { name, grade, phone, parents_phone, main_center, age, school } = req.body;
+      const { name, grade, phone, parents_phone, main_center, age, school, main_comment, comment } = req.body;
       
       // Build update object with only defined values (not null or undefined)
       const update = {};
@@ -125,11 +116,22 @@ export default async function handler(req, res) {
       if (main_center !== undefined && main_center !== null) {
         update.main_center = main_center;
       }
-      if (age !== undefined && age !== null) {
-        update.age = age;
+      if (age !== undefined) {
+        // Handle empty string or null age - set to null in database
+        if (age === '' || age === null) {
+          update.age = null;
+        } else {
+          update.age = age;
+        }
       }
       if (school !== undefined && school !== null) {
         update.school = school;
+      }
+      if (main_comment !== undefined) {
+        update.main_comment = main_comment; // allow null or string
+      } else if (comment !== undefined) {
+        // backward compat
+        update.main_comment = comment;
       }
       
       // Only proceed if there are fields to update

@@ -70,11 +70,8 @@ export default function AllStudents() {
   }, [error]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
     
     // Check if mobile
     const checkMobile = () => {

@@ -5,7 +5,7 @@ import Title from "../../components/Title";
 import AttendanceWeekSelect from "../../components/AttendanceWeekSelect";
 import CenterSelect from "../../components/CenterSelect";
 import QRScanner from "../../components/QRScanner";
-import { useStudents, useStudent, useToggleAttendance, useUpdateHomework, useUpdatePayment, useUpdateQuizGrade } from "../../lib/api/students";
+import { useStudents, useStudent, useToggleAttendance, useUpdateHomework, useUpdateQuizGrade, useUpdateWeekComment } from "../../lib/api/students";
 
 // Helper to extract student ID from QR text (URL or plain number)
 function extractStudentId(qrText) {
@@ -30,14 +30,22 @@ export default function QR() {
   const [searchId, setSearchId] = useState(""); // Separate state for search
   const [error, setError] = useState("");
   const [attendSuccess, setAttendSuccess] = useState(false);
+  const [hwSuccess, setHwSuccess] = useState("");
+  const [attendanceSuccess, setAttendanceSuccess] = useState("");
   const [attendanceCenter, setAttendanceCenter] = useState("");
   const [selectedWeek, setSelectedWeek] = useState("");
   const [quizDegreeInput, setQuizDegreeInput] = useState("");
   const [quizDegreeOutOf, setQuizDegreeOutOf] = useState("");
+  const [weekComment, setWeekComment] = useState("");
+  const [commentSuccess, setCommentSuccess] = useState("");
+  const [quizSuccess, setQuizSuccess] = useState("");
+  const [notQuized, setNotQuized] = useState(false);
+  const [noQuiz, setNoQuiz] = useState(false);
+  const [noHomework, setNoHomework] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null); // 'week', 'center', or null
   // Simple optimistic state for immediate UI feedback
   const [optimisticHwDone, setOptimisticHwDone] = useState(null);
-  const [optimisticPaidSession, setOptimisticPaidSession] = useState(null);
+  
   const [optimisticAttended, setOptimisticAttended] = useState(null);
   const [isQRScanned, setIsQRScanned] = useState(false); // Track if student was found via QR scan
   const [searchResults, setSearchResults] = useState([]); // Store multiple search results
@@ -61,8 +69,8 @@ export default function QR() {
   const { data: allStudents } = useStudents();
   const toggleAttendanceMutation = useToggleAttendance();
   const updateHomeworkMutation = useUpdateHomework();
-  const updatePaymentMutation = useUpdatePayment();
   const updateQuizGradeMutation = useUpdateQuizGrade();
+  const updateWeekCommentMutation = useUpdateWeekComment();
 
   // Load remembered values from sessionStorage
   useEffect(() => {
@@ -82,11 +90,8 @@ export default function QR() {
   }, []);
 
   useEffect(() => {
-    const t = sessionStorage.getItem("token");
-    if (!t) {
-      router.push("/");
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
   }, [router]);
 
   // Handle click outside to close dropdowns
@@ -137,7 +142,7 @@ export default function QR() {
       lastAttendance: weekData.lastAttendance,
       lastAttendanceCenter: weekData.lastAttendanceCenter,
       hwDone: weekData.hwDone,
-      paidSession: weekData.paidSession,
+      
       quizDegree: weekData.quizDegree
     };
   };
@@ -203,11 +208,8 @@ export default function QR() {
   };
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
     
   }, [studentId, student]);
 
@@ -282,6 +284,38 @@ export default function QR() {
     }
   }, [error]);
 
+  // Auto-hide comment success after 4 seconds
+  useEffect(() => {
+    if (commentSuccess) {
+      const timer = setTimeout(() => setCommentSuccess("") , 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [commentSuccess]);
+
+  // Auto-hide quiz success after 4 seconds
+  useEffect(() => {
+    if (quizSuccess) {
+      const timer = setTimeout(() => setQuizSuccess("") , 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [quizSuccess]);
+
+  // Auto-hide homework success after 4 seconds
+  useEffect(() => {
+    if (hwSuccess) {
+      const timer = setTimeout(() => setHwSuccess("") , 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [hwSuccess]);
+
+  // Auto-hide attendance success after 4 seconds
+  useEffect(() => {
+    if (attendanceSuccess) {
+      const timer = setTimeout(() => setAttendanceSuccess("") , 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [attendanceSuccess]);
+
   // Handle student errors from React Query with immediate feedback
   useEffect(() => {
     if (studentError) {
@@ -305,8 +339,35 @@ export default function QR() {
   // Clear optimistic state when student or week changes
   useEffect(() => {
     setOptimisticHwDone(null);
-    setOptimisticPaidSession(null);
+    
     setOptimisticAttended(null);
+    setNotQuized(false);
+    setNoHomework(false);
+    // Load current week's comment from student when available
+    try {
+      const degreeRaw = (student?.quizDegree ?? '').toString().trim();
+      const normalized = degreeRaw.toLowerCase().replace(/[''`]/g, '');
+    
+      const didntAttendTarget = "didnt attend the quiz";
+      const noQuizTarget = "no quiz";
+    
+      setNotQuized(normalized === didntAttendTarget);
+      setNoQuiz(normalized === noQuizTarget);
+    
+      // Sync quiz inputs when value like "15 / 20"
+      const match = degreeRaw.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/i);
+      if (match) {
+        setQuizDegreeInput(match[1]);
+        setQuizDegreeOutOf(match[2]);
+      } else if (normalized === didntAttendTarget || normalized === noQuizTarget || degreeRaw === '' || degreeRaw == null) {
+        setQuizDegreeInput('');
+        setQuizDegreeOutOf('');
+      }
+
+      // Sync "No Homework" checkbox with database value
+      const hwValue = student?.hwDone;
+      setNoHomework(hwValue === "No Homework");
+    } catch {}    
   }, [student?.id, selectedWeek]);
 
   // Auto-attend student when conditions are met (ONLY for QR scans with pre-selected center/week)
@@ -327,13 +388,13 @@ export default function QR() {
     }
   }, [student, attendanceCenter, selectedWeek, optimisticAttended, isQRScanned]);
 
-  // Reset HW/Paid optimistic states when attendance becomes false
+  // Reset HW optimistic states when attendance becomes false
   useEffect(() => {
     const currentAttended = optimisticAttended !== null ? optimisticAttended : student?.attended_the_session;
     if (currentAttended === false) {
       // If attendance is false, reset other optimistic states to false/null
       setOptimisticHwDone(false);
-      setOptimisticPaidSession(false);
+      
       // Clear quiz degree inputs as well
       setQuizDegreeInput("");
       setQuizDegreeOutOf("");
@@ -351,6 +412,13 @@ export default function QR() {
     const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
     const newAttended = !currentAttended;
     setOptimisticAttended(newAttended);
+    // If marking as absent, clear local comment and uncheck all checkboxes immediately to reflect reset
+    if (!newAttended) {
+      setWeekComment("");
+      setNoHomework(false);
+      setNotQuized(false);
+      setNoQuiz(false);
+    }
     
     const weekNumber = getWeekNumber(selectedWeek);
     
@@ -389,6 +457,10 @@ export default function QR() {
     toggleAttendanceMutation.mutate({
       id: student.id,
       attendanceData
+    }, {
+      onSuccess: () => {
+        setAttendanceSuccess(newAttended ? '✅ Student Marked as Attended' : '✅ Student Marked as Absent');
+      }
     });
   };
 
@@ -398,7 +470,7 @@ export default function QR() {
     // Check if student is attended - can't do homework if not attended
     const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
     if (!currentAttended) {
-      setError("Student must be marked as attended before homework can be updated.");
+      setError("Student Must be Marked as Attended before homework can be updated.");
       return;
     }
     
@@ -412,31 +484,14 @@ export default function QR() {
     updateHomeworkMutation.mutate({
       id: student.id,
       homeworkData: { hwDone: newHwDone, week: weekNumber }
+    }, {
+      onSuccess: () => {
+        setHwSuccess(newHwDone ? '✅ Homework Marked as Done' : '✅ Homework Marked as Not Done');
+      }
     });
   };
 
-  const togglePaidSession = async () => {
-    if (!student || !selectedWeek || !attendanceCenter) return;
-    
-    // Check if student is attended - can't pay if not attended
-    const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
-    if (!currentAttended) {
-      setError("Student must be marked as attended before payment can be updated.");
-      return;
-    }
-    
-    // Use current displayed state (optimistic if available, otherwise DB state)
-    const currentPaidSession = optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession;
-    const newPaidSession = !currentPaidSession;
-    setOptimisticPaidSession(newPaidSession);
-    
-    const weekNumber = getWeekNumber(selectedWeek);
-    
-    updatePaymentMutation.mutate({
-      id: student.id,
-      paymentData: { paidSession: newPaidSession, week: weekNumber }
-    });
-  };
+  
 
   // Add form handler for quiz degree
   const handleQuizFormSubmit = async (e) => {
@@ -451,21 +506,27 @@ export default function QR() {
     // Check if student is attended - can't enter quiz if not attended
     const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
     if (!currentAttended) {
-      setError("Student must be marked as attended before quiz degree can be entered.");
+      setError("Student Must be Marked as Attended before quiz degree can be entered.");
       return;
     }
     
     const quizDegreeValue = `${quizDegreeInput} / ${quizDegreeOutOf}`;
     const weekNumber = getWeekNumber(selectedWeek);
     
-    updateQuizGradeMutation.mutate({
-      id: student.id,
-      quizData: { quizDegree: quizDegreeValue, week: weekNumber }
-    });
-    
-    // Clear inputs after submission
-    setQuizDegreeInput("");
-    setQuizDegreeOutOf("");
+    updateQuizGradeMutation.mutate(
+      {
+        id: student.id,
+        quizData: { quizDegree: quizDegreeValue, week: weekNumber }
+      },
+      {
+        onSuccess: () => {
+          setQuizSuccess('✅ Quiz Degree set successfully');
+          // Ensure the special checkbox is off when a numeric degree is saved
+          setNotQuized(false);
+        }
+      }
+    );
+    // Do not clear inputs; keep values visible after save
   };
 
 
@@ -980,28 +1041,22 @@ export default function QR() {
                   ? '✅ Attended' 
                   : '❌ Absent'}
             </span>
-            <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
-              ? 'status-not-attended' 
-              : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
-                ? 'status-attended' 
-                : 'status-not-attended'}`}>
-              {(!attendanceCenter || !selectedWeek) 
-                ? '❌ H.W: Not Done' 
-                : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
-                  ? '✅ H.W: Done' 
-                  : '❌ H.W: Not Done'}
+            <span className={`status-badge ${(!attendanceCenter || !selectedWeek)
+              ? 'status-not-attended'
+              : noHomework || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "No Homework"
+                ? 'status-attended'
+                : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
+                  ? 'status-attended'
+                  : 'status-not-attended'}`}>
+              {(!attendanceCenter || !selectedWeek)
+                ? '❌ H.W: Not Done'
+                : noHomework || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "No Homework"
+                  ? '✅ H.W: No Homework'
+                  : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
+                    ? '✅ H.W: Done'
+                    : '❌ H.W: Not Done'}
             </span>
-            <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
-              ? 'status-not-attended' 
-              : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
-                ? 'status-attended' 
-                : 'status-not-attended'}`}>
-              {(!attendanceCenter || !selectedWeek) 
-                ? '❌ Not Paid' 
-                : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
-                  ? '✅ Paid' 
-                  : '❌ Not Paid'}
-            </span>
+            
             <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
               ? 'status-not-attended' 
               : student.quizDegree 
@@ -1076,80 +1131,257 @@ export default function QR() {
                   : '✅ Mark as Attended'}
             </button>
 
-            {/* Homework Toggle Button */}
-            <button
-              className="toggle-btn"
-              onClick={toggleHwDone}
-              disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
-              style={{
-                width: '100%',
-                background: (!attendanceCenter || !selectedWeek) 
-                  ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' // Default "Not Done" state
-                  : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                      ? 'linear-gradient(135deg, #6c757d 0%, #495057 100%)' // Gray when not attended
-                    : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
-                      ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
-                      : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 10,
-                fontWeight: 600,
-                fontSize: '1.1rem',
-                padding: '14px 0',
-                cursor: (!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 'not-allowed' : 'pointer',
-                opacity: (!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 0.5 : 1,
-                transition: 'all 0.3s ease'
-              }}
-            >
-              {(!attendanceCenter || !selectedWeek) 
-                ? '✅ Mark as H.W Done' 
-                : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                  ? '🚫 Must Attend First' 
-                  : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) 
-                    ? '❌ Mark as H.W Not Done' 
-                    : '✅ Mark as H.W Done'}
-            </button>
+            {/* Homework Status Controls */}
+            <div className="info-label" style={{ marginBottom: 6, marginTop: 4, textAlign: 'start', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span>Homework Status :</span>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={noHomework}
+                onChange={async (e) => {
+                  const checked = e.target.checked;
+                  setNoHomework(checked);
 
-            {/* Payment Toggle Button */}
-            <button
-              className="toggle-btn"
-              onClick={togglePaidSession}
-              disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
-              style={{
-                width: '100%',
-                background: (!attendanceCenter || !selectedWeek) 
-                  ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' // Default "Not Paid" state
-                  : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                    ? 'linear-gradient(135deg, #6c757d 0%, #495057 100%)' // Gray when not attended
-                    : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
-                      ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)' 
-                      : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 10,
-                fontWeight: 600,
-                fontSize: '1.1rem',
-                padding: '14px 0',
-                cursor: (!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 'not-allowed' : 'pointer',
-                opacity: (!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 0.5 : 1,
-                transition: 'all 0.3s ease'
-              }}
-            >
-              {(!attendanceCenter || !selectedWeek) 
-                ? '✅ Mark as Paid' 
-                : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) 
-                  ? '🚫 Must Attend First' 
-                  : (optimisticPaidSession !== null ? optimisticPaidSession : student.paidSession) 
-                    ? '❌ Mark as Not Paid' 
-                    : '✅ Mark as Paid'}
-            </button>
+                  if (!student || !selectedWeek || !attendanceCenter) {
+                    setError('Please select student, week and center first.');
+                    setNoHomework(!checked);
+                    return;
+                  }
+
+                  const currentAttended =
+                    optimisticAttended !== null
+                      ? optimisticAttended
+                      : student.attended_the_session;
+
+                  if (!currentAttended) {
+                    setError('Student must be marked as attended before homework can be updated.');
+                    setNoHomework(!checked);
+                    return;
+                  }
+
+                  const weekNumber = getWeekNumber(selectedWeek);
+
+                  if (checked) {
+                    // ✅ Save "No Homework" to DB
+                    updateHomeworkMutation.mutate({
+                      id: student.id,
+                      homeworkData: { hwDone: "No Homework", week: weekNumber },
+                    }, {
+                      onSuccess: () => {
+                        setHwSuccess('✅ No Homework status set');
+                      }
+                    });
+                    setOptimisticHwDone(false);
+                  } else {
+                    // ✅ Reset to false when unchecked
+                    updateHomeworkMutation.mutate({
+                      id: student.id,
+                      homeworkData: { hwDone: false, week: weekNumber },
+                    }, {
+                      onSuccess: () => {
+                        setHwSuccess('✅ Homework status reset');
+                      }
+                    });
+                    setOptimisticHwDone(false);
+                  }
+                }}
+              />
+                <span>No Homework</span>
+              </label>
+            </div>
+            {!noHomework && (
+              <button
+                className="toggle-btn"
+                onClick={toggleHwDone}
+                disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
+                style={{
+                  width: '100%',
+                  background: (!attendanceCenter || !selectedWeek)
+                    ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)'
+                    : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)
+                        ? 'linear-gradient(135deg, #6c757d 0%, #495057 100%)'
+                      : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
+                        ? 'linear-gradient(135deg, #dc3545 0%, #e74c3c 100%)'
+                        : 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontWeight: 600,
+                  fontSize: '1.1rem',
+                  padding: '14px 0',
+                  cursor: (!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 'not-allowed' : 'pointer',
+                  opacity: (!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 0.5 : 1,
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                {(!attendanceCenter || !selectedWeek)
+                  ? '✅ Mark as H.W Done'
+                  : !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)
+                    ? '🚫 Must Attend First'
+                    : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
+                      ? '❌ Mark as H.W Not Done'
+                      : '✅ Mark as H.W Done'}
+              </button>
+            )}
+
+            
 
           </div>
 
           {/* Quiz degree input section */}
-          <div className="info-label" style={{ marginBottom: 6, marginTop: 10, textAlign: 'start', fontWeight: 600 }}>
-            Quiz Degree
+          <div
+            className="info-label"
+            style={{
+              marginBottom: 6,
+              marginTop: 15,
+              textAlign: 'start',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              gap: 12,
+              flexWrap: 'wrap',
+              rowGap: 6,
+              columnGap: 12,
+            }}
+          >
+            <span>Quiz Degree :</span>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={notQuized}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setNotQuized(checked);
+                  if (checked && noQuiz) {
+                    // make them mutually exclusive
+                    setNoQuiz(false);
+                  }
+                  if (checked) {
+                    // Validate prerequisites
+                    if (!student || !selectedWeek || !attendanceCenter) {
+                      setError('Please select student, week and center first.');
+                      setNotQuized(false);
+                      return;
+                    }
+                    const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
+                    if (!currentAttended) {
+                      setError('Student must be marked as attended before quiz degree can be entered.');
+                      setNotQuized(false);
+                      return;
+                    }
+                    // Submit "didn't attend the quiz"
+                    const weekNumber = getWeekNumber(selectedWeek);
+                    updateQuizGradeMutation.mutate(
+                      {
+                        id: student.id,
+                        quizData: { quizDegree: "Didn't Attend The Quiz", week: weekNumber }
+                      },
+                      {
+                        onSuccess: () => {
+                          setQuizSuccess('✅ Quiz Degree set successfully');
+                          setQuizDegreeInput('');
+                          setQuizDegreeOutOf('');
+                        }
+                      }
+                    );
+                  } else {
+                    // Unchecked: reset quiz degree to null
+                    // Validate prerequisites
+                    if (!student || !selectedWeek || !attendanceCenter) {
+                      setError('Please select student, week and center first.');
+                      return;
+                    }
+                    const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
+                    if (!currentAttended) {
+                      setError('Student must be marked as attended before quiz degree can be updated.');
+                      return;
+                    }
+                    const weekNumber = getWeekNumber(selectedWeek);
+                    updateQuizGradeMutation.mutate(
+                      {
+                        id: student.id,
+                        quizData: { quizDegree: null, week: weekNumber }
+                      },
+                      {
+                        onSuccess: () => {
+                          setQuizSuccess('✅ Quiz Degree set successfully');
+                        }
+                      }
+                    );
+                  }
+                }}
+              />
+              <span>didn't attend the quiz</span>
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={noQuiz}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setNoQuiz(checked);
+                  if (checked && notQuized) {
+                    // make them mutually exclusive
+                    setNotQuized(false);
+                  }
+                  if (checked) {
+                    // Validate prerequisites
+                    if (!student || !selectedWeek || !attendanceCenter) {
+                      setError('Please select student, week and center first.');
+                      setNoQuiz(false);
+                      return;
+                    }
+                    const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
+                    if (!currentAttended) {
+                      setError('Student must be marked as attended before quiz degree can be entered.');
+                      setNoQuiz(false);
+                      return;
+                    }
+                    const weekNumber = getWeekNumber(selectedWeek);
+                    updateQuizGradeMutation.mutate(
+                      {
+                        id: student.id,
+                        quizData: { quizDegree: 'No Quiz', week: weekNumber }
+                      },
+                      {
+                        onSuccess: () => {
+                          setQuizSuccess('✅ Quiz Degree set successfully');
+                          setQuizDegreeInput('');
+                          setQuizDegreeOutOf('');
+                        }
+                      }
+                    );
+                  } else {
+                    // Unchecked: reset to null
+                    if (!student || !selectedWeek || !attendanceCenter) {
+                      setError('Please select student, week and center first.');
+                      return;
+                    }
+                    const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
+                    if (!currentAttended) {
+                      setError('Student must be marked as attended before quiz degree can be updated.');
+                      return;
+                    }
+                    const weekNumber = getWeekNumber(selectedWeek);
+                    updateQuizGradeMutation.mutate(
+                      {
+                        id: student.id,
+                        quizData: { quizDegree: null, week: weekNumber }
+                      },
+                      {
+                        onSuccess: () => {
+                          setQuizSuccess('✅ Quiz Degree set successfully');
+                        }
+                      }
+                    );
+                  }
+                }}
+              />
+              <span>No Quiz</span>
+            </label>
           </div>
+          {!(notQuized || noQuiz) && (
           <form onSubmit={handleQuizFormSubmit} className="quiz-row">
             <div className="quiz-inputs-container">
             <input
@@ -1206,12 +1438,77 @@ export default function QR() {
                 : ''
               }
             >
-              {updateQuizGradeMutation.isPending ? 'Saving...' : 'Save'}
+              {updateQuizGradeMutation.isPending ? 'Saving...' : 'Save Quiz Degree'}
             </button>
           </form>
+          )}
+          {/* quiz success shown below the student card */}
+
+          {/* Weekly Comment */}
+          <div className="info-label" style={{ marginBottom: 6, marginTop: 10, textAlign: 'start', fontWeight: 600 }}>
+            Comment (optional)
+          </div>
+          <div className="quiz-row" style={{ alignItems: 'stretch' }}>
+            <textarea
+              className="manual-input"
+              placeholder={(!selectedWeek || !attendanceCenter) ? "Select week and center first..." : "Write a comment for this student"}
+              value={weekComment}
+              onChange={(e) => setWeekComment(e.target.value)}
+              disabled={!selectedWeek || !attendanceCenter}
+              rows={3}
+              style={{ width: '100%', resize: 'vertical', opacity: (!selectedWeek || !attendanceCenter) ? 0.5 : 1, cursor: (!selectedWeek || !attendanceCenter) ? 'not-allowed' : 'text' }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+            <button
+              className="fetch-btn"
+              onClick={() => {
+                if (!student || !selectedWeek || !attendanceCenter) return;
+                const weekNumber = getWeekNumber(selectedWeek);
+                updateWeekCommentMutation.mutate(
+                  { id: student.id, comment: weekComment, week: weekNumber },
+                  {
+                    onSuccess: () => {
+                      setCommentSuccess('✅ Comment set successfully');
+                    }
+                  }
+                );
+              }}
+              disabled={!student || !selectedWeek || !attendanceCenter || updateWeekCommentMutation.isPending}
+              style={{ opacity: (!student || !selectedWeek || !attendanceCenter) ? 0.5 : 1 }}
+            >
+              {updateWeekCommentMutation.isPending ? 'Saving...' : 'Save Comment'}
+            </button>
+          </div>
+          {/* comment success shown below the student card */}
         </div>
       )}
 
+      {/* Success messages displayed right after the student card */}
+      {(quizSuccess || commentSuccess || hwSuccess || attendanceSuccess) && (
+        <div style={{ maxWidth: 600, margin: '12px auto 0 auto' }}>
+          {quizSuccess && (
+            <div className="success-message">
+              {quizSuccess}
+            </div>
+          )}
+          {commentSuccess && (
+            <div className="success-message" style={{ marginTop: 10 }}>
+              {commentSuccess}
+            </div>
+          )}
+          {hwSuccess && (
+            <div className="success-message" style={{ marginTop: 10 }}>
+              {hwSuccess}
+            </div>
+          )}
+          {attendanceSuccess && (
+            <div className="success-message" style={{ marginTop: 10 }}>
+              {attendanceSuccess}
+            </div>
+          )}
+        </div>
+      )}
 
 
       {/* Error message now appears below the student card */}

@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -37,19 +37,7 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -58,7 +46,10 @@ export default async function handler(req, res) {
   
   const { id } = req.query;
   const student_id = parseInt(id);
-  const { message_state } = req.body;
+  const { message_state, week } = req.body;
+  
+  console.log('📱 Updating message state for student:', student_id);
+  console.log('📅 Message state data:', { message_state, week });
   
   let client;
   try {
@@ -67,22 +58,72 @@ export default async function handler(req, res) {
     
     // Verify authentication
     const user = await authMiddleware(req);
+    console.log('✅ Authentication successful for user:', user.assistant_id);
     
-    // Get the current student data to check if they are attended
+    // Get the current student data
     const student = await db.collection('students').findOne({ id: student_id });
-    if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (!student) {
+      console.log('❌ Student not found:', student_id);
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    console.log('✅ Found student:', student.name);
+    
+    // Determine which week to update
+    const weekNumber = week || 1;
+    const weekIndex = weekNumber - 1; // Convert to array index
+    
+    // Ensure the target week exists; if not, create weeks up to that index with default schema
+    const ensureWeeksExist = async () => {
+      const currentLength = Array.isArray(student.weeks) ? student.weeks.length : 0;
+      if (currentLength > weekIndex) return; // already exists
+
+      const start = currentLength + 1; // weeks are 1-based
+      const end = weekNumber; // inclusive
+      const additions = [];
+      for (let w = start; w <= end; w++) {
+        additions.push({
+          week: w,
+          attended: false,
+          lastAttendance: null,
+          lastAttendanceCenter: null,
+          hwDone: false,
+          quizDegree: null,
+          comment: null,
+          message_state: false,
+        });
+      }
+      if (additions.length > 0) {
+        console.log(`🧩 Creating missing weeks ${start}..${end} for student ${student_id}`);
+        await db.collection('students').updateOne(
+          { id: student_id },
+          { $push: { weeks: { $each: additions } } }
+        );
+        // Refresh student in-memory reference minimally by extending weeks length
+        student.weeks = (student.weeks || []).concat(additions);
+      }
+    };
+
+    await ensureWeeksExist();
+    
+    // Update the message state for the specific week
+    const updateQuery = {
+      [`weeks.${weekIndex}.message_state`]: !!message_state
+    };
     
     const result = await db.collection('students').updateOne(
       { id: student_id },
-      { $set: { message_state: !!message_state } }
+      { $set: updateQuery }
     );
     
-    if (result.matchedCount === 0) return res.status(404).json({ error: 'Student not found' });
-    
-    // Note: History data is now sourced directly from students collection
+    if (result.matchedCount === 0) {
+      console.log('❌ Failed to update student:', student_id);
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    console.log('✅ Message state updated for student', student_id, 'week', weekNumber, 'to', !!message_state);
     
     res.json({ success: true });
   } catch (error) {
+    console.error('❌ Error in update-message-state endpoint:', error);
     if (error.message.includes('Unauthorized') || error.message.includes('Invalid token')) {
       res.status(401).json({ error: error.message });
     } else {

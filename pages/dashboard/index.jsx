@@ -2,36 +2,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Image from 'next/image';
 
-// Manual JWT decode function
-function decodeJWT(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
-
 export default function Dashboard() {
   const router = useRouter();
   const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
-    
-    const decoded = decodeJWT(token);
-    if (!decoded) {
-      sessionStorage.removeItem("token");
-      router.push("/");
-      return;
-    }
-    
-    // Set user role for conditional rendering
-    setUserRole(decoded.role);
-  }, [router]);
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
+    setUserRole("user"); // Default role, will be updated by _app.js if needed
+  }, []);
 
   return (
     <div style={{ 

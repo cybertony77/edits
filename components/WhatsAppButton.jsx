@@ -70,8 +70,7 @@ const WhatsAppButton = ({ student, onMessageSent }) => {
         attended: student.attended_the_session || false,
         lastAttendance: student.lastAttendance || 'N/A',
         hwDone: student.hwDone || false,
-        paidSession: student.paidSession || false,
-        quizDegree: student.quizDegree || '0/0'
+        quizDegree: student.quizDegree ?? null
       };
 
 
@@ -90,15 +89,18 @@ We want to inform you that we are in:
       if (currentWeek.attended) {
         whatsappMessage += `
   • Homework: ${currentWeek.hwDone ? 'Done' : 'Not Done'}
-  • Paid Session: ${currentWeek.paidSession ? 'Yes' : 'No'}
-  • Quiz Degree: ${currentWeek.quizDegree || '0/0'}`;
+  `;
+        if (currentWeek.quizDegree !== null && String(currentWeek.quizDegree).trim() !== '') {
+          whatsappMessage += `
+  • Quiz Degree: ${currentWeek.quizDegree}`;
+        }
       }
 
       whatsappMessage += `
 
 Thanks for choosing us 😊❤
 
-– Eng. Mina Narouz & Team`;
+– Eng. Mina Narouz`;
 
       // Create WhatsApp URL with the formatted message
       const whatsappUrl = `https://wa.me/${parentNumber}?text=${encodeURIComponent(whatsappMessage)}`;
@@ -134,6 +136,7 @@ Thanks for choosing us 😊❤
       const weekNumber = student.currentWeekNumber || 1; // Use current week or default to 1
       console.log('Updating message state in database for student:', student.id, 'week:', weekNumber);
       console.log('Student data:', { id: student.id, currentWeekNumber: student.currentWeekNumber, name: student.name });
+      console.log('Student weeks data:', student.weeks);
       
       updateMessageStateMutation.mutate(
         { id: student.id, message_state: true, week: weekNumber },

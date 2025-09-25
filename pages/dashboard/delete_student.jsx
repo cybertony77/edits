@@ -21,11 +21,8 @@ export default function DeleteStudent() {
   const deleteStudentMutation = useDeleteStudent();
 
   useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    if (!token) {
-      router.push("/");
-      return;
-    }
+    // Authentication is now handled by _app.js with HTTP-only cookies
+    // This component will only render if user is authenticated
   }, [router]);
 
   useEffect(() => {
@@ -465,6 +462,7 @@ export default function DeleteStudent() {
                 <p><strong>Phone:</strong> {student.phone}</p>
                 <p><strong>Parent's Phone:</strong> {student.parents_phone || student.parentsPhone}</p>
                 <p><strong>Main Center:</strong> {student.main_center}</p>
+                <p><strong>Main Comment:</strong> {student.main_comment ||"No Comment"}</p>
                 
                 <div style={{ marginTop: "20px" }}>
                   <p style={{ color: "#dc3545", fontWeight: "bold", marginBottom: "16px" }}>

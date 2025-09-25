@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
-import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
+import { authMiddleware } from '../../../lib/authMiddleware';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -37,19 +37,7 @@ const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
-async function authMiddleware(req) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    throw new Error('Unauthorized - No Bearer token');
-  }
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    throw new Error('Invalid token - ' + error.message);
-  }
-}
+// Auth middleware is now imported from shared utility
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -105,7 +93,6 @@ export default async function handler(req, res) {
         center: weekData.lastAttendanceCenter || 'n/a',
         attendanceDate: weekData.lastAttendance || 'n/a',
         hwDone: weekData.hwDone || false,
-        paidSession: weekData.paidSession || false,
         quizDegree: weekData.quizDegree || null,
         message_state: weekData.message_state || false
       };
@@ -119,6 +106,10 @@ export default async function handler(req, res) {
           school: student.school,
           phone: student.phone,
           parentsPhone: student.parentsPhone,
+          // Expose comments directly from the student collection
+          main_comment: student.main_comment || student.comment || '',
+          // Provide weeks array so frontend can read week-specific comments
+          weeks: Array.isArray(student.weeks) ? student.weeks : [],
           historyRecords: []
         });
       }

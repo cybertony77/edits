@@ -17,6 +17,7 @@ export default function AddStudent() {
     phone: "",
     parentsPhone: "",
     main_center: "",
+    comment: "",
   });
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState(""); // Separate state for success message text
@@ -114,6 +115,10 @@ export default function AddStudent() {
     payload.phone = studentPhone; // Keep as string to preserve leading zeros exactly
     let gradeClean = payload.grade.toLowerCase().replace(/\./g, '');
     payload.grade = gradeClean;
+    // Optional main_comment: send as main_comment field
+    const mc = form.comment && form.comment.trim() !== '' ? form.comment.trim() : null;
+    payload.main_comment = mc;
+    delete payload.comment;
     delete payload.parentsPhone;
     
     createStudentMutation.mutate(payload, {
@@ -144,6 +149,7 @@ export default function AddStudent() {
       phone: "",
       parentsPhone: "",
       main_center: "",
+      comment: "",
     });
     setSuccess(false);
     setSuccessMessage(""); // Clear success message
@@ -318,7 +324,7 @@ export default function AddStudent() {
               </small>
             </div>
             <div className="form-group">
-              <label>Parent's Phone <span style={{color: 'red'}}>*</span></label>
+              <label>Parent's Phone (Whatsapp) <span style={{color: 'red'}}>*</span></label>
               <input
                 className="form-input"
                 name="parentsPhone"
@@ -351,6 +357,18 @@ export default function AddStudent() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+          <div className="form-group">
+            <label>Main Comment (Optional)</label>
+            <textarea
+              className="form-input"
+              name="comment"
+              placeholder="Enter any notes about this student"
+              value={form.comment}
+              onChange={handleChange}
+              rows={3}
+              style={{ resize: 'vertical' }}
+            />
+          </div>
             <button type="submit" disabled={createStudentMutation.isPending} className="submit-btn">
               {createStudentMutation.isPending ? "Adding..." : "Add Student"}
             </button>
