@@ -19,7 +19,7 @@ export function InputWithButton(props) {
     <TextInput
       radius="xl"
       size="md"
-      placeholder="Search by ID, Name or School"
+      placeholder="Search by ID, Name, School, Student Phone or Parent Phone"
       rightSectionWidth={42}
       leftSection={<IconSearch size={18} stroke={1.5} />}
       rightSection={
@@ -119,6 +119,45 @@ export default function History() {
   const filterStudents = () => {
     let filtered = students;
 
+    // Pre-filter by searchTerm first to ensure ID/phone searches are not lost
+    if (searchTerm.trim() !== "") {
+      const term = searchTerm.trim();
+      if (/^\d+$/.test(term)) {
+        // Digits only: prioritize exact ID match, then phone matches
+        filtered = filtered.filter(student => {
+          // Convert both to strings for comparison to handle any type differences
+          const studentId = String(student.id || '');
+          const studentPhone = String(student.phone || '');
+          const parentPhone = String(student.parentsPhone || '');
+          
+          // If search term starts with "01", treat it as phone number search
+          if (term.startsWith('01')) {
+            return studentId === term ||
+                   studentPhone.includes(term) ||
+                   parentPhone.includes(term);
+          }
+          
+          // If search term is short (1-3 digits), prioritize exact ID match
+          if (term.length <= 3) {
+            return studentId === term;
+          }
+          
+          // For longer numeric searches, search in ID and phone fields
+          return studentId === term ||
+                 studentPhone.includes(term) ||
+                 parentPhone.includes(term);
+        });
+      } else {
+        // Text: search in name, school, and phone fields (case-insensitive for text fields)
+        filtered = filtered.filter(student =>
+          (student.name && student.name.toLowerCase().includes(term.toLowerCase())) ||
+          (student.school && student.school.toLowerCase().includes(term.toLowerCase())) ||
+          (student.phone && student.phone.includes(term)) ||
+          (student.parentsPhone && student.parentsPhone.includes(term))
+        );
+      }
+    }
+
     // Show all students who have history records
     filtered = filtered.filter(student => 
       student.historyRecords && student.historyRecords.length > 0
@@ -163,16 +202,6 @@ export default function History() {
 
     // Only keep students who have matching records after filtering
     filtered = filtered.filter(student => student.historyRecords.length > 0);
-
-    // Search filter (by id, name (includes), or school (includes))
-    if (searchTerm.trim() !== "") {
-      const term = searchTerm.trim().toLowerCase();
-      filtered = filtered.filter(student =>
-        student.id.toString().includes(term) ||
-        (student.name && student.name.toLowerCase().includes(term)) ||
-        (student.school && student.school.toLowerCase().includes(term))
-      );
-    }
 
     setFilteredStudents(filtered);
   };

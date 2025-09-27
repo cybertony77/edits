@@ -717,7 +717,7 @@ export default function EditStudent() {
                 </small>
               </div>
               <div className="form-group">
-                <label>Parent's Phone</label>
+                <label>Parent's Phone (Whatsapp)</label>
                 <input
                   className="form-input"
                   name="parents_phone"

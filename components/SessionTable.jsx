@@ -15,6 +15,9 @@ export function SessionTable({
   emptyMessage = "No students found",
   showMainCenter = true,
   showWhatsApp = true,
+  showMessageState = true,
+  showSchool = false,
+  showGrade = false,
   onMessageStateChange,
   showStatsColumns = false
 }) {
@@ -116,8 +119,26 @@ export function SessionTable({
     <Table.Tr key={student.id}>
       <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '60px', minWidth: '60px', textAlign: 'center' }}>{student.id}</Table.Td>
       <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.name}</Table.Td>
+      {showGrade && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{student.grade || 'N/A'}</Table.Td>}
+      {showSchool && <Table.Td style={{ width: '150px', minWidth: '150px', textAlign: 'center' }}>{student.school || 'N/A'}</Table.Td>}
+      <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }}>{student.phone || ''}</Table.Td>
       <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }}>{student.parents_phone || student.parentsPhone || ''}</Table.Td>
       {showMainCenter && <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px' }}>{student.main_center}</Table.Td>}
+      <Table.Td style={{ textAlign: 'center', width: '140px', minWidth: '140px', cursor: 'pointer', fontWeight: 700, color: '#dc3545' }}
+        onClick={() => openDetails(student, 'absent')}
+        title="Show absent weeks">
+        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.attended === false).length : 0}
+      </Table.Td>
+      <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px', cursor: 'pointer', fontWeight: 700, color: '#fd7e14' }}
+        onClick={() => openDetails(student, 'hw')}
+        title="Show missing homework weeks">
+        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.hwDone === false).length : 0}
+      </Table.Td>
+      <Table.Td style={{ textAlign: 'center', width: '200px', minWidth: '200px', cursor: 'pointer', fontWeight: 700, color: '#1FA8DC' }}
+        onClick={() => openDetails(student, 'quiz')}
+        title="Show unattended quiz weeks">
+        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null)).length : 0}
+      </Table.Td>
       {showHW && (
         <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px' }}>
           {student.hwDone ? (
@@ -163,20 +184,22 @@ export function SessionTable({
           })()}
         </Table.Td>
       )}
-      <Table.Td style={{ 
-        textAlign: 'center', 
-        verticalAlign: 'middle',
-        fontSize: '12px',
-        fontWeight: '500',
-        width: '120px',
-        minWidth: '120px'
-      }}>
-        {student.message_state ? (
-          <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ Sent</span>
-        ) : (
-          <span style={{ color: '#dc3545', fontWeight: 'bold' }}>✗ Not Sent</span>
-        )}
-      </Table.Td>
+      {showMessageState && (
+        <Table.Td style={{ 
+          textAlign: 'center', 
+          verticalAlign: 'middle',
+          fontSize: '12px',
+          fontWeight: '500',
+          width: '120px',
+          minWidth: '120px'
+        }}>
+          {student.message_state ? (
+            <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ Sent</span>
+          ) : (
+            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>✗ Not Sent</span>
+          )}
+        </Table.Td>
+      )}
       {showWhatsApp && data.length > 0 && (
         <Table.Td style={{ 
           textAlign: 'center', 
@@ -194,54 +217,38 @@ export function SessionTable({
           />
         </Table.Td>
       )}
-      {showStatsColumns && (
-        <>
-          <Table.Td style={{ textAlign: 'center', width: '140px', minWidth: '140px', cursor: 'pointer', fontWeight: 700, color: '#dc3545' }}
-            onClick={() => openDetails(student, 'absent')}
-            title="Show absent weeks">
-            {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.attended === false).length : 0}
-          </Table.Td>
-          <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px', cursor: 'pointer', fontWeight: 700, color: '#fd7e14' }}
-            onClick={() => openDetails(student, 'hw')}
-            title="Show missing homework weeks">
-            {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.hwDone === false).length : 0}
-          </Table.Td>
-          <Table.Td style={{ textAlign: 'center', width: '200px', minWidth: '200px', cursor: 'pointer', fontWeight: 700, color: '#1FA8DC' }}
-            onClick={() => openDetails(student, 'quiz')}
-            title="Show unattended quiz weeks">
-            {Array.isArray(student.weeks) ? student.weeks.filter(w => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null)).length : 0}
-          </Table.Td>
-        </>
-      )}
     </Table.Tr>
   ));
 
   const getMinWidth = () => {
     // Use smaller widths when table is empty
     if (data.length === 0) {
-      let baseWidth = showMainCenter ? 400 : 320; // Compact widths for empty table
+      let baseWidth = showMainCenter ? 800 : 720; // Compact widths for empty table (increased for statistics columns)
+      if (showGrade) baseWidth += 80; // Grade column
+      if (showSchool) baseWidth += 100; // School column
       if (showHW) baseWidth += 80;
       if (showQuiz) baseWidth += 100;
       if (showComment || showMainComment) baseWidth += 160; // Main Comment
       if (showComment || showWeekComment) baseWidth += 160; // Week Comment
-      baseWidth += 80; // Message State column
+      if (showMessageState) baseWidth += 80; // Message State column
       if (showWhatsApp && data.length > 0) baseWidth += 80;
+      baseWidth += 500; // Statistics columns (140 + 160 + 200)
       return baseWidth;
     } else {
-      // Calculate based on actual column widths: ID(60) + Name(120) + Parents(140) + MainCenter(120) + MessageState(120) + WhatsApp(120)
-      let baseWidth = 60 + 120 + 140; // ID + Name + Parents No.
+      // Calculate based on actual column widths: ID(60) + Name(120) + Grade(100) + School(150) + Student(140) + Parents(140) + MainCenter(120) + MessageState(120) + WhatsApp(120) + Stats(500)
+      let baseWidth = 60 + 120 + 140 + 140; // ID + Name + Student No. + Parents No.
+      if (showGrade) baseWidth += 100; // Grade column
+      if (showSchool) baseWidth += 150; // School column
       if (showMainCenter) baseWidth += 120; // Main Center
+      baseWidth += 140; // Total absent sessions
+      baseWidth += 160; // Total missing homework
+      baseWidth += 200; // Total unattend quizzes
       if (showHW) baseWidth += 120; // HW State
       if (showQuiz) baseWidth += 140; // Quiz Degree
       if (showComment || showMainComment) baseWidth += 160; // Main Comment
       if (showComment || showWeekComment) baseWidth += 160; // Week Comment
-      baseWidth += 120; // Message State column
+      if (showMessageState) baseWidth += 120; // Message State column
       if (showWhatsApp && data.length > 0) baseWidth += 120; // WhatsApp Message
-      if (showStatsColumns) {
-        baseWidth += 140; // Total absent sessions
-        baseWidth += 160; // Total missing homework
-        baseWidth += 200; // Total unattend quizzes
-      }
       return baseWidth;
     }
   };
@@ -252,29 +259,28 @@ export function SessionTable({
         <Table.Tr>
           <Table.Th style={{ minWidth: data.length === 0 ? '40px' : '60px', width: '60px', textAlign: 'center' }}>ID</Table.Th>
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Name</Table.Th>
+          {showGrade && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Grade</Table.Th>}
+          {showSchool && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '150px', width: '150px', textAlign: 'center' }}>School</Table.Th>}
+          <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Student No.</Table.Th>
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Parents No.</Table.Th>
           {showMainCenter && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Main Center</Table.Th>}
+          <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Total Absent Sessions</Table.Th>
+          <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Total Missing Homework</Table.Th>
+          <Table.Th style={{ minWidth: data.length === 0 ? '140px' : '160px', width: '160px', textAlign: 'center' }}>Total Unattend Quizzes</Table.Th>
           {showHW && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>HW State</Table.Th>}
           
           {showQuiz && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Quiz Degree</Table.Th>}
           {(showComment || showMainComment) && <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Main Comment</Table.Th>}
           {(showComment || showWeekComment) && <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Week Comment</Table.Th>}
-          <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Message State</Table.Th>
+          {showMessageState && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Message State</Table.Th>}
           {showWhatsApp && data.length > 0 && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>WhatsApp Message</Table.Th>}
-          {showStatsColumns && (
-            <>
-              <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Total Absent Sessions</Table.Th>
-              <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Total Missing Homework</Table.Th>
-              <Table.Th style={{ minWidth: data.length === 0 ? '140px' : '160px', width: '160px', textAlign: 'center' }}>Total Unattend Quizzes</Table.Th>
-            </>
-          )}
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
         {data.length === 0 ? (
           <Table.Tr>
               <Table.Td 
-              colSpan={1 + 1 + 1 + (showMainCenter ? 1 : 0) + (showHW ? 1 : 0) + (showQuiz ? 1 : 0) + (showComment ? 1 : 0) + (showComment ? 1 : 0) + 1 + (showWhatsApp ? 1 : 0) + (showStatsColumns ? 3 : 0)} 
+              colSpan={1 + 1 + (showGrade ? 1 : 0) + (showSchool ? 1 : 0) + 1 + 1 + (showMainCenter ? 1 : 0) + 3 + (showHW ? 1 : 0) + (showQuiz ? 1 : 0) + (showComment ? 1 : 0) + (showComment ? 1 : 0) + (showMessageState ? 1 : 0) + (showWhatsApp ? 1 : 0)} 
               style={{ 
                 border: 'none', 
                 padding: 0,
@@ -311,56 +317,353 @@ export function SessionTable({
       <Modal
         opened={detailsOpen}
         onClose={() => setDetailsOpen(false)}
-        title={detailsTitle}
+        title={
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '8px 0',
+            position: 'relative'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px',
+              flex: 1
+            }}>
+              <div style={{
+                width: '70px',
+                height: '44px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                color: 'white',
+              }}>
+                {detailsType === 'absent' && '📅'}
+                {detailsType === 'hw' && '📝'}
+                {detailsType === 'quiz' && '📊'}
+              </div>
+              <div>
+                <div style={{ 
+                  fontSize: '1.2rem', 
+                  fontWeight: '700', 
+                  color: '#2c3e50'
+                }}>
+                  {detailsTitle}
+                </div>
+              </div>
+            </div>
+            
+            {/* Close Button in Header */}
+            <button
+              onClick={() => setDetailsOpen(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: '#dc3545',
+                fontSize: '40px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '50%',
+                flexShrink: 0,
+                boxShadow: 'none',
+                '@media (max-width: 768px)': {
+                  fontSize: '40px',
+                  width: '50px',
+                  height: '50px'
+                }
+              }}
+              aria-label="Close details"
+            >
+              ×
+            </button>
+          </div>
+        }
         centered
         radius="md"
-        withCloseButton
-        closeButtonProps={{
-          variant: 'transparent',
-          style: { color: '#dc3545' },
-          'aria-label': 'Close details'
+        size="lg"
+        withCloseButton={false}
+        overlayProps={{ opacity: 0.3, blur: 2 }}
+        styles={{
+          content: {
+            background: '#ffffff',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+            border: '1px solid #e9ecef',
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            margin: '10px',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            '@media (max-width: 768px)': {
+              margin: '5px',
+              maxWidth: '98vw',
+              maxHeight: '95vh'
+            }
+          },
+          header: {
+            background: '#f8f9fa',
+            borderBottom: '1px solid #dee2e6',
+            padding: '16px 20px',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            flexShrink: 0,
+            '@media (max-width: 768px)': {
+              padding: '12px 16px'
+            }
+          },
+          body: {
+            padding: '0',
+            overflow: 'auto',
+            flex: 1,
+            '@media (max-width: 768px)': {
+              padding: '0'
+            }
+          }
         }}
-        overlayProps={{ opacity: 0.15, blur: 2 }}
       >
-        {(!detailsWeeks || detailsWeeks.length === 0) ? (
-          <div style={{ textAlign: 'center', color: '#6c757d', fontWeight: 600 }}>No weeks records found.</div>
-        ) : (
-          <div>
-            
-            <Table withTableBorder withColumnBorders>
+        
+        <div style={{ 
+          padding: '20px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          height: '100%',
+          '@media (max-width: 768px)': { padding: '16px' } 
+        }}>
+          {(!detailsWeeks || detailsWeeks.length === 0) ? (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '60px 20px',
+              background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+              borderRadius: '12px',
+              border: '2px dashed #dee2e6'
+            }}>
+              <div style={{
+                fontSize: '48px',
+                marginBottom: '16px',
+                opacity: 0.6
+              }}>
+                🎉
+              </div>
+              <div style={{ 
+                color: '#28a745', 
+                fontWeight: '700',
+                fontSize: '1.2rem',
+                marginBottom: '8px'
+              }}>
+                Excellent Performance!
+              </div>
+              <div style={{ 
+                color: '#6c757d', 
+                fontWeight: '500',
+                fontSize: '1rem'
+              }}>
+                No {detailsType === 'absent' ? 'absent sessions' : 
+                     detailsType === 'hw' ? 'missing homework' : 'unattended quizzes'} found.
+              </div>
+            </div>
+          ) : (
+            <div style={{ 
+              background: 'white',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%'
+            }}>
+            <div style={{ 
+              flex: 1, 
+              overflow: 'auto',
+              maxHeight: '400px'
+            }}>
+              <Table 
+                withTableBorder 
+                withColumnBorders
+                striped
+                highlightOnHover
+                styles={{
+                  root: {
+                    border: 'none',
+                    '@media (max-width: 768px)': {
+                      fontSize: '0.85rem'
+                    }
+                  },
+                  thead: {
+                    background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'
+                  },
+                  th: {
+                    fontWeight: '700',
+                    color: '#495057',
+                    fontSize: '1rem',
+                    padding: '16px 12px',
+                    borderBottom: '2px solid #dee2e6',
+                    '@media (max-width: 768px)': {
+                      fontSize: '0.9rem',
+                      padding: '12px 8px'
+                    }
+                  },
+                  td: {
+                    padding: '14px 12px',
+                    fontSize: '0.95rem',
+                    '@media (max-width: 768px)': {
+                      padding: '10px 8px',
+                      fontSize: '0.85rem'
+                    }
+                  }
+                }}
+              >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ width: '140px', textAlign: 'center' }}>Week</Table.Th>
+                  <Table.Th style={{ width: '140px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      📅 Week
+                    </div>
+                  </Table.Th>
                   <Table.Th style={{ textAlign: 'center' }}>
-                    {detailsType === 'absent' && 'Attendance Info'}
-                    {detailsType === 'hw' && 'Homework Status'}
-                    {detailsType === 'quiz' && 'Quiz Degree Status'}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      {detailsType === 'absent' && '❌ Attendance Status'}
+                      {detailsType === 'hw' && '📝 Homework Status'}
+                      {detailsType === 'quiz' && '📊 Quiz Status'}
+                    </div>
                   </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {detailsWeeks.map((info) => (
-                  <Table.Tr key={`${detailsStudent?.id}-${info.week}`}>
-                    <Table.Td style={{ textAlign: 'center' }}>Week {String(info.week).padStart(2, '0')}</Table.Td>
+                {detailsWeeks.map((info, index) => (
+                  <Table.Tr key={`${detailsStudent?.id}-${info.week}`} style={{
+                    background: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <Table.Td style={{ 
+                      textAlign: 'center',
+                      fontWeight: '600',
+                      color: '#495057',
+                      background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+                      border: '1px solid #90caf9'
+                    }}>
+                      <div style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        background: 'white',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}>
+                        Week {String(info.week).padStart(2, '0')}
+                      </div>
+                    </Table.Td>
                     <Table.Td style={{ textAlign: 'center' }}>
                       {detailsType === 'absent' && (
-                        <span style={{ color: '#dc3545', fontWeight: 700 }}>❌ Absent</span>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          background: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)',
+                          border: '1px solid #ef5350',
+                          color: '#c62828',
+                          fontWeight: '700',
+                          fontSize: '0.95rem',
+                          boxShadow: '0 2px 4px rgba(244, 67, 54, 0.2)'
+                        }}>
+                          ❌ Absent
+                        </div>
                       )}
                       {detailsType === 'hw' && (
-                        <span style={{ color: '#dc3545', fontWeight: 700 }}>❌ Not Done</span>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
+                          border: '1px solid #ff9800',
+                          color: '#e65100',
+                          fontWeight: '700',
+                          fontSize: '0.95rem',
+                          boxShadow: '0 2px 4px rgba(255, 152, 0, 0.2)'
+                        }}>
+                          ❌ Not Done
+                        </div>
                       )}
                       {detailsType === 'quiz' && (
-                        <span style={{ color: '#dc3545', fontWeight: 700 }}>
-                          {info.quizDegree == null ? '0/0' : (info.quizDegree === "Didn't Attend The Quiz" ? "❌ Didn't Attend The Quiz" : String(info.quizDegree))}
-                        </span>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 16px',
+                          borderRadius: '20px',
+                          background: info.quizDegree === "Didn't Attend The Quiz" ? 
+                            'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                            'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+                          border: info.quizDegree === "Didn't Attend The Quiz" ? 
+                            '1px solid #ef5350' : '1px solid #42a5f5',
+                          color: info.quizDegree === "Didn't Attend The Quiz" ? 
+                            '#c62828' : '#1565c0',
+                          fontWeight: '700',
+                          fontSize: '0.95rem',
+                          boxShadow: info.quizDegree === "Didn't Attend The Quiz" ? 
+                            '0 2px 4px rgba(244, 67, 54, 0.2)' : '0 2px 4px rgba(66, 165, 245, 0.2)'
+                        }}>
+                          {info.quizDegree == null ? '0/0' : 
+                           (info.quizDegree === "Didn't Attend The Quiz" ? "❌ Didn't Attend" : String(info.quizDegree))}
+                        </div>
                       )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
-            </Table>
-          </div>
-        )}
+              </Table>
+            </div>
+            
+            {/* Fixed Summary Footer */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+              padding: '16px 20px',
+              borderTop: '2px solid #dee2e6',
+              textAlign: 'center',
+              flexShrink: 0,
+              position: 'sticky',
+              bottom: 0,
+              zIndex: 5
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                color: '#495057',
+                fontWeight: '600',
+                fontSize: '1rem'
+              }}>
+                <div style={{
+                  padding: '6px 12px',
+                  borderRadius: '15px',
+                  background: 'white',
+                  border: '1px solid #dee2e6',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}>
+                  📊 Total: {detailsWeeks.length} {detailsType === 'absent' ? 'sessions' : 
+                             detailsType === 'hw' ? 'assignments' : 'quizzes'}
+                </div>
+              </div>
+            </div>
+            </div>
+          )}
+        </div>
       </Modal>
       {needsScroll ? (
         <ScrollArea 

@@ -688,7 +688,6 @@ export default function SessionInfo() {
             showWeekComment={showComment || showWeekComment}
             height={300}
             showWhatsApp={true}
-            showStatsColumns={true}
             emptyMessage={selectedWeek ? 
               `No students attended in ${selectedCenter} for ${selectedGrade} in ${selectedWeek}.` :
               `No students found for selected grade and center.`
@@ -710,7 +709,6 @@ export default function SessionInfo() {
             showMainComment={true}
             showWeekComment={true}
             showWhatsApp={true}
-            showStatsColumns={true}
             emptyMessage={selectedWeek ? 
               `All students in ${selectedCenter} for ${selectedGrade} attended in ${selectedWeek}.` :
               `No students found for selected grade and center.`

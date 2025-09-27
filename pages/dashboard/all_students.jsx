@@ -4,10 +4,9 @@ import { AVAILABLE_CENTERS } from "../../constants/centers";
 import Title from "../../components/Title";
 import GradeSelect from "../../components/GradeSelect";
 import CenterSelect from "../../components/CenterSelect";
-import { Table, ScrollArea } from '@mantine/core';
+import { SessionTable } from "../../components/SessionTable.jsx";
 import { IconArrowRight, IconSearch } from '@tabler/icons-react';
 import { ActionIcon, TextInput, useMantineTheme } from '@mantine/core';
-import styles from '../../styles/TableScrollArea.module.css';
 import { useStudents } from '../../lib/api/students';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 
@@ -17,7 +16,7 @@ export function InputWithButton(props) {
     <TextInput
       radius="xl"
       size="md"
-                  placeholder="Search by ID, Name or School"
+      placeholder="Search by ID, Name, School, Student Phone or Parent Phone"
       rightSectionWidth={42}
       leftSection={<IconSearch size={18} stroke={1.5} />}
       rightSection={
@@ -127,15 +126,39 @@ export default function AllStudents() {
       student.main_center && student.main_center.toLowerCase() === selectedCenter.toLowerCase()
     );
     if (searchTerm.trim() !== "") {
-      const term = searchTerm.trim().toLowerCase();
+      const term = searchTerm.trim();
       if (/^\d+$/.test(term)) {
-        // Only digits: exact match for ID
-        filtered = filtered.filter(student => student.id.toString() === term);
+        // Digits only: prioritize exact ID match, then phone matches
+        filtered = filtered.filter(student => {
+          // Convert both to strings for comparison to handle any type differences
+          const studentId = String(student.id || '');
+          const studentPhone = String(student.phone || '');
+          const parentPhone = String(student.parents_phone || '');
+          
+          // If search term starts with "01", treat it as phone number search
+          if (term.startsWith('01')) {
+            return studentId === term ||
+                   studentPhone.includes(term) ||
+                   parentPhone.includes(term);
+          }
+          
+          // If search term is short (1-3 digits), prioritize exact ID match
+          if (term.length <= 3) {
+            return studentId === term;
+          }
+          
+          // For longer numeric searches, search in ID and phone fields
+          return studentId === term ||
+                 studentPhone.includes(term) ||
+                 parentPhone.includes(term);
+        });
       } else {
-        // Otherwise: search in name (includes) or school (includes)
+        // Text: search in name, school, and phone fields (case-insensitive for text fields)
         filtered = filtered.filter(student =>
-          (student.name && student.name.toLowerCase().includes(term)) ||
-          (student.school && student.school.toLowerCase().includes(term))
+          (student.name && student.name.toLowerCase().includes(term.toLowerCase())) ||
+          (student.school && student.school.toLowerCase().includes(term.toLowerCase())) ||
+          (student.phone && student.phone.includes(term)) ||
+          (student.parents_phone && student.parents_phone.includes(term))
         );
       }
     }
@@ -236,43 +259,22 @@ export default function AllStudents() {
               {error.message || "Failed to fetch students data"}
             </div>
           )}
-          {filteredStudents.length === 0 ? (
-            <div className="no-results">
-              {searchTerm
-                ? "No students found with the search term."
-                : "No students found."
-              }
-            </div>
-          ) : (
-            <ScrollArea h={400} type="hover" className={styles.scrolled}>
-              <Table striped highlightOnHover withTableBorder withColumnBorders style={{ minWidth: '950px' }}>
-                <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 10 }}>
-                  <Table.Tr>
-                    <Table.Th style={{ width: '80px', minWidth: '80px', textAlign: 'center' }}>ID</Table.Th>
-                    <Table.Th style={{ width: '150px', minWidth: '150px', textAlign: 'center' }}>Name</Table.Th>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Grade</Table.Th>
-                    <Table.Th style={{ width: '150px', minWidth: '150px', textAlign: 'center' }}>School</Table.Th>
-                    <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Student Phone</Table.Th>
-                    <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Parent Phone</Table.Th>
-                    <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Center</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {filteredStudents.map(student => (
-                    <Table.Tr key={student.id}>
-                      <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '80px', minWidth: '80px', textAlign: 'center' }}>{student.id}</Table.Td>
-                      <Table.Td style={{ fontWeight: '600', width: '150px', minWidth: '150px', textAlign: 'center' }}>{student.name}</Table.Td>
-                      <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.grade}</Table.Td>
-                      <Table.Td style={{ width: '150px', minWidth: '150px', textAlign: 'center' }}>{student.school || 'N/A'}</Table.Td>
-                      <Table.Td style={{ fontFamily: 'monospace', fontSize: '0.9rem', width: '140px', minWidth: '140px', textAlign: 'center' }}>{student.phone}</Table.Td>
-                      <Table.Td style={{ fontFamily: 'monospace', fontSize: '0.9rem', width: '140px', minWidth: '140px', textAlign: 'center' }}>{student.parents_phone}</Table.Td>
-                      <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>{student.main_center}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          )}
+          <SessionTable
+            data={filteredStudents}
+            height={400}
+            showMainCenter={true}
+            showGrade={true}
+            showSchool={true}
+            showComment={false}
+            showMainComment={false}
+            showWeekComment={false}
+            showWhatsApp={false}
+            showMessageState={false}
+            emptyMessage={searchTerm
+              ? "No students found with the search term."
+              : "No students found."
+            }
+          />
         </div>
         <style jsx>{`
           .filters-container {

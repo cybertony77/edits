@@ -76,8 +76,9 @@ export default function QR() {
   useEffect(() => {
     const rememberedCenter = sessionStorage.getItem('lastAttendanceCenter');
     const rememberedWeek = sessionStorage.getItem('lastSelectedWeek');
+    const rememberedQuizOutOf = sessionStorage.getItem('lastQuizOutOf');
     
-    console.log('Loading from session storage:', { rememberedCenter, rememberedWeek });
+    console.log('Loading from session storage:', { rememberedCenter, rememberedWeek, rememberedQuizOutOf });
     
     if (rememberedCenter) {
       setAttendanceCenter(rememberedCenter);
@@ -86,6 +87,10 @@ export default function QR() {
     if (rememberedWeek) {
       setSelectedWeek(rememberedWeek);
       console.log('Week loaded from session storage:', rememberedWeek);
+    }
+    if (rememberedQuizOutOf) {
+      setQuizDegreeOutOf(rememberedQuizOutOf);
+      console.log('Quiz out of loaded from session storage:', rememberedQuizOutOf);
     }
   }, []);
 
@@ -1413,7 +1418,18 @@ export default function QR() {
                 : "out of ..."
               }
               value={quizDegreeOutOf}
-              onChange={e => setQuizDegreeOutOf(e.target.value)}
+              onChange={e => {
+                const value = e.target.value;
+                setQuizDegreeOutOf(value);
+                // Save to session storage if value is not empty, otherwise remove it
+                if (value.trim() !== '') {
+                  sessionStorage.setItem('lastQuizOutOf', value);
+                  console.log('Quiz out of saved to session storage:', value);
+                } else {
+                  sessionStorage.removeItem('lastQuizOutOf');
+                  console.log('Quiz out of removed from session storage');
+                }
+              }}
               disabled={updateQuizGradeMutation.isPending || !selectedWeek || !attendanceCenter || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
               style={{
                 opacity: (!selectedWeek || !attendanceCenter || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)) ? 0.5 : 1,

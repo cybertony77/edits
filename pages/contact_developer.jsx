@@ -28,7 +28,227 @@ export default function ContactDeveloperPage() {
   }, []);
 
   if (loading) {
-    return <div style={{ textAlign: "center", marginTop: 50 }}>Checking session...</div>;
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(380deg, #1FA8DC 0%, #FEB954 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        {/* Background decorative elements */}
+        <div style={{
+          position: "absolute",
+          top: "-50%",
+          left: "-50%",
+          width: "200%",
+          height: "200%",
+          background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)",
+          animation: "float 20s ease-in-out infinite"
+        }} />
+        
+        <div style={{
+          position: "absolute",
+          top: "20%",
+          right: "10%",
+          width: "200px",
+          height: "200px",
+          background: "radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)",
+          borderRadius: "50%",
+          animation: "pulse 15s ease-in-out infinite"
+        }} />
+        
+        <div style={{
+          position: "absolute",
+          bottom: "20%",
+          left: "10%",
+          width: "150px",
+          height: "150px",
+          background: "radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%)",
+          borderRadius: "50%",
+          animation: "float 25s ease-in-out infinite reverse"
+        }} />
+
+        {/* Loading Card */}
+        <div style={{
+          background: "rgba(255, 255, 255, 0.98)",
+          backdropFilter: "blur(20px)",
+          borderRadius: "24px",
+          padding: "60px 40px",
+          border: "1px solid rgba(255, 255, 255, 0.2)",
+          textAlign: "center",
+          position: "relative",
+          zIndex: 10,
+          maxWidth: 500,
+          width: "100%",
+          boxShadow: "0 25px 80px rgba(0, 0, 0, 0.15)"
+        }}>
+          <style jsx>{`
+            @keyframes float {
+              0%, 100% { transform: translateY(0px) rotate(0deg); }
+              50% { transform: translateY(-20px) rotate(180deg); }
+            }
+            
+            @keyframes pulse {
+              0%, 100% { transform: scale(1); opacity: 0.5; }
+              50% { transform: scale(1.1); opacity: 0.8; }
+            }
+            
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            
+            @keyframes slideInUp {
+              from {
+                opacity: 0;
+                transform: translateY(30px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            
+            @keyframes shimmer {
+              0% { background-position: -200% 0; }
+              100% { background-position: 200% 0; }
+            }
+            
+            .loading-container {
+              animation: slideInUp 0.8s ease-out;
+            }
+            
+            .loading-logo {
+              animation: pulse 2s ease-in-out infinite;
+            }
+            
+            .loading-spinner {
+              animation: spin 1s linear infinite;
+            }
+            
+            .loading-text {
+              background: linear-gradient(
+                90deg,
+                #1FA8DC 0%,
+                #FEB954 50%,
+                #1FA8DC 100%
+              );
+              background-size: 200% 100%;
+              animation: shimmer 2s ease-in-out infinite;
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+            
+            .loading-dots {
+              animation: pulse 1.5s ease-in-out infinite;
+            }
+            
+            .loading-dots::after {
+              content: '';
+              animation: pulse 1.5s ease-in-out infinite 0.2s;
+            }
+            
+            .loading-dots::before {
+              content: '';
+              animation: pulse 1.5s ease-in-out infinite 0.4s;
+            }
+          `}</style>
+
+          <div className="loading-container">
+            {/* Logo */}
+            <div style={{
+              width: "100px",
+              height: "100px",
+              borderRadius: "50%",
+              overflow: "hidden",
+              margin: "0 auto 24px auto",
+              boxShadow: "0 8px 24px rgba(31,168,220,0.15)",
+              background: "#e9ecef",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative"
+            }} className="loading-logo">
+              <Image 
+                src="/logo.png" 
+                alt="TopPhysics Logo" 
+                width={100} 
+                height={100} 
+                style={{ objectFit: "cover" }} 
+              />
+            </div>
+            
+            {/* Loading Spinner */}
+            <div style={{
+              width: "50px",
+              height: "50px",
+              border: "4px solid rgba(31, 168, 220, 0.2)",
+              borderTop: "4px solid #1FA8DC",
+              borderRadius: "50%",
+              margin: "0 auto 24px auto",
+              animation: "spin 1s linear infinite"
+            }} className="loading-spinner" />
+            
+            {/* Loading Text */}
+            <h2 style={{ 
+              color: "#1FA8DC", 
+              fontWeight: 700, 
+              marginBottom: 16, 
+              fontSize: "1.8rem",
+              letterSpacing: 0.5
+            }} className="loading-text">
+              Checking Session
+            </h2>
+            
+            <p style={{ 
+              color: "#6c757d", 
+              fontSize: "1rem", 
+              fontWeight: 500,
+              marginBottom: 24,
+              lineHeight: 1.5
+            }}>
+              Verifying your authentication status...
+            </p>
+            
+            {/* Loading Dots */}
+            <div style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "8px",
+              marginTop: "16px"
+            }}>
+              <div style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#1FA8DC",
+                animation: "pulse 1.5s ease-in-out infinite"
+              }} />
+              <div style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#FEB954",
+                animation: "pulse 1.5s ease-in-out infinite 0.2s"
+              }} />
+              <div style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#1FA8DC",
+                animation: "pulse 1.5s ease-in-out infinite 0.4s"
+              }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
