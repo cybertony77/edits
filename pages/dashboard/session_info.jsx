@@ -216,11 +216,11 @@ export default function SessionInfo() {
   // Counts - now based on specific week if selected
   const attendedCount = weekNumber ? 
     dataToCount.filter(s => didStudentAttendInWeek(s, weekNumber)).length :
-    dataToCount.filter(s => s.weeks && s.weeks.some(week => week.attended)).length;
+    dataToCount.filter(s => s.weeks && s.weeks.some(week => week && week && week.attended)).length;
     
   const notAttendedCount = weekNumber ? 
     dataToCount.filter(s => !didStudentAttendInWeek(s, weekNumber)).length :
-    dataToCount.filter(s => !s.weeks || !s.weeks.some(week => week.attended)).length;
+    dataToCount.filter(s => !s.weeks || !s.weeks.some(week => week && week && week.attended)).length;
     
   const hwDoneCount = weekNumber ? 
     dataToCount.filter(s => {
@@ -229,7 +229,7 @@ export default function SessionInfo() {
       const weekData = s.weeks[weekIndex];
       return weekData && weekData.hwDone;
     }).length :
-    dataToCount.filter(s => s.weeks && s.weeks.some(week => week.hwDone)).length;
+    dataToCount.filter(s => s.weeks && s.weeks.some(week => week && week && week.hwDone)).length;
     
   const hwNotDoneCount = weekNumber ? 
     dataToCount.filter(s => {
@@ -238,15 +238,15 @@ export default function SessionInfo() {
       const weekData = s.weeks[weekIndex];
       return weekData && !weekData.hwDone;
     }).length :
-    dataToCount.filter(s => !s.weeks || !s.weeks.some(week => week.hwDone)).length;
+    dataToCount.filter(s => !s.weeks || !s.weeks.some(week => week && week && week.hwDone)).length;
     
   
 
   const centerCounts = {};
   dataToCount.forEach(s => {
-    if (s.weeks) {
+    if (s.weeks && Array.isArray(s.weeks)) {
       s.weeks.forEach(week => {
-        if (week.lastAttendanceCenter) {
+        if (week && week.lastAttendanceCenter) {
           // If week is selected, only count that week
           if (weekNumber && week.week !== weekNumber) return;
           centerCounts[week.lastAttendanceCenter] = (centerCounts[week.lastAttendanceCenter] || 0) + 1;
@@ -271,7 +271,7 @@ export default function SessionInfo() {
     } else {
       // Check if attended in any week in selected center
       return s.weeks && s.weeks.some(week => 
-        week.attended && week.lastAttendanceCenter && 
+        week && week.attended && week.lastAttendanceCenter && 
         week.lastAttendanceCenter.toLowerCase() === selectedCenter.toLowerCase()
       );
     }
@@ -291,7 +291,7 @@ export default function SessionInfo() {
       return !didStudentAttendInWeek(s, weekNumber);
     } else {
       // Check if NOT attended in any week
-      return !s.weeks || !s.weeks.some(week => week.attended);
+      return !s.weeks || !s.weeks.some(week => week && week.attended);
     }
   }) : [];
   const NAMC = NAMC_students.length;
@@ -318,7 +318,7 @@ export default function SessionInfo() {
     } else {
       // Check if attended in any week in selected center
       return s.weeks && s.weeks.some(week => 
-        week.attended && week.lastAttendanceCenter && 
+        week && week.attended && week.lastAttendanceCenter && 
         week.lastAttendanceCenter.toLowerCase() === selectedCenter.toLowerCase()
       );
     }
@@ -343,7 +343,7 @@ export default function SessionInfo() {
     } else {
       // If no week selected, check if attended in any week in selected center
       return s.weeks && s.weeks.some(week => 
-        week.attended && week.lastAttendanceCenter && 
+        week && week.attended && week.lastAttendanceCenter && 
         week.lastAttendanceCenter.toLowerCase() === selectedCenter.toLowerCase()
       );
     }
@@ -368,7 +368,7 @@ export default function SessionInfo() {
       return !didStudentAttendInWeek(s, weekNumber);
     } else {
       // Check if NOT attended in any week
-      return !s.weeks || !s.weeks.some(week => week.attended);
+      return !s.weeks || !s.weeks.some(week => week && week.attended);
     }
   });
 
