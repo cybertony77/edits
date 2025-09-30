@@ -66,7 +66,14 @@ export default async function handler(req, res) {
     
     // Update the specific week in the weeks array
     // Handle both boolean and string values for hwDone
-    const hwValue = hwDone === "No Homework" ? "No Homework" : !!hwDone;
+    let hwValue;
+    if (hwDone === "No Homework") {
+      hwValue = "No Homework";
+    } else if (hwDone === "Not Completed") {
+      hwValue = "Not Completed";
+    } else {
+      hwValue = !!hwDone; // Convert to boolean for true/false values
+    }
     const result = await db.collection('students').updateOne(
       { id: student_id },
       { $set: { [`weeks.${weekIndex}.hwDone`]: hwValue } }

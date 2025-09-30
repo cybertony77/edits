@@ -432,12 +432,29 @@ export default function History() {
                         <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{record.main_center || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>{record.attendanceDate || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>
-                          <span style={{ 
-                            color: record.hwDone ? '#28a745' : '#dc3545',
-                            fontWeight: 'bold'
-                          }}>
-                            {record.hwDone ? '✓ Done' : '✗ Not Done'}
-                          </span>
+                          {(() => {
+                            if (record.hwDone === "No Homework") {
+                              return <span style={{ 
+                                color: '#1FA8DC',
+                                fontWeight: 'bold'
+                              }}>No Homework</span>;
+                            } else if (record.hwDone === "Not Completed") {
+                              return <span style={{ 
+                                color: '#856404',
+                                fontWeight: 'bold'
+                              }}>⚠️ Not Completed</span>;
+                            } else if (record.hwDone === true) {
+                              return <span style={{ 
+                                color: '#28a745',
+                                fontWeight: 'bold'
+                              }}>✅ Done</span>;
+                            } else {
+                              return <span style={{ 
+                                color: '#dc3545',
+                                fontWeight: 'bold'
+                              }}>❌ Not Done</span>;
+                            }
+                          })()}
                         </Table.Td>
                         
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>

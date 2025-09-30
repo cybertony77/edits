@@ -42,6 +42,7 @@ export default function QR() {
   const [notQuized, setNotQuized] = useState(false);
   const [noQuiz, setNoQuiz] = useState(false);
   const [noHomework, setNoHomework] = useState(false);
+  const [notCompleted, setNotCompleted] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null); // 'week', 'center', or null
   // Simple optimistic state for immediate UI feedback
   const [optimisticHwDone, setOptimisticHwDone] = useState(null);
@@ -51,6 +52,18 @@ export default function QR() {
   const [searchResults, setSearchResults] = useState([]); // Store multiple search results
   const [showSearchResults, setShowSearchResults] = useState(false); // Show/hide search results
   const router = useRouter();
+
+  // Handle URL parameters for auto-filling student ID and triggering search
+  useEffect(() => {
+    const { studentId: urlStudentId, autoSearch } = router.query;
+    
+    if (urlStudentId && autoSearch === 'true') {
+      setStudentId(urlStudentId);
+      setSearchId(urlStudentId);
+      // Clear URL parameters after processing
+      router.replace('/dashboard/scan_page', undefined, { shallow: true });
+    }
+  }, [router.query, router]);
 
   // React Query hooks with enhanced real-time updates
   const { data: rawStudent, isLoading: studentLoading, error: studentError } = useStudent(searchId, { 
@@ -139,7 +152,20 @@ export default function QR() {
   // Helper function to update student state with current week data
   const updateStudentWithWeekData = (student, weekString) => {
     const weekData = getCurrentWeekData(student, weekString);
-    if (!weekData) return student;
+    
+    // If week data doesn't exist, return student with default week values (not attended)
+    if (!weekData) {
+      return {
+        ...student,
+        attended_the_session: false,
+        lastAttendance: null,
+        lastAttendanceCenter: null,
+        hwDone: false,
+        quizDegree: null,
+        comment: null,
+        message_state: false
+      };
+    }
     
     return {
       ...student,
@@ -147,8 +173,9 @@ export default function QR() {
       lastAttendance: weekData.lastAttendance,
       lastAttendanceCenter: weekData.lastAttendanceCenter,
       hwDone: weekData.hwDone,
-      
-      quizDegree: weekData.quizDegree
+      quizDegree: weekData.quizDegree,
+      comment: weekData.comment,
+      message_state: weekData.message_state
     };
   };
 
@@ -341,13 +368,16 @@ export default function QR() {
     }
   }, [searchId, studentLoading, rawStudent, studentError]);
 
-  // Clear optimistic state when student or week changes
+  // Clear optimistic state when student, week, or center changes
   useEffect(() => {
     setOptimisticHwDone(null);
-    
     setOptimisticAttended(null);
     setNotQuized(false);
     setNoHomework(false);
+    setNoQuiz(false);
+    setNotCompleted(false);
+    setWeekComment(""); // Clear week comment when context changes
+    
     // Load current week's comment from student when available
     try {
       const degreeRaw = (student?.quizDegree ?? '').toString().trim();
@@ -366,14 +396,40 @@ export default function QR() {
         setQuizDegreeOutOf(match[2]);
       } else if (normalized === didntAttendTarget || normalized === noQuizTarget || degreeRaw === '' || degreeRaw == null) {
         setQuizDegreeInput('');
-        setQuizDegreeOutOf('');
+        // Only clear quizDegreeOutOf if there's no remembered value from session storage
+        const rememberedQuizOutOf = sessionStorage.getItem('lastQuizOutOf');
+        if (!rememberedQuizOutOf) {
+          setQuizDegreeOutOf('');
+        }
       }
 
-      // Sync "No Homework" checkbox with database value
+      // Sync "No Homework" and "Not Completed" checkboxes with database value
       const hwValue = student?.hwDone;
       setNoHomework(hwValue === "No Homework");
+      setNotCompleted(hwValue === "Not Completed");
     } catch {}    
-  }, [student?.id, selectedWeek]);
+  }, [student?.id, selectedWeek, attendanceCenter]);
+
+  // Load week comment from student data when week changes
+  useEffect(() => {
+    if (student && selectedWeek) {
+      const weekData = getCurrentWeekData(student, selectedWeek);
+      if (weekData && weekData.comment) {
+        setWeekComment(weekData.comment);
+      } else {
+        setWeekComment("");
+      }
+    }
+  }, [student, selectedWeek]);
+
+  // Ensure quiz degree "out of" value is loaded from session storage when component mounts
+  useEffect(() => {
+    const rememberedQuizOutOf = sessionStorage.getItem('lastQuizOutOf');
+    if (rememberedQuizOutOf && !quizDegreeOutOf) {
+      setQuizDegreeOutOf(rememberedQuizOutOf);
+      console.log('Quiz out of restored from session storage:', rememberedQuizOutOf);
+    }
+  }, [quizDegreeOutOf]);
 
   // Auto-attend student when conditions are met (ONLY for QR scans with pre-selected center/week)
   useEffect(() => {
@@ -402,7 +458,11 @@ export default function QR() {
       
       // Clear quiz degree inputs as well
       setQuizDegreeInput("");
-      setQuizDegreeOutOf("");
+      // Only clear quizDegreeOutOf if there's no remembered value from session storage
+      const rememberedQuizOutOf = sessionStorage.getItem('lastQuizOutOf');
+      if (!rememberedQuizOutOf) {
+        setQuizDegreeOutOf("");
+      }
       // Note: Quiz degree in DB will be handled by the backend reset
     }
   }, [optimisticAttended, student?.attended_the_session]);
@@ -423,6 +483,7 @@ export default function QR() {
       setNoHomework(false);
       setNotQuized(false);
       setNoQuiz(false);
+      setNotCompleted(false);
     }
     
     const weekNumber = getWeekNumber(selectedWeek);
@@ -465,6 +526,8 @@ export default function QR() {
     }, {
       onSuccess: () => {
         setAttendanceSuccess(newAttended ? '✅ Student Marked as Attended' : '✅ Student Marked as Absent');
+        // Clear optimistic state since the mutation succeeded
+        setOptimisticAttended(null);
       }
     });
   };
@@ -481,7 +544,19 @@ export default function QR() {
     
     // Use current displayed state (optimistic if available, otherwise DB state)
     const currentHwDone = optimisticHwDone !== null ? optimisticHwDone : student.hwDone;
-    const newHwDone = !currentHwDone;
+    
+    // Determine the new homework state based on current state
+    let newHwDone;
+    if (currentHwDone === true) {
+      newHwDone = false; // If done, mark as not done
+    } else if (currentHwDone === "No Homework") {
+      newHwDone = false; // If no homework, mark as not done
+    } else if (currentHwDone === "Not Completed") {
+      newHwDone = false; // If not completed, mark as not done
+    } else {
+      newHwDone = true; // If not done, mark as done
+    }
+    
     setOptimisticHwDone(newHwDone);
     
     const weekNumber = getWeekNumber(selectedWeek);
@@ -492,6 +567,8 @@ export default function QR() {
     }, {
       onSuccess: () => {
         setHwSuccess(newHwDone ? '✅ Homework Marked as Done' : '✅ Homework Marked as Not Done');
+        // Clear optimistic state since the mutation succeeded
+        setOptimisticHwDone(null);
       }
     });
   };
@@ -718,6 +795,40 @@ export default function QR() {
           background: linear-gradient(135deg, #dc3545 0%, #e74c3c 100%);
           color: white;
         }
+        .status-incomplete {
+          background: linear-gradient(135deg, #ffc107 0%, #ffb74d 100%);
+          color: #856404;
+          border: 1px solid #ffc107;
+        }
+        .status-no-homework {
+          background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+          color: white;
+        }
+        .status-didnt-attend {
+          background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+          color: white;
+        }
+        .homework-section {
+          display: flex;
+          flex-wrap: wrap;
+          flex-direction: row;
+          align-items: center;
+          gap: 12px;
+        }
+        .homework-label {
+          font-weight: 600;
+          color: #6c757d;
+          font-size: 13.5px;
+        }
+        .homework-checkbox-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 500;
+          cursor: pointer;
+          color: #6c757d;
+          font-size: 13.5px;
+        }
         .mark-attended-btn {
           background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
           color: white;
@@ -851,6 +962,19 @@ export default function QR() {
           .status-badge {
             font-size: 0.8rem;
             padding: 6px 12px;
+          }
+          .homework-section {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0 !important;
+          }
+          .homework-label {
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+          }
+          .homework-checkbox-label {
+            margin-bottom: 4px;
+            font-size: 0.8rem;
           }
         }
       `}</style>
@@ -1049,26 +1173,38 @@ export default function QR() {
             <span className={`status-badge ${(!attendanceCenter || !selectedWeek)
               ? 'status-not-attended'
               : noHomework || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "No Homework"
-                ? 'status-attended'
-                : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
-                  ? 'status-attended'
-                  : 'status-not-attended'}`}>
-              {(!attendanceCenter || !selectedWeek)
-                ? '❌ H.W: Not Done'
-                : noHomework || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "No Homework"
-                  ? '✅ H.W: No Homework'
+                ? 'status-no-homework'
+                : notCompleted || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "Not Completed"
+                  ? 'status-incomplete'
                   : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
-                    ? '✅ H.W: Done'
-                    : '❌ H.W: Not Done'}
+                    ? 'status-attended'
+                    : 'status-not-attended'}`}>
+              {(!attendanceCenter || !selectedWeek)
+                ? '❌ Homework: Not Done'
+                : noHomework || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "No Homework"
+                  ? '🚫 Homework: No Homework'
+                  : notCompleted || (optimisticHwDone !== null ? optimisticHwDone : student.hwDone) === "Not Completed"
+                    ? '⚠️ Homework: Not Completed'
+                    : (optimisticHwDone !== null ? optimisticHwDone : student.hwDone)
+                      ? '✅ Homework: Done'
+                      : '❌ Homework: Not Done'}
             </span>
             
             <span className={`status-badge ${(!attendanceCenter || !selectedWeek) 
               ? 'status-not-attended' 
-              : student.quizDegree 
-                ? 'status-attended' 
-                : 'status-not-attended'}`}>
+              : student.quizDegree === "Didn't Attend The Quiz"
+                ? 'status-didnt-attend'
+                : student.quizDegree === "No Quiz"
+                  ? 'status-no-homework'
+                  : student.quizDegree 
+                    ? 'status-attended' 
+                    : 'status-not-attended'}`}>
               {(!attendanceCenter || !selectedWeek) 
                 ? '❌ Quiz: ...' 
+                : student.quizDegree === "Didn't Attend The Quiz"
+                  ? '❌ Quiz: Didn\'t Attend'
+                : student.quizDegree === "No Quiz"
+                  ? '🚫 Quiz: No Quiz'
                 : student.quizDegree 
                   ? `✅ Quiz: ${student.quizDegree}` 
                   : '❌ Quiz: ...'}
@@ -1137,9 +1273,69 @@ export default function QR() {
             </button>
 
             {/* Homework Status Controls */}
-            <div className="info-label" style={{ marginBottom: 6, marginTop: 4, textAlign: 'start', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span>Homework Status :</span>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500, cursor: 'pointer' }}>
+            <div className="homework-section">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span className="homework-label">HOMEWORK STATUS :</span>
+                <label className="homework-checkbox-label">
+              <input
+                type="checkbox"
+                checked={notCompleted}
+                onChange={async (e) => {
+                  const checked = e.target.checked;
+                  setNotCompleted(checked);
+
+                  if (!student || !selectedWeek || !attendanceCenter) {
+                    setError('Please select student, week and center first.');
+                    setNotCompleted(!checked);
+                    return;
+                  }
+
+                  const currentAttended =
+                    optimisticAttended !== null
+                      ? optimisticAttended
+                      : student.attended_the_session;
+
+                  if (!currentAttended) {
+                    setError('Student must be marked as attended before homework can be updated.');
+                    setNotCompleted(!checked);
+                    return;
+                  }
+
+                  const weekNumber = getWeekNumber(selectedWeek);
+
+                  if (checked) {
+                    // Uncheck "No Homework" if it's checked (mutually exclusive)
+                    if (noHomework) {
+                      setNoHomework(false);
+                    }
+                    // ✅ Save "Not Completed" to DB
+                    updateHomeworkMutation.mutate({
+                      id: student.id,
+                      homeworkData: { hwDone: "Not Completed", week: weekNumber },
+                    }, {
+                      onSuccess: () => {
+                        setHwSuccess('✅ Not Completed status set');
+                      }
+                    });
+                    setOptimisticHwDone(false);
+                  } else {
+                    // ✅ Reset to false when unchecked
+                    updateHomeworkMutation.mutate({
+                      id: student.id,
+                      homeworkData: { hwDone: false, week: weekNumber },
+                    }, {
+                      onSuccess: () => {
+                        setHwSuccess('✅ Homework status reset');
+                      }
+                    });
+                    setOptimisticHwDone(false);
+                  }
+                }}
+              />
+                <span>NOT COMPLETED</span>
+              </label>
+              </div>
+              <label className="homework-checkbox-label">
               <input
                 type="checkbox"
                 checked={noHomework}
@@ -1167,6 +1363,10 @@ export default function QR() {
                   const weekNumber = getWeekNumber(selectedWeek);
 
                   if (checked) {
+                    // Uncheck "Not Completed" if it's checked (mutually exclusive)
+                    if (notCompleted) {
+                      setNotCompleted(false);
+                    }
                     // ✅ Save "No Homework" to DB
                     updateHomeworkMutation.mutate({
                       id: student.id,
@@ -1191,10 +1391,10 @@ export default function QR() {
                   }
                 }}
               />
-                <span>No Homework</span>
+                <span>NO HOMEWORK</span>
               </label>
             </div>
-            {!noHomework && (
+            {!noHomework && !notCompleted && (
               <button
                 className="toggle-btn"
                 onClick={toggleHwDone}

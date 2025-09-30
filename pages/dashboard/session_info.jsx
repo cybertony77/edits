@@ -379,6 +379,32 @@ export default function SessionInfo() {
     });
   }
 
+  // AIAC: Attended in Another Center - students who attended in a different center than their main center
+  const aiacStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
+    if (!selectedGrade || !selectedCenter || !weekNumber) return false;
+    
+    const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
+    const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
+    
+    if (!gradeMatch || !centerMatch) return false;
+    
+    // Check if attended in selected week but in a different center
+    const weekIndex = weekNumber - 1;
+    const weekData = s.weeks && s.weeks[weekIndex];
+    
+    return weekData && 
+           weekData.attended === true && 
+           weekData.lastAttendanceCenter && 
+           weekData.lastAttendanceCenter.toLowerCase() !== selectedCenter.toLowerCase();
+  });
+
+  // Update AIAC students with week data
+  if (selectedWeek && weekNumber) {
+    aiacStudents.forEach(student => {
+      Object.assign(student, getStudentWeekData(student, weekNumber));
+    });
+  }
+
   return (
     <div style={{ minHeight: '100vh', padding: '20px 5px 20px 5px' }}>
               <div ref={containerRef} style={{ maxWidth: 600, margin: '20px auto', padding: 24 }}>
@@ -699,7 +725,7 @@ export default function SessionInfo() {
         {/* Second table: Not attended, grade and main_center match selection */}
         <div className="table-container" style={{ margin: '24px 0', background: '#fff', borderRadius: 12, padding: '18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)' }}>
           <div style={{ fontWeight: 600, marginBottom: 12, textAlign: 'center', color: '#000' }}>
-          {selectedWeek ? `Not Attended in ${selectedWeek} (${notAttendedStudents.length} records)` : `Not Attended Students (${notAttendedStudents.length} records)`}
+          {selectedWeek ? `Absences Students in ${selectedWeek} (${notAttendedStudents.length} records)` : `Absences Students (${notAttendedStudents.length} records)`}
           </div>
           <SessionTable
             data={notAttendedStudents}
@@ -710,7 +736,30 @@ export default function SessionInfo() {
             showWeekComment={true}
             showWhatsApp={true}
             emptyMessage={selectedWeek ? 
-              `All students in ${selectedCenter} for ${selectedGrade} attended in ${selectedWeek}.` :
+              `No Absences in ${selectedCenter} for ${selectedGrade} in ${selectedWeek}.` :
+              `No students found for selected grade and center.`
+            }
+            onMessageStateChange={handleMessageStateChange}
+          />
+        </div>
+        
+        {/* AIAC: Attended in Another Center Table */}
+        <div className="table-container" style={{ margin: '24px 0', background: '#fff', borderRadius: 12, padding: '18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)' }}>
+          <div style={{ fontWeight: 600, marginBottom: 12, textAlign: 'center', color: '#000' }}>
+            {selectedWeek ? `Attended in another center in ${selectedWeek} (${aiacStudents.length} records)` : `Attended in another center (${aiacStudents.length} records)`}
+          </div>
+          <SessionTable
+            data={aiacStudents}
+            height={300}
+            showMainCenter={true}
+            showComment={false}
+            showMainComment={true}
+            showWeekComment={true}
+            showWhatsApp={true}
+            showMessageState={true}
+            showStatsColumns={true}
+            emptyMessage={selectedWeek ? 
+              `No students attended in another center in ${selectedWeek}.` :
               `No students found for selected grade and center.`
             }
             onMessageStateChange={handleMessageStateChange}

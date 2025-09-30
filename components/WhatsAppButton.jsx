@@ -87,13 +87,39 @@ We want to inform you that we are in:
 
       // Only show attendance-related info if student attended
       if (currentWeek.attended) {
+        // Format homework status properly
+        let homeworkStatus = '';
+        if (student.hwDone === true) {
+          homeworkStatus = 'Done';
+        } else if (student.hwDone === false) {
+          homeworkStatus = 'Not Done';
+        } else if (student.hwDone === 'No Homework') {
+          homeworkStatus = 'No Homework';
+        } else if (student.hwDone === 'Not Completed') {
+          homeworkStatus = 'Not Completed';
+        } else {
+          homeworkStatus = 'Not Done'; // Default fallback
+        }
+        
         whatsappMessage += `
-  • Homework: ${currentWeek.hwDone ? 'Done' : 'Not Done'}
-  `;
+  • Homework: ${homeworkStatus}`;
+  
         if (currentWeek.quizDegree !== null && String(currentWeek.quizDegree).trim() !== '') {
           whatsappMessage += `
   • Quiz Degree: ${currentWeek.quizDegree}`;
         }
+      }
+      
+      // Add comment if it exists and is not null/undefined
+      // Get comment from the current week data
+      const currentWeekNumber = student.currentWeekNumber;
+      const weekIndex = currentWeekNumber - 1;
+      const weekData = student.weeks && student.weeks[weekIndex];
+      const weekComment = weekData ? weekData.comment : null;
+      
+      if (weekComment && weekComment.trim() !== '' && weekComment !== 'undefined') {
+        whatsappMessage += `
+  • Comment: ${weekComment}`;
       }
 
       whatsappMessage += `

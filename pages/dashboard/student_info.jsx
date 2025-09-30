@@ -192,7 +192,7 @@ export default function StudentInfo() {
   const getTotals = () => {
     const weeks = Array.isArray(student?.weeks) ? student.weeks : [];
     const absent = weeks.filter(w => w && w.attended === false).length;
-    const missingHW = weeks.filter(w => w && w.hwDone === false).length;
+    const missingHW = weeks.filter(w => w && (w.hwDone === false || w.hwDone === "Not Completed" || w.hwDone === "not completed" || w.hwDone === "NOT COMPLETED")).length;
     const unattendQuiz = weeks.filter(w => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null)).length;
     return { absent, missingHW, unattendQuiz };
   };
@@ -213,9 +213,10 @@ export default function StudentInfo() {
     if (!Array.isArray(weeks)) return [];
     return weeks
       .map((w, idx) => ({ idx, w }))
-      .filter(({ w }) => w && w.hwDone === false)
+      .filter(({ w }) => w && (w.hwDone === false || w.hwDone === "Not Completed" || w.hwDone === "not completed" || w.hwDone === "NOT COMPLETED"))
       .map(({ idx, w }) => ({
         week: (w.week ?? idx + 1),
+        hwDone: w.hwDone,
         quizDegree: w.quizDegree
       }));
   };
@@ -525,7 +526,7 @@ export default function StudentInfo() {
               </div>
               <div className="detail-item">
                 <div className="detail-label">Main Comment</div>
-                <div className="detail-value">{student.main_comment || 'No Comment'}</div>
+                <div className="detail-value" style={{ fontSize: '1rem' }}>{student.main_comment || 'No Comment'}</div>
               </div>
               {(() => {
                 const totals = getTotals();
@@ -583,7 +584,7 @@ export default function StudentInfo() {
                       
                       return (
                         <Table.Tr key={weekName}>
-                          <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '120px', minWidth: '120px', textAlign: 'center' }}>
+                          <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '120px', minWidth: '120px', textAlign: 'center', fontSize: '1rem' }}>
                             {weekName}
                           </Table.Td>
                           <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
@@ -596,20 +597,40 @@ export default function StudentInfo() {
                             </span>
                           </Table.Td>
                           <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
-                            <span style={{ 
-                              color: weekData.hwDone ? '#28a745' : '#dc3545',
-                              fontWeight: 'bold',
-                              fontSize: '1rem'
-                            }}>
-                              {weekData.hwDone ? '✅ Done' : '❌ Not Done'}
-                            </span>
+                            {(() => {
+                              if (weekData.hwDone === "No Homework") {
+                                return <span style={{ 
+                                  color: '#dc3545',
+                                  fontWeight: 'bold',
+                                  fontSize: '1rem'
+                                }}>🚫 No Homework</span>;
+                              } else if (weekData.hwDone === "Not Completed" || weekData.hwDone === "not completed" || weekData.hwDone === "NOT COMPLETED") {
+                                return <span style={{ 
+                                  color: '#ffc107',
+                                  fontWeight: 'bold',
+                                  fontSize: '1rem'
+                                }}>⚠️ Not Completed</span>;
+                              } else if (weekData.hwDone === true) {
+                                return <span style={{ 
+                                  color: '#28a745',
+                                  fontWeight: 'bold',
+                                  fontSize: '1rem'
+                                }}>✅ Done</span>;
+                              } else {
+                                return <span style={{ 
+                                  color: '#dc3545',
+                                  fontWeight: 'bold',
+                                  fontSize: '1rem'
+                                }}>❌ Not Done</span>;
+                              }
+                            })()}
                           </Table.Td>
                           
                           <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
                             {(() => {
                               const value = weekData.quizDegree !== null && weekData.quizDegree !== undefined && weekData.quizDegree !== '' ? weekData.quizDegree : '0/0';
                               if (value === "Didn't Attend The Quiz") {
-                                return <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Didn't Attend The Quiz</span>;
+                                return <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '1rem' }}>❌ Didn't Attend The Quiz</span>;
                               }
                               return (
                                 <span style={{ 
@@ -626,7 +647,7 @@ export default function StudentInfo() {
                             {(() => {
                               const weekComment = weekData.comment;
                               const val = (weekComment && String(weekComment).trim() !== '') ? weekComment : 'No Comment';
-                              return val;
+                              return <span style={{ fontSize: '1rem' }}>{val}</span>;
                             })()}
                           </Table.Td>
                           <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>
@@ -655,71 +676,34 @@ export default function StudentInfo() {
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              justifyContent: 'space-between',
               gap: '12px',
               padding: '8px 0',
-              position: 'relative'
+              position: 'relative',
+              paddingRight: '60px' // Add space for the close button
             }}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '12px',
-                flex: 1
+              <div style={{
+                width: '70px',
+                height: '44px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                color: 'white',
               }}>
-                <div style={{
-                  width: '70px',
-                  height: '44px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px',
-                  color: 'white',
+                {detailsType === 'absent' && '📅'}
+                {detailsType === 'hw' && '📝'}
+                {detailsType === 'quiz' && '📊'}
+              </div>
+              <div>
+                <div style={{ 
+                  fontSize: '1.2rem', 
+                  fontWeight: '700', 
+                  color: '#2c3e50'
                 }}>
-                  {detailsType === 'absent' && '📅'}
-                  {detailsType === 'hw' && '📝'}
-                  {detailsType === 'quiz' && '📊'}
-                </div>
-                <div>
-                  <div style={{ 
-                    fontSize: '1.2rem', 
-                    fontWeight: '700', 
-                    color: '#2c3e50'
-                  }}>
-                    {detailsTitle}
-                  </div>
+                  {detailsTitle}
                 </div>
               </div>
-              
-              {/* Close Button in Header */}
-              <button
-                onClick={() => setDetailsOpen(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#dc3545',
-                  fontSize: '40px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '50%',
-                  flexShrink: 0,
-                  boxShadow: 'none',
-                  '@media (max-width: 768px)': {
-                    fontSize: '40px',
-                    width: '50px',
-                    height: '50px'
-                  }
-                }}
-                aria-label="Close details"
-              >
-                ×
-              </button>
             </div>
           }
           centered
@@ -766,6 +750,37 @@ export default function StudentInfo() {
             }
           }}
         >
+          {/* Absolutely positioned close button */}
+          <button
+            onClick={() => setDetailsOpen(false)}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '20px',
+              zIndex: 1000,
+              '@media (max-width: 768px)': {
+                width: '36px',
+                height: '36px',
+                fontSize: '18px',
+                top: '12px',
+                right: '12px'
+              }
+            }}
+            aria-label="Close details"
+          >
+            ❌
+          </button>
+          
           <div style={{ 
             padding: '20px', 
             display: 'flex', 
@@ -922,14 +937,36 @@ export default function StudentInfo() {
                                 gap: '8px',
                                 padding: '8px 16px',
                                 borderRadius: '20px',
-                                background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
-                                border: '1px solid #ff9800',
-                                color: '#e65100',
+                                background: info.hwDone === "No Homework" ? 
+                                  'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                                  (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                                  'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)' :
+                                  info.hwDone === false ? 
+                                  'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                                  'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)',
+                                border: info.hwDone === "No Homework" ? 
+                                  '1px solid #ef5350' :
+                                  (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                                  '1px solid #ffc107' :
+                                  info.hwDone === false ? 
+                                  '1px solid #ef5350' : '1px solid #28a745',
+                                color: info.hwDone === "No Homework" ? 
+                                  '#c62828' :
+                                  (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                                  '#856404' :
+                                  info.hwDone === false ? 
+                                  '#c62828' : '#155724',
                                 fontWeight: '700',
                                 fontSize: '0.95rem',
-                                boxShadow: '0 2px 4px rgba(255, 152, 0, 0.2)'
+                                boxShadow: info.hwDone === "No Homework" ? 
+                                  '0 2px 4px rgba(244, 67, 54, 0.2)' :
+                                  (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                                  '0 2px 4px rgba(255, 193, 7, 0.2)' :
+                                  info.hwDone === false ? 
+                                  '0 2px 4px rgba(244, 67, 54, 0.2)' : '0 2px 4px rgba(40, 167, 69, 0.2)'
                               }}>
-                                ❌ Not Done
+                                {info.hwDone === "No Homework" ? '🚫 No Homework' :
+                                 (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? '⚠️ Not Completed' : '❌ Not Done'}
                               </div>
                             )}
                             {detailsType === 'quiz' && (
@@ -989,8 +1026,8 @@ export default function StudentInfo() {
                       border: '1px solid #dee2e6',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                     }}>
-                      📊 Total: {detailsWeeks.length} {detailsType === 'absent' ? 'sessions' : 
-                                 detailsType === 'hw' ? 'assignments' : 'quizzes'}
+                      📊 Total: {detailsWeeks.length} {detailsType === 'absent' ? 'absent sessions' : 
+                                 detailsType === 'hw' ? 'missing homework' : 'unattended quizzes'}
                     </div>
                   </div>
                 </div>

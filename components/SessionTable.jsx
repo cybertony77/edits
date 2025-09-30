@@ -67,7 +67,7 @@ export function SessionTable({
     if (!Array.isArray(weeks)) return [];
     return weeks
       .map((w, idx) => ({ idx, w }))
-      .filter(({ w }) => w && w.hwDone === false)
+      .filter(({ w }) => w && (w.hwDone === false || w.hwDone === "Not Completed" || w.hwDone === "not completed" || w.hwDone === "NOT COMPLETED"))
       .map(({ idx, w }) => ({
         week: (w.week ?? idx + 1),
         attended: w.attended,
@@ -117,35 +117,27 @@ export function SessionTable({
 
   const rows = data.map((student) => (
     <Table.Tr key={student.id}>
-      <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '60px', minWidth: '60px', textAlign: 'center' }}>{student.id}</Table.Td>
-      <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.name}</Table.Td>
-      {showGrade && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{student.grade || 'N/A'}</Table.Td>}
-      {showSchool && <Table.Td style={{ width: '150px', minWidth: '150px', textAlign: 'center' }}>{student.school || 'N/A'}</Table.Td>}
-      <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }}>{student.phone || ''}</Table.Td>
-      <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }}>{student.parents_phone || student.parentsPhone || ''}</Table.Td>
-      {showMainCenter && <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px' }}>{student.main_center}</Table.Td>}
-      <Table.Td style={{ textAlign: 'center', width: '140px', minWidth: '140px', cursor: 'pointer', fontWeight: 700, color: '#dc3545' }}
-        onClick={() => openDetails(student, 'absent')}
-        title="Show absent weeks">
-        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.attended === false).length : 0}
-      </Table.Td>
-      <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px', cursor: 'pointer', fontWeight: 700, color: '#fd7e14' }}
-        onClick={() => openDetails(student, 'hw')}
-        title="Show missing homework weeks">
-        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.hwDone === false).length : 0}
-      </Table.Td>
-      <Table.Td style={{ textAlign: 'center', width: '200px', minWidth: '200px', cursor: 'pointer', fontWeight: 700, color: '#1FA8DC' }}
-        onClick={() => openDetails(student, 'quiz')}
-        title="Show unattended quiz weeks">
-        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null)).length : 0}
-      </Table.Td>
+      <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '60px', minWidth: '60px', textAlign: 'center', fontSize: '15px' }}>{student.id}</Table.Td>
+      <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center', fontSize: '15px' }}>{student.name}</Table.Td>
+      {showGrade && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.grade || 'N/A'}</Table.Td>}
+      {showSchool && <Table.Td style={{ width: '150px', minWidth: '150px', textAlign: 'center', fontSize: '15px' }}>{student.school || 'N/A'}</Table.Td>}
+      <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>{student.phone || ''}</Table.Td>
+      <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>{student.parents_phone || student.parentsPhone || ''}</Table.Td>
+      {showMainCenter && <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px', fontSize: '15px' }}>{student.main_center}</Table.Td>}
+      {showStatsColumns && <Table.Td style={{ textAlign: 'center', width: '140px', minWidth: '140px', fontSize: '15px' }}>{student.lastAttendanceCenter || 'N/A'}</Table.Td>}
       {showHW && (
         <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px' }}>
-          {student.hwDone ? (
-            <span style={{ color: '#28a745', fontSize: '15px', fontWeight: 'bold' }}>✓ Done</span>
-          ) : (
-            <span style={{ color: '#dc3545', fontSize: '15px', fontWeight: 'bold' }}>✗ Not Done</span>
-          )}
+          {(() => {
+            if (student.hwDone === "No Homework") {
+              return <span style={{ color: '#dc3545', fontSize: '15px', fontWeight: 'bold' }}>🚫 No Homework</span>;
+            } else if (student.hwDone === "Not Completed" || student.hwDone === "not completed" || student.hwDone === "NOT COMPLETED") {
+              return <span style={{ color: '#ffc107', fontSize: '15px', fontWeight: 'bold' }}>⚠️ Not Completed</span>;
+            } else if (student.hwDone === true) {
+              return <span style={{ color: '#28a745', fontSize: '15px', fontWeight: 'bold' }}>✅ Done</span>;
+            } else {
+              return <span style={{ color: '#dc3545', fontSize: '15px', fontWeight: 'bold' }}>❌ Not Done</span>;
+            }
+          })()}
         </Table.Td>
       )}
       
@@ -154,14 +146,14 @@ export function SessionTable({
           {(() => {
             const value = (student.quizDegree !== undefined && student.quizDegree !== null && student.quizDegree !== '') ? student.quizDegree : '0/0';
             if (value === "Didn't Attend The Quiz") {
-              return <span style={{ color: '#dc3545', fontWeight: 'bold' }}>✗ Didn't Attend The Quiz</span>;
+              return <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '15px' }}>✗ Didn't Attend The Quiz</span>;
             }
-            return value;
+            return <span style={{ fontSize: '15px' }}>{value}</span>;
           })()}
         </Table.Td>
       )}
       {(showComment || showMainComment) && (
-        <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px' }}>
+        <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px', fontSize: '15px' }}>
           {(() => {
             const mainCommentRaw = (student.main_comment ?? '').toString();
             return mainCommentRaw.trim() !== '' ? mainCommentRaw : 'No Comment';
@@ -169,7 +161,7 @@ export function SessionTable({
         </Table.Td>
       )}
       {(showComment || showWeekComment) && (
-        <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px' }}>
+        <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px', fontSize: '15px' }}>
           {(() => {
             try {
               // Only use the week's comment; do not fall back to main or root comment
@@ -188,15 +180,15 @@ export function SessionTable({
         <Table.Td style={{ 
           textAlign: 'center', 
           verticalAlign: 'middle',
-          fontSize: '12px',
           fontWeight: '500',
           width: '120px',
-          minWidth: '120px'
+          minWidth: '120px',
+          fontSize: '15px'
         }}>
           {student.message_state ? (
-            <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ Sent</span>
+            <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '15px' }}>✓ Sent</span>
           ) : (
-            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>✗ Not Sent</span>
+            <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '15px' }}>✗ Not Sent</span>
           )}
         </Table.Td>
       )}
@@ -217,6 +209,21 @@ export function SessionTable({
           />
         </Table.Td>
       )}
+      <Table.Td style={{ textAlign: 'center', width: '140px', minWidth: '140px', cursor: 'pointer', fontWeight: 700, color: '#dc3545', fontSize: '15px' }}
+        onClick={() => openDetails(student, 'absent')}
+        title="Show absent weeks">
+        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && w.attended === false).length : 0}
+      </Table.Td>
+      <Table.Td style={{ textAlign: 'center', width: '160px', minWidth: '160px', cursor: 'pointer', fontWeight: 700, color: '#fd7e14', fontSize: '15px' }}
+        onClick={() => openDetails(student, 'hw')}
+        title="Show missing homework weeks">
+        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && (w.hwDone === false || w.hwDone === "Not Completed" || w.hwDone === "not completed" || w.hwDone === "NOT COMPLETED")).length : 0}
+      </Table.Td>
+      <Table.Td style={{ textAlign: 'center', width: '200px', minWidth: '200px', cursor: 'pointer', fontWeight: 700, color: '#1FA8DC', fontSize: '15px' }}
+        onClick={() => openDetails(student, 'quiz')}
+        title="Show unattended quiz weeks">
+        {Array.isArray(student.weeks) ? student.weeks.filter(w => w && (w.quizDegree === "Didn't Attend The Quiz" || w.quizDegree == null)).length : 0}
+      </Table.Td>
     </Table.Tr>
   ));
 
@@ -235,11 +242,12 @@ export function SessionTable({
       baseWidth += 500; // Statistics columns (140 + 160 + 200)
       return baseWidth;
     } else {
-      // Calculate based on actual column widths: ID(60) + Name(120) + Grade(100) + School(150) + Student(140) + Parents(140) + MainCenter(120) + MessageState(120) + WhatsApp(120) + Stats(500)
+      // Calculate based on actual column widths: ID(60) + Name(120) + Grade(100) + School(150) + Student(140) + Parents(140) + MainCenter(120) + AttendanceCenter(140) + MessageState(120) + WhatsApp(120) + Stats(500)
       let baseWidth = 60 + 120 + 140 + 140; // ID + Name + Student No. + Parents No.
       if (showGrade) baseWidth += 100; // Grade column
       if (showSchool) baseWidth += 150; // School column
       if (showMainCenter) baseWidth += 120; // Main Center
+      if (showStatsColumns) baseWidth += 140; // Attendance Center
       baseWidth += 140; // Total absent sessions
       baseWidth += 160; // Total missing homework
       baseWidth += 200; // Total unattend quizzes
@@ -264,9 +272,7 @@ export function SessionTable({
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Student No.</Table.Th>
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Parents No.</Table.Th>
           {showMainCenter && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Main Center</Table.Th>}
-          <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Total Absent Sessions</Table.Th>
-          <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Total Missing Homework</Table.Th>
-          <Table.Th style={{ minWidth: data.length === 0 ? '140px' : '160px', width: '160px', textAlign: 'center' }}>Total Unattend Quizzes</Table.Th>
+          {showStatsColumns && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Attend In</Table.Th>}
           {showHW && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>HW State</Table.Th>}
           
           {showQuiz && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Quiz Degree</Table.Th>}
@@ -274,6 +280,9 @@ export function SessionTable({
           {(showComment || showWeekComment) && <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Week Comment</Table.Th>}
           {showMessageState && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Message State</Table.Th>}
           {showWhatsApp && data.length > 0 && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>WhatsApp Message</Table.Th>}
+          <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Total Absent Sessions</Table.Th>
+          <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Total Missing Homework</Table.Th>
+          <Table.Th style={{ minWidth: data.length === 0 ? '140px' : '160px', width: '160px', textAlign: 'center' }}>Total Unattend Quizzes</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -321,71 +330,34 @@ export function SessionTable({
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
-            justifyContent: 'space-between',
             gap: '12px',
             padding: '8px 0',
-            position: 'relative'
+            position: 'relative',
+            paddingRight: '60px' // Add space for the close button
           }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px',
-              flex: 1
+            <div style={{
+              width: '70px',
+              height: '44px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '20px',
+              color: 'white',
             }}>
-              <div style={{
-                width: '70px',
-                height: '44px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '20px',
-                color: 'white',
+              {detailsType === 'absent' && '📅'}
+              {detailsType === 'hw' && '📝'}
+              {detailsType === 'quiz' && '📊'}
+            </div>
+            <div>
+              <div style={{ 
+                fontSize: '1.2rem', 
+                fontWeight: '700', 
+                color: '#2c3e50'
               }}>
-                {detailsType === 'absent' && '📅'}
-                {detailsType === 'hw' && '📝'}
-                {detailsType === 'quiz' && '📊'}
-              </div>
-              <div>
-                <div style={{ 
-                  fontSize: '1.2rem', 
-                  fontWeight: '700', 
-                  color: '#2c3e50'
-                }}>
-                  {detailsTitle}
-                </div>
+                {detailsTitle}
               </div>
             </div>
-            
-            {/* Close Button in Header */}
-            <button
-              onClick={() => setDetailsOpen(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#dc3545',
-                fontSize: '40px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '50%',
-                flexShrink: 0,
-                boxShadow: 'none',
-                '@media (max-width: 768px)': {
-                  fontSize: '40px',
-                  width: '50px',
-                  height: '50px'
-                }
-              }}
-              aria-label="Close details"
-            >
-              ×
-            </button>
           </div>
         }
         centered
@@ -432,6 +404,36 @@ export function SessionTable({
           }
         }}
       >
+        {/* Absolutely positioned close button */}
+        <button
+          onClick={() => setDetailsOpen(false)}
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: '20px',
+            zIndex: 1000,
+            '@media (max-width: 768px)': {
+              width: '36px',
+              height: '36px',
+              fontSize: '18px',
+              top: '12px',
+              right: '12px'
+            }
+          }}
+          aria-label="Close details"
+        >
+          ❌
+        </button>
         
         <div style={{ 
           padding: '20px', 
@@ -515,10 +517,10 @@ export function SessionTable({
                   },
                   td: {
                     padding: '14px 12px',
-                    fontSize: '0.95rem',
+                    fontSize: '15px',
                     '@media (max-width: 768px)': {
                       padding: '10px 8px',
-                      fontSize: '0.85rem'
+                      fontSize: '13px'
                     }
                   }
                 }}
@@ -589,14 +591,36 @@ export function SessionTable({
                           gap: '8px',
                           padding: '8px 16px',
                           borderRadius: '20px',
-                          background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
-                          border: '1px solid #ff9800',
-                          color: '#e65100',
+                          background: info.hwDone === "No Homework" ? 
+                            'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                            (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                            'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)' :
+                            info.hwDone === false ? 
+                            'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                            'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)',
+                          border: info.hwDone === "No Homework" ? 
+                            '1px solid #ef5350' :
+                            (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                            '1px solid #ffc107' :
+                            info.hwDone === false ? 
+                            '1px solid #ef5350' : '1px solid #28a745',
+                          color: info.hwDone === "No Homework" ? 
+                            '#c62828' :
+                            (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                            '#856404' :
+                            info.hwDone === false ? 
+                            '#c62828' : '#155724',
                           fontWeight: '700',
                           fontSize: '0.95rem',
-                          boxShadow: '0 2px 4px rgba(255, 152, 0, 0.2)'
+                          boxShadow: info.hwDone === "No Homework" ? 
+                            '0 2px 4px rgba(244, 67, 54, 0.2)' :
+                            (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? 
+                            '0 2px 4px rgba(255, 193, 7, 0.2)' :
+                            info.hwDone === false ? 
+                            '0 2px 4px rgba(244, 67, 54, 0.2)' : '0 2px 4px rgba(40, 167, 69, 0.2)'
                         }}>
-                          ❌ Not Done
+                          {info.hwDone === "No Homework" ? '🚫 No Homework' :
+                           (info.hwDone === "Not Completed" || info.hwDone === "not completed" || info.hwDone === "NOT COMPLETED") ? '⚠️ Not Completed' : '❌ Not Done'}
                         </div>
                       )}
                       {detailsType === 'quiz' && (
@@ -608,18 +632,27 @@ export function SessionTable({
                           borderRadius: '20px',
                           background: info.quizDegree === "Didn't Attend The Quiz" ? 
                             'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
-                            'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+                            info.quizDegree === "No Quiz" ?
+                            'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                            'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)',
                           border: info.quizDegree === "Didn't Attend The Quiz" ? 
-                            '1px solid #ef5350' : '1px solid #42a5f5',
+                            '1px solid #ef5350' : 
+                            info.quizDegree === "No Quiz" ?
+                            '1px solid #ef5350' : '1px solid #28a745',
                           color: info.quizDegree === "Didn't Attend The Quiz" ? 
-                            '#c62828' : '#1565c0',
+                            '#c62828' : 
+                            info.quizDegree === "No Quiz" ?
+                            '#c62828' : '#155724',
                           fontWeight: '700',
                           fontSize: '0.95rem',
                           boxShadow: info.quizDegree === "Didn't Attend The Quiz" ? 
-                            '0 2px 4px rgba(244, 67, 54, 0.2)' : '0 2px 4px rgba(66, 165, 245, 0.2)'
+                            '0 2px 4px rgba(244, 67, 54, 0.2)' : 
+                            info.quizDegree === "No Quiz" ?
+                            '0 2px 4px rgba(244, 67, 54, 0.2)' : '0 2px 4px rgba(40, 167, 69, 0.2)'
                         }}>
                           {info.quizDegree == null ? '0/0' : 
-                           (info.quizDegree === "Didn't Attend The Quiz" ? "❌ Didn't Attend" : String(info.quizDegree))}
+                           (info.quizDegree === "Didn't Attend The Quiz" ? "❌ Didn't Attend" : 
+                            info.quizDegree === "No Quiz" ? "🚫 No Quiz" : String(info.quizDegree))}
                         </div>
                       )}
                     </Table.Td>
@@ -656,8 +689,8 @@ export function SessionTable({
                   border: '1px solid #dee2e6',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}>
-                  📊 Total: {detailsWeeks.length} {detailsType === 'absent' ? 'sessions' : 
-                             detailsType === 'hw' ? 'assignments' : 'quizzes'}
+                  📊 Total: {detailsWeeks.length} {detailsType === 'absent' ? 'absent sessions' : 
+                             detailsType === 'hw' ? 'missing homework' : 'unattended quizzes'}
                 </div>
               </div>
             </div>

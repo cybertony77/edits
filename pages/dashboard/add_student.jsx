@@ -140,6 +140,12 @@ export default function AddStudent() {
     }
   };
 
+  const handleAttendStudent = () => {
+    if (newId) {
+      router.push(`/dashboard/scan_page?studentId=${newId}&autoSearch=true`);
+    }
+  };
+
   const handleAddAnotherStudent = () => {
     setForm({
       name: "",
@@ -385,6 +391,28 @@ export default function AddStudent() {
               <div style={{ marginTop: 12 }}>
                 <button className="submit-btn" onClick={handleCreateQR}>
                 🏷️ Create QR Code for this ID: {newId}
+                </button>
+              </div>
+            )}
+            {showQRButton && (
+              <div style={{ marginTop: 12 }}>
+                <button 
+                  className="submit-btn" 
+                  onClick={handleAttendStudent}
+                  style={{
+                    background: 'linear-gradient(250deg, rgb(23, 162, 184) 0%, rgb(32, 201, 151) 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontWeight: 600,
+                    fontSize: '1rem',
+                    padding: '14px 20px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 16px rgba(0, 123, 255, 0.3)',
+                    width: '100%'
+                  }}
+                >
+                  ✅ Attend This Student
                 </button>
               </div>
             )}
