@@ -148,8 +148,8 @@ export default function QR() {
     if (!student.weeks || !weekString) return null;
     const weekNumber = getWeekNumber(weekString);
     if (!weekNumber) return null;
-    const weekIndex = weekNumber - 1;
-    return student.weeks[weekIndex] || null;
+    // Find the week by its week number instead of array index
+    return student.weeks.find(w => w && w.week === weekNumber) || null;
   };
 
   // Helper function to update student state with current week data
