@@ -67,14 +67,14 @@ export default function QR() {
   useEffect(() => {
     if (!router.isReady) return;
     const { studentId: urlStudentId, autoSearch } = router.query;
-  
+
     if (urlStudentId && autoSearch === 'true') {
       console.log('🔧 Setting student ID from URL:', urlStudentId);
       setStudentId(urlStudentId);
       setSearchId(urlStudentId);
       setIsFromURL(true);
     }
-  }, [router.isReady, router.query]);  
+  }, [router.isReady, router.query]);
 
   // React Query hooks with enhanced real-time updates
   const { data: rawStudent, isLoading: studentLoading, error: studentError } = useStudent(searchId, { 
@@ -1001,17 +1001,17 @@ export default function QR() {
           value={studentId}
           onChange={(e) => {
             setStudentId(e.target.value);
-            // Only clear search ID if this is not from URL parameters
+            // Only clear search ID and reset states if this is not from URL parameters
             if (!isFromURL) {
               setSearchId(""); // Clear search ID to prevent auto-fetch
-            }
-            setIsQRScanned(false); // Reset QR scan flag when input changes
-            setSearchResults([]);
-            setShowSearchResults(false);
-            // Clear error and success when input changes
-            if (e.target.value !== studentId) {
-              setError("");
-              setAttendSuccess(false);
+              setIsQRScanned(false); // Reset QR scan flag when input changes
+              setSearchResults([]);
+              setShowSearchResults(false);
+              // Clear error and success when input changes
+              if (e.target.value !== studentId) {
+                setError("");
+                setAttendSuccess(false);
+              }
             }
           }}
         />
