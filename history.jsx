@@ -435,9 +435,9 @@ export default function History() {
                           {(() => {
                             if (record.hwDone === "No Homework") {
                               return <span style={{ 
-                                color: '#1FA8DC',
+                                color: '#dc3545',
                                 fontWeight: 'bold'
-                              }}>No Homework</span>;
+                              }}>🚫 No Homework</span>;
                             } else if (record.hwDone === "Not Completed") {
                               return <span style={{ 
                                 color: '#856404',

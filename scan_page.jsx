@@ -957,8 +957,8 @@ export default function QR() {
             width: 100%;
           }
           .qr-code-btn {
-            font-size: 0.9rem !important;
-            padding: 12px 16px !important;
+            font-size: 1rem !important;
+            padding: 16px 20px !important;
           }
         }
         @media (max-width: 480px) {
@@ -992,15 +992,15 @@ export default function QR() {
             font-size: 0.8rem;
           }
           .qr-code-btn {
-            font-size: 0.85rem !important;
-            padding: 12px !important;
+            font-size: 0.95rem !important;
+            padding: 16px !important;
             line-height: 1.3 !important;
           }
         }
         @media (max-width: 360px) {
           .qr-code-btn {
-            font-size: 0.8rem !important;
-            padding: 12px !important;
+            font-size: 0.9rem !important;
+            padding: 14px !important;
             line-height: 1.2 !important;
           }
         }
