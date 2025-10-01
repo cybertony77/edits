@@ -65,26 +65,16 @@ export default function QR() {
 
   // Handle URL parameters for auto-filling student ID and triggering search
   useEffect(() => {
-    // Wait for router to be ready
     if (!router.isReady) return;
-    
     const { studentId: urlStudentId, autoSearch } = router.query;
-    
+  
     if (urlStudentId && autoSearch === 'true') {
       console.log('🔧 Setting student ID from URL:', urlStudentId);
-      // Set both states immediately
       setStudentId(urlStudentId);
       setSearchId(urlStudentId);
-      setIsFromURL(true); // Mark that this came from URL
-      
-      // Clear URL parameters after a longer delay to ensure everything is processed
-      setTimeout(() => {
-        console.log('🔧 Clearing URL parameters');
-        router.replace('/dashboard/scan_page', undefined, { shallow: true });
-        setIsFromURL(false); // Reset the flag
-      }, 500);
+      setIsFromURL(true);
     }
-  }, [router.isReady, router.query, router]);
+  }, [router.isReady, router.query]);  
 
   // React Query hooks with enhanced real-time updates
   const { data: rawStudent, isLoading: studentLoading, error: studentError } = useStudent(searchId, { 
