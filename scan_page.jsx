@@ -49,7 +49,6 @@ export default function QR() {
   
   const [optimisticAttended, setOptimisticAttended] = useState(null);
   const [isQRScanned, setIsQRScanned] = useState(false); // Track if student was found via QR scan
-  const [deactivatedErrorShown, setDeactivatedErrorShown] = useState(false); // Track if deactivated error was shown
   const [searchResults, setSearchResults] = useState([]); // Store multiple search results
   const [showSearchResults, setShowSearchResults] = useState(false); // Show/hide search results
   const router = useRouter();
@@ -152,11 +151,6 @@ export default function QR() {
 
   // Helper function to update student state with current week data
   const updateStudentWithWeekData = (student, weekString) => {
-    // Check if student account is deactivated
-    if (student.account_state === 'Deactivated') {
-      return null; // Return null to prevent showing student info
-    }
-    
     const weekData = getCurrentWeekData(student, weekString);
     
     // If week data doesn't exist, return student with default week values (not attended)
@@ -203,8 +197,6 @@ export default function QR() {
     setIsQRScanned(false);
     setSearchResults([]);
     setShowSearchResults(false);
-    setError(""); // Clear any previous errors
-    setDeactivatedErrorShown(false); // Reset deactivated error flag
     
     // Check if it's a numeric ID
     if (/^\d+$/.test(searchTerm)) {
@@ -294,7 +286,6 @@ export default function QR() {
   const handleQRCodeScanned = (scannedStudentId) => {
     setError("");
     setAttendSuccess(false);
-    setDeactivatedErrorShown(false); // Reset deactivated error flag
     setStudentId(scannedStudentId);
     setSearchId(scannedStudentId);
     
@@ -376,26 +367,6 @@ export default function QR() {
       return () => clearTimeout(timer);
     }
   }, [searchId, studentLoading, rawStudent, studentError]);
-
-  // Check for deactivated student account
-  useEffect(() => {
-    if (rawStudent && rawStudent.account_state === 'Deactivated' && !deactivatedErrorShown) {
-      setError("Sorry you can't scan this student, this student is deactivated.");
-      setDeactivatedErrorShown(true);
-      // Don't clear the search - keep the ID in the input field
-    }
-  }, [rawStudent, deactivatedErrorShown]);
-
-  // Check for deactivated account immediately when student data is available
-  useEffect(() => {
-    if (rawStudent && rawStudent.account_state === 'Deactivated') {
-      setError("Sorry you can't scan this student, this student is deactivated.");
-      // Clear any success messages
-      setAttendSuccess(false);
-      setHwSuccess("");
-      setQuizSuccess("");
-    }
-  }, [rawStudent]);
 
   // Clear optimistic state when student, week, or center changes
   useEffect(() => {
@@ -501,7 +472,6 @@ export default function QR() {
 
   const toggleAttendance = async () => {
     if (!student || !selectedWeek || !attendanceCenter) return;
-    if (student.account_deactivated) return; // Don't allow attendance for deactivated accounts
     
     // Use current displayed state (optimistic if available, otherwise DB state)
     const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
@@ -564,7 +534,6 @@ export default function QR() {
 
   const toggleHwDone = async () => {
     if (!student || !selectedWeek || !attendanceCenter) return;
-    if (student.account_deactivated) return; // Don't allow homework updates for deactivated accounts
     
     // Check if student is attended - can't do homework if not attended
     const currentAttended = optimisticAttended !== null ? optimisticAttended : student.attended_the_session;
@@ -614,7 +583,6 @@ export default function QR() {
 
   const handleQuizDegreeSubmit = async () => {
     if (!student || !selectedWeek || !attendanceCenter) return;
-    if (student.account_deactivated) return; // Don't allow quiz updates for deactivated accounts
     if (quizDegreeInput === "" || quizDegreeOutOf === "") return;
     
     // Check if student is attended - can't enter quiz if not attended
@@ -1165,7 +1133,7 @@ export default function QR() {
         onError={handleQRScannerError}
       />
 
-      {student && rawStudent?.account_state !== 'Deactivated' && (
+      {student && (
         <div className="student-card">
           <div className="student-name">{student.name}</div>
                   
@@ -1278,7 +1246,7 @@ export default function QR() {
             <button
               className="toggle-btn"
               onClick={toggleAttendance}
-              disabled={!attendanceCenter || !selectedWeek || student?.account_deactivated}
+              disabled={!attendanceCenter || !selectedWeek}
               style={{
                 width: '100%',
                 background: (!attendanceCenter || !selectedWeek) 
@@ -1430,7 +1398,7 @@ export default function QR() {
               <button
                 className="toggle-btn"
                 onClick={toggleHwDone}
-                disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session) || student?.account_deactivated}
+                disabled={!attendanceCenter || !selectedWeek || !(optimisticAttended !== null ? optimisticAttended : student.attended_the_session)}
                 style={{
                   width: '100%',
                   background: (!attendanceCenter || !selectedWeek)
@@ -1729,6 +1697,35 @@ export default function QR() {
             </button>
           </div>
           {/* comment success shown below the student card */}
+        </div>
+      )}
+
+      {/* Create QR Code Button - shown when student is found */}
+      {student && (
+        <div style={{ maxWidth: 600, margin: '12px auto 0 auto' }}>
+          <button 
+            className="submit-btn" 
+            onClick={() => {
+              if (student.id) {
+                router.push(`/dashboard/qr_generator?mode=single&id=${student.id}`);
+              }
+            }}
+            style={{
+              background: 'linear-gradient(135deg, #17a2b8 0%, #20c997 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: '1rem',
+              padding: '14px 20px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(23, 162, 184, 0.3)',
+              width: '100%',
+              marginBottom: '16px'
+            }}
+          >
+            🏷️ Create QR Code for this student • ID: {student.id}
+          </button>
         </div>
       )}
 
