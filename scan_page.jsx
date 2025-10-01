@@ -28,6 +28,16 @@ export default function QR() {
   const containerRef = useRef(null);
   const [studentId, setStudentId] = useState("");
   const [searchId, setSearchId] = useState(""); // Separate state for search
+  const [isFromURL, setIsFromURL] = useState(false); // Flag to track if ID came from URL
+  
+  // Debug student ID changes
+  useEffect(() => {
+    console.log('🔧 Student ID changed:', studentId);
+  }, [studentId]);
+  
+  useEffect(() => {
+    console.log('🔧 Search ID changed:', searchId);
+  }, [searchId]);
   const [error, setError] = useState("");
   const [attendSuccess, setAttendSuccess] = useState(false);
   const [hwSuccess, setHwSuccess] = useState("");
@@ -61,10 +71,18 @@ export default function QR() {
     const { studentId: urlStudentId, autoSearch } = router.query;
     
     if (urlStudentId && autoSearch === 'true') {
+      console.log('🔧 Setting student ID from URL:', urlStudentId);
+      // Set both states immediately
       setStudentId(urlStudentId);
       setSearchId(urlStudentId);
-      // Clear URL parameters after processing
-      router.replace('/dashboard/scan_page', undefined, { shallow: true });
+      setIsFromURL(true); // Mark that this came from URL
+      
+      // Clear URL parameters after a longer delay to ensure everything is processed
+      setTimeout(() => {
+        console.log('🔧 Clearing URL parameters');
+        router.replace('/dashboard/scan_page', undefined, { shallow: true });
+        setIsFromURL(false); // Reset the flag
+      }, 500);
     }
   }, [router.isReady, router.query, router]);
 
@@ -993,7 +1011,10 @@ export default function QR() {
           value={studentId}
           onChange={(e) => {
             setStudentId(e.target.value);
-            setSearchId(""); // Clear search ID to prevent auto-fetch
+            // Only clear search ID if this is not from URL parameters
+            if (!isFromURL) {
+              setSearchId(""); // Clear search ID to prevent auto-fetch
+            }
             setIsQRScanned(false); // Reset QR scan flag when input changes
             setSearchResults([]);
             setShowSearchResults(false);

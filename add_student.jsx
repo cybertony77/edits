@@ -10,7 +10,6 @@ import { useCreateStudent } from '../../lib/api/students';
 export default function AddStudent() {
   const containerRef = useRef(null);
   const [form, setForm] = useState({
-    id: "",
     name: "",
     age: "",
     grade: "",
@@ -26,9 +25,6 @@ export default function AddStudent() {
   const [showQRButton, setShowQRButton] = useState(false);
   const [error, setError] = useState("");
   const [openDropdown, setOpenDropdown] = useState(null); // 'grade', 'center', or null
-  const [idError, setIdError] = useState("");
-  const [idChecking, setIdChecking] = useState(false);
-  const [idValid, setIdValid] = useState(false);
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(""), 5000);
@@ -77,47 +73,6 @@ export default function AddStudent() {
   // React Query hook for creating students
   const createStudentMutation = useCreateStudent();
 
-  // Check if student ID is available
-  const checkStudentId = async (id) => {
-    if (!id || id.trim() === '') {
-      setIdError('');
-      setIdValid(false);
-      return;
-    }
-
-    setIdChecking(true);
-    setIdError('');
-
-    try {
-      const response = await fetch(`/api/students/${id}`);
-      if (response.ok) {
-        setIdError('This ID is used, please use another ID.');
-        setIdValid(false);
-      } else if (response.status === 404) {
-        setIdError('');
-        setIdValid(true);
-      } else {
-        setIdError('Error checking ID availability.');
-        setIdValid(false);
-      }
-    } catch (error) {
-      setIdError('Error checking ID availability.');
-      setIdValid(false);
-    } finally {
-      setIdChecking(false);
-    }
-  };
-
-  // Debounced ID check
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (form.id) {
-        checkStudentId(form.id);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [form.id]);
 
   const handleChange = (e) => {
     // Reset QR button if user starts entering new data (when form was previously empty)
@@ -132,17 +87,6 @@ export default function AddStudent() {
     e.preventDefault();
     setError("");
     setSuccess(false);
-    
-    // Validate custom ID
-    if (!form.id || form.id.trim() === '') {
-      setError("Student ID is required");
-      return;
-    }
-    
-    if (!idValid) {
-      setError("Please enter a valid, unused Student ID");
-      return;
-    }
     
     // Validate phone numbers
     const studentPhone = form.phone;
@@ -181,8 +125,8 @@ export default function AddStudent() {
     createStudentMutation.mutate(payload, {
       onSuccess: (data) => {
         setSuccess(true);
-        setSuccessMessage(`✅ Student added successfully! ID: ${form.id}`); // Use custom ID
-        setNewId(form.id); // Use custom ID
+        setSuccessMessage(`✅ Student added successfully! ID: ${data.id}`); // Use server-generated ID
+        setNewId(data.id); // Use server-generated ID
         setShowQRButton(true); // Show QR button after successful submission
       },
       onError: (err) => {
@@ -205,7 +149,6 @@ export default function AddStudent() {
 
   const handleAddAnotherStudent = () => {
     setForm({
-      id: "",
       name: "",
       age: "",
       grade: "",
@@ -316,36 +259,6 @@ export default function AddStudent() {
         <Title>Add Student</Title>
         <div className="form-container">
           <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>Student ID <span style={{color: 'red'}}>*</span></label>
-              <input
-                className="form-input"
-                name="id"
-                placeholder="Enter student ID"
-                value={form.id}
-                onChange={handleChange}
-                required
-                autocomplete="off"
-                style={{
-                  borderColor: idError ? '#dc3545' : idValid ? '#28a745' : '#dee2e6'
-                }}
-              />
-              {idChecking && (
-                <div style={{ color: '#6c757d', fontSize: '0.875rem', marginTop: '4px' }}>
-                  Checking ID availability...
-                </div>
-              )}
-              {idError && (
-                <div style={{ color: '#dc3545', fontSize: '0.875rem', marginTop: '4px' }}>
-                  {idError}
-                </div>
-              )}
-              {idValid && !idChecking && (
-                <div style={{ color: '#28a745', fontSize: '0.875rem', marginTop: '4px' }}>
-                  ✅ ID is available
-                </div>
-              )}
-            </div>
             <div className="form-group">
               <label>Full Name <span style={{color: 'red'}}>*</span></label>
               <input
