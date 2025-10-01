@@ -528,6 +528,16 @@ export default function StudentInfo() {
                 <div className="detail-label">Main Comment</div>
                 <div className="detail-value" style={{ fontSize: '1rem' }}>{student.main_comment || 'No Comment'}</div>
               </div>
+              <div className="detail-item">
+                <div className="detail-label">Account Status</div>
+                <div className="detail-value" style={{ fontSize: '1rem', fontWeight: 'bold' }}>
+                  {student.account_state === 'Deactivated' ? (
+                    <span style={{ color: '#dc3545' }}>❌ Deactivated</span>
+                  ) : (
+                    <span style={{ color: '#28a745' }}>✅ Activated</span>
+                  )}
+                </div>
+              </div>
               {(() => {
                 const totals = getTotals();
                 return (

@@ -265,6 +265,7 @@ export default function AllStudents() {
             showMainCenter={true}
             showGrade={true}
             showSchool={true}
+            showAccountStatus={true}
             showComment={false}
             showMainComment={false}
             showWeekComment={false}

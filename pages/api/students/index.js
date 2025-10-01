@@ -59,7 +59,7 @@ export default async function handler(req, res) {
         // Find the current week (last attended week or week 1 if none)
         const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
         const currentWeek = hasWeeks ?
-          (student.weeks.find(w => w.attended) || student.weeks[0]) :
+          (student.weeks.find(w => w && w.attended) || student.weeks.find(w => w) || student.weeks[0]) :
           { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
         
         return {
@@ -80,6 +80,7 @@ export default async function handler(req, res) {
           school: student.school || null,
           age: student.age || null,
           message_state: currentWeek.message_state,
+          account_state: student.account_state || "Activated", // Default to Activated
           weeks: student.weeks || [] // Include the full weeks array
         };
       });
@@ -87,13 +88,18 @@ export default async function handler(req, res) {
       res.json(mappedStudents);
     } else if (req.method === 'POST') {
       // Add new student
-      const { name, grade, phone, parents_phone, main_center, age, school, main_comment, comment } = req.body;
-      if (!name || !grade || !phone || !parents_phone || !main_center || age === undefined || !school) {
+      const { id, name, grade, phone, parents_phone, main_center, age, school, main_comment, comment, account_state } = req.body;
+      if (!id || !name || !grade || !phone || !parents_phone || !main_center || age === undefined || !school) {
         return res.status(400).json({ error: 'All fields are required' });
       }
-      // Generate a new unique student id (max id + 1)
-      const lastStudent = await db.collection('students').find().sort({ id: -1 }).limit(1).toArray();
-      const newId = lastStudent.length > 0 ? lastStudent[0].id + 1 : 1;
+      
+      // Check if the custom ID is already used
+      const existingStudent = await db.collection('students').findOne({ id: parseInt(id) });
+      if (existingStudent) {
+        return res.status(400).json({ error: 'This ID is used, please use another ID' });
+      }
+      
+      const newId = parseInt(id);
       
       // New students start with no weeks; weeks are created on demand
       const weeks = [];
@@ -108,6 +114,7 @@ export default async function handler(req, res) {
         parentsPhone: parents_phone,
         main_center,
         main_comment: (main_comment ?? comment ?? null),
+        account_state: account_state || "Activated", // Default to Activated
         weeks: weeks
       };
       await db.collection('students').insertOne(student);

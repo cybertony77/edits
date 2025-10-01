@@ -128,7 +128,7 @@ export default function QRGenerator() {
               // Use compact dimensions for downloaded QR codes
               const containerWidth = 280; // Narrower width for smaller left/right sides
               const containerHeight = 280; // Compact height
-              const idText = `Your ID: ${ids[i]}`;
+              const idText = `ID No. ${ids[i]}`;
               const idFontSize = 28;
               const idMargin = 15;
               const extraHeight = idFontSize + idMargin;
@@ -531,7 +531,7 @@ export default function QRGenerator() {
                 <div className="qr-container">
                   <QRCode
                     id="single-qr-svg"
-                    value={`https://topphysics.org/?id=${singleId}`}
+                    value={`https://https://linktr.ee/Dr.GeorgeMagdy?utm_source=linktree_profile_share&?id=${singleId}`}
                     size={qrSize}
                     ecLevel="H"
                     logoImage="/logo.png"
@@ -544,7 +544,7 @@ export default function QRGenerator() {
                     removeQrCodeBehindLogo={true}
                     logoPosition="center"
                   />
-                  <div className="qr-id-text">{`Your ID: ${singleId}`}</div>
+                  <div className="qr-id-text">{`ID No. ${singleId}`}</div>
                 </div>
                 <button className="download-btn" onClick={downloadSingleQR}>
                   📥 Download QR
@@ -605,7 +605,7 @@ export default function QRGenerator() {
               <div className="qr-container" key={id}>
                 <QRCode
                   id={`hidden-qr-${id}`}
-                  value={`https://topphysics.org/?id=${id}`}
+                  value={`https://https://linktr.ee/Dr.GeorgeMagdy?utm_source=linktree_profile_share&?id=${id}`}
                   size={qrSize}
                   ecLevel="H"
                   logoImage="/logo.png"
@@ -618,7 +618,7 @@ export default function QRGenerator() {
                   removeQrCodeBehindLogo={true}
                   logoPosition="center"
                 />
-                <div className="qr-id-text">{`Your ID: ${id}`}</div>
+                <div className="qr-id-text">{`ID No. ${id}`}</div>
               </div>
             ))}
           </div>

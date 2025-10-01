@@ -139,6 +139,8 @@ export default function SessionInfo() {
     if (selectedGrade) {
       filteredList = filteredList.filter(s => s.grade && s.grade.toLowerCase().includes(selectedGrade.toLowerCase()));
     }
+    // Filter out deactivated students
+    filteredList = filteredList.filter(s => s.account_state !== 'Deactivated');
     setFiltered(filteredList);
   };
 
@@ -334,6 +336,9 @@ export default function SessionInfo() {
   let filteredStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
     if (!selectedGrade || !selectedCenter) return false;
     
+    // Exclude deactivated students
+    if (s.account_state === 'Deactivated') return false;
+    
     const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
     if (!gradeMatch) return false;
     
@@ -357,6 +362,9 @@ export default function SessionInfo() {
   // Filter for not attended students (considering week if selected)
   const notAttendedStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
     if (!selectedGrade || !selectedCenter) return false;
+    
+    // Exclude deactivated students
+    if (s.account_state === 'Deactivated') return false;
     
     const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
     const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
@@ -382,6 +390,9 @@ export default function SessionInfo() {
   // AIAC: Attended in Another Center - students who attended in a different center than their main center
   const aiacStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
     if (!selectedGrade || !selectedCenter || !weekNumber) return false;
+    
+    // Exclude deactivated students
+    if (s.account_state === 'Deactivated') return false;
     
     const gradeMatch = s.grade && s.grade.toLowerCase().replace(/\./g, '') === selectedGrade.toLowerCase().replace(/\./g, '');
     const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
