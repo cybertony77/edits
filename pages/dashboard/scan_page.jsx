@@ -1001,17 +1001,19 @@ export default function QR() {
           value={studentId}
           onChange={(e) => {
             setStudentId(e.target.value);
-            // Only clear search ID and reset states if this is not from URL parameters
-            if (!isFromURL) {
-              setSearchId(""); // Clear search ID to prevent auto-fetch
-              setIsQRScanned(false); // Reset QR scan flag when input changes
-              setSearchResults([]);
-              setShowSearchResults(false);
-              // Clear error and success when input changes
-              if (e.target.value !== studentId) {
-                setError("");
-                setAttendSuccess(false);
-              }
+            // Always hide search results when input changes
+            setShowSearchResults(false);
+            setSearchResults([]);
+            
+            // Always clear search ID and reset states when input changes
+            // This ensures student data disappears when user modifies input
+            setSearchId(""); // Clear search ID to prevent auto-fetch
+            setIsQRScanned(false); // Reset QR scan flag when input changes
+            
+            // Clear error and success when input changes
+            if (e.target.value !== studentId) {
+              setError("");
+              setAttendSuccess(false);
             }
           }}
         />
