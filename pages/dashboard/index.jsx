@@ -15,7 +15,7 @@ export default function Dashboard() {
   return (
     <div style={{ 
       // height: "calc(100dvh - 10rem)",
-      padding: "10px 35px 5px 35px",
+      padding: "10px 10px 5px 10px",
       display: 'flex',
       flexDirection: 'column',
       overflow: 'auto'
@@ -40,7 +40,7 @@ export default function Dashboard() {
               background: "transparent"
             }}
           />
-              <h1 style={{ margin: 0, color: "#ffffff" }}>Mr. George Magdy Dashboard</h1>
+              <h1 style={{ margin: 0, color: "#ffffff" }}>TopPhysics Dashboard</h1>
         </div>
         
         {/* Access Denied Message */}

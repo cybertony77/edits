@@ -68,12 +68,6 @@ export default async function handler(req, res) {
     }
     console.log('✅ Found student:', student.name);
     
-    // Check if student account is deactivated
-    if (student.account_state === 'Deactivated') {
-      console.log('❌ Student account is deactivated:', student_id);
-      return res.status(403).json({ error: 'Student account is deactivated' });
-    }
-    
     // Determine which week to update
     const weekNumber = week || 1;
     const weekIndex = weekNumber - 1; // Convert to array index

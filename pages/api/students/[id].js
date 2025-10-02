@@ -60,7 +60,7 @@ export default async function handler(req, res) {
       // Find the current week (last attended week or default if none)
       const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
       const currentWeek = hasWeeks ?
-        (student.weeks.find(w => w && w.attended) || student.weeks.find(w => w) || student.weeks[0]) :
+        (student.weeks.find(w => w.attended) || student.weeks[0]) :
         { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
       
       let lastAttendance = currentWeek.lastAttendance;
@@ -92,12 +92,11 @@ export default async function handler(req, res) {
         age: student.age || null,
         quizDegree: currentWeek.quizDegree,
         message_state: currentWeek.message_state,
-        account_state: student.account_state || "Activated", // Default to Activated
         weeks: student.weeks || [] // Include the full weeks array
       });
     } else if (req.method === 'PUT') {
       // Edit student - handle partial updates properly
-      const { name, grade, phone, parents_phone, main_center, age, school, main_comment, comment, account_state } = req.body;
+      const { name, grade, phone, parents_phone, main_center, age, school, main_comment, comment } = req.body;
       
       // Build update object with only defined values (not null or undefined)
       const update = {};
@@ -133,9 +132,6 @@ export default async function handler(req, res) {
       } else if (comment !== undefined) {
         // backward compat
         update.main_comment = comment;
-      }
-      if (account_state !== undefined && account_state !== null) {
-        update.account_state = account_state;
       }
       
       // Only proceed if there are fields to update

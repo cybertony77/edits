@@ -3,7 +3,6 @@ import { useRouter } from "next/router";
 import CenterSelect from "../../components/CenterSelect";
 import BackToDashboard from "../../components/BackToDashboard";
 import GradeSelect from '../../components/GradeSelect';
-import AccountStateSelect from '../../components/AccountStateSelect';
 import Title from '../../components/Title';
 import { useStudents, useStudent, useUpdateStudent } from '../../lib/api/students';
 
@@ -65,8 +64,7 @@ export default function EditStudent() {
         main_center: student.main_center,
         school: student.school || "",
         age: student.age || "",
-        comment: student.main_comment || student.comment || "",
-        account_state: student.account_state || "Activated"
+        comment: student.main_comment || student.comment || ""
       };
       setOriginalStudent({ ...studentData });
       setFormData({ ...studentData }); // Also set the form data
@@ -753,11 +751,6 @@ export default function EditStudent() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
-            <AccountStateSelect
-              value={formData.account_state || 'Activated'}
-              onChange={(value) => handleChange({ target: { name: 'account_state', value } })}
-              required={false}
-            />
             <div className="form-group">
               <label>Main Comment</label>
               <textarea

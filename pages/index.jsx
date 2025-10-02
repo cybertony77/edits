@@ -100,8 +100,6 @@ export default function Login() {
             setMessage("Wrong username and password");
           } else if (err.response?.data?.error === 'wrong_password') {
             setPasswordError("Wrong password");
-          } else if (err.response?.data?.error === 'account_deactivated') {
-            setMessage("Sorry, this account is deactivated. Please contact Mr. George Magdy (admin) or Tony Joseph (developer).");
           } else {
             setMessage("Wrong username and password");
           }
@@ -387,7 +385,7 @@ export default function Login() {
                 <span style={{ fontSize: 20 }}>❗</span> 
                 {forgotMsg ? (
                   <span>
-                    Contact Mr. George Magdy (admin) or Tony Joseph (
+                    Contact Mr Mina (admin) or Tony Joseph (
                       <a
                         href="/contact_developer"
                         style={{ 
@@ -405,26 +403,6 @@ export default function Login() {
                       </a>
                       )
                     </span>
-                  ) : message && message.includes('developer') ? (
-                    <span>
-                      Sorry, this account is deactivated. Please contact Mr. George Magdy (admin) or Tony Joseph (
-                        <a
-                          href="/contact_developer"
-                          style={{ 
-                            color: 'white', 
-                            textDecoration: 'underline', 
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            router.push('/contact_developer');
-                          }}
-                        >
-                          developer
-                        </a>
-                        ).
-                      </span>
                   ) : (
                     message
                   )}

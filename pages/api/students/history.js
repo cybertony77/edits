@@ -45,90 +45,186 @@ export default async function handler(req, res) {
   }
   
   let client;
+  let db;
   try {
+    console.log('📋 History API called - optimizing for large datasets...');
+    
+    // Validate environment variables
+    if (!MONGO_URI || !DB_NAME || !JWT_SECRET) {
+      console.error('❌ Missing environment variables');
+      return res.status(500).json({ 
+        error: 'Server configuration error', 
+        details: 'Missing required environment variables'
+      });
+    }
+
+    console.log('🔗 Connecting to MongoDB...');
     client = await MongoClient.connect(MONGO_URI);
-    const db = client.db(DB_NAME);
+    db = client.db(DB_NAME);
+    console.log('✅ Connected to database:', DB_NAME);
     
     // Verify authentication
+    console.log('🔐 Authenticating user...');
     const user = await authMiddleware(req);
+    console.log('✅ User authenticated:', user.assistant_id || user.id);
     
-    // Get history records (only studentId and week)
-    const historyRecords = await db.collection('history').find().toArray();
-    console.log('📊 Found', historyRecords.length, 'history records');
+    // Optimized approach: Use aggregation pipeline to join data at database level
+    console.log('📊 Building optimized aggregation pipeline...');
     
-    // Get all students data
-    const students = await db.collection('students').find().toArray();
-    console.log('👥 Found', students.length, 'students');
+    const pipeline = [
+      // Match all history records
+      { $match: {} },
+      
+      // Lookup students data with projection to only get needed fields
+      {
+        $lookup: {
+          from: 'students',
+          localField: 'studentId',
+          foreignField: 'id',
+          as: 'student',
+          pipeline: [
+            {
+              $project: {
+                id: 1,
+                name: 1,
+                grade: 1,
+                school: 1,
+                phone: 1,
+                parentsPhone: 1,
+                main_center: 1,
+                main_comment: 1,
+                comment: 1,
+                weeks: 1
+              }
+            }
+          ]
+        }
+      },
+      
+      // Unwind student array (should be single student)
+      { $unwind: '$student' },
+      
+      // Add computed fields for the specific week
+      {
+        $addFields: {
+          weekData: {
+            $let: {
+              vars: {
+                weekIndex: { $subtract: ['$week', 1] },
+                studentWeeks: '$student.weeks'
+              },
+              in: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $isArray: '$$studentWeeks' },
+                      { $gte: ['$$weekIndex', 0] },
+                      { $lt: ['$$weekIndex', { $size: '$$studentWeeks' }] }
+                    ]
+                  },
+                  then: { $arrayElemAt: ['$$studentWeeks', '$$weekIndex'] },
+                  else: null
+                }
+              }
+            }
+          }
+        }
+      },
+      
+      // Filter out records where week data doesn't exist or student didn't attend
+      {
+        $match: {
+          'weekData.attended': true
+        }
+      },
+      
+      // Project the final structure
+      {
+        $project: {
+          studentId: 1,
+          week: 1,
+          student: {
+            id: '$student.id',
+            name: '$student.name',
+            grade: '$student.grade',
+            school: '$student.school',
+            phone: '$student.phone',
+            parentsPhone: '$student.parentsPhone',
+            main_center: '$student.main_center',
+            main_comment: { $ifNull: ['$student.main_comment', '$student.comment'] },
+            weeks: '$student.weeks'
+          },
+          historyRecord: {
+            studentId: 1,
+            week: 1,
+            main_center: '$student.main_center',
+            center: { $ifNull: ['$weekData.lastAttendanceCenter', 'n/a'] },
+            attendanceDate: { $ifNull: ['$weekData.lastAttendance', 'n/a'] },
+            hwDone: { $ifNull: ['$weekData.hwDone', false] },
+            quizDegree: { $ifNull: ['$weekData.quizDegree', null] },
+            message_state: { $ifNull: ['$weekData.message_state', false] }
+          }
+        }
+      },
+      
+      // Sort by student ID and week
+      { $sort: { 'student.id': 1, week: 1 } }
+    ];
     
-    // Create a map of students by ID for quick lookup
-    const studentMap = new Map();
-    students.forEach(student => {
-      studentMap.set(student.id, student);
-    });
+    console.log('🚀 Executing aggregation pipeline...');
+    const aggregationResult = await db.collection('history').aggregate(pipeline).toArray();
+    console.log(`✅ Aggregation completed: ${aggregationResult.length} records`);
     
+    // Group by student to match the expected frontend format
     const studentHistoryMap = new Map();
     
-    // Process each history record
-    historyRecords.forEach(record => {
-      const student = studentMap.get(record.studentId);
-      if (!student) {
-        console.warn(`Student ${record.studentId} not found for history record`);
-        return;
-      }
+    // Process results in batches to avoid memory issues
+    const batchSize = 100;
+    for (let i = 0; i < aggregationResult.length; i += batchSize) {
+      const batch = aggregationResult.slice(i, i + batchSize);
       
-      // Get the specific week data from student's weeks array
-      const weekIndex = record.week - 1; // Convert week number to array index
-      const weekData = student.weeks && student.weeks[weekIndex] ? student.weeks[weekIndex] : null;
-      
-      if (!weekData || !weekData.attended) {
-        console.warn(`Week ${record.week} data not found or student not attended for student ${record.studentId}`);
-        return;
-      }
-      
-      // Create enriched history record with student data
-      const enrichedRecord = {
-        studentId: record.studentId,
-        week: record.week,
-        main_center: student.main_center || 'n/a',
-        center: weekData.lastAttendanceCenter || 'n/a',
-        attendanceDate: weekData.lastAttendance || 'n/a',
-        hwDone: weekData.hwDone || false,
-        quizDegree: weekData.quizDegree || null,
-        message_state: weekData.message_state || false
-      };
-      
-      // Group by student
-      if (!studentHistoryMap.has(record.studentId)) {
-        studentHistoryMap.set(record.studentId, {
-          id: student.id,
-          name: student.name,
-          grade: student.grade,
-          school: student.school,
-          phone: student.phone,
-          parentsPhone: student.parentsPhone,
-          // Expose comments directly from the student collection
-          main_comment: student.main_comment || student.comment || '',
-          // Provide weeks array so frontend can read week-specific comments
-          weeks: Array.isArray(student.weeks) ? student.weeks : [],
-          historyRecords: []
-        });
-      }
-      
-      studentHistoryMap.get(record.studentId).historyRecords.push(enrichedRecord);
-    });
+      batch.forEach(item => {
+        const studentId = item.student.id;
+        
+        if (!studentHistoryMap.has(studentId)) {
+          studentHistoryMap.set(studentId, {
+            id: item.student.id,
+            name: item.student.name,
+            grade: item.student.grade,
+            school: item.student.school,
+            phone: item.student.phone,
+            parentsPhone: item.student.parentsPhone,
+            main_comment: item.student.main_comment || '',
+            weeks: Array.isArray(item.student.weeks) ? item.student.weeks : [],
+            historyRecords: []
+          });
+        }
+        
+        studentHistoryMap.get(studentId).historyRecords.push(item.historyRecord);
+      });
+    }
     
     // Convert map to array and sort by student ID
     const result = Array.from(studentHistoryMap.values()).sort((a, b) => a.id - b.id);
     
-    console.log('📈 Returning history for', result.length, 'students with attendance records');
+    console.log(`📈 Returning history for ${result.length} students with ${result.reduce((total, student) => total + student.historyRecords.length, 0)} attendance records`);
     res.json(result);
+    
   } catch (error) {
+    console.error('❌ History API error:', error);
+    
     if (error.message.includes('Unauthorized') || error.message.includes('Invalid token')) {
-      res.status(401).json({ error: error.message });
-    } else {
-      console.error('Error fetching history data:', error);
-      res.status(500).json({ error: 'Failed to fetch history data' });
+      return res.status(401).json({ error: error.message });
     }
+    
+    if (error.message === 'No token provided') {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch history data', 
+      details: error.message 
+    });
   } finally {
     if (client) await client.close();
   }

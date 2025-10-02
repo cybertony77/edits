@@ -2,12 +2,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Title from "../../components/Title";
 import RoleSelect from "../../components/RoleSelect";
-import AccountStateSelect from "../../components/AccountStateSelect";
 import { useCreateAssistant, useCheckUsername } from '../../lib/api/assistants';
 
 export default function AddAssistant() {
   const router = useRouter();
-  const [form, setForm] = useState({ id: "", name: "", phone: "", password: "", role: "assistant", account_state: "Activated" });
+  const [form, setForm] = useState({ id: "", name: "", phone: "", password: "", role: "assistant" });
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [newId, setNewId] = useState(""); // Added for success message
@@ -72,7 +71,7 @@ export default function AddAssistant() {
     createAssistantMutation.mutate(payload, {
       onSuccess: (data) => {
         setSuccess(true);
-        setForm({ id: "", name: "", phone: "", password: "", role: "assistant", account_state: "Activated" });
+        setForm({ id: "", name: "", phone: "", password: "", role: "assistant" });
         setNewId(data.assistant_id);
       },
       onError: (err) => {
@@ -331,11 +330,6 @@ export default function AddAssistant() {
                 required={true}
               />
             </div>
-            <AccountStateSelect
-              value={form.account_state}
-              onChange={(value) => setForm({ ...form, account_state: value })}
-              required={true}
-            />
             <button 
               type="submit" 
               disabled={createAssistantMutation.isPending || (!usernameCheck.isLoading && usernameCheck.data && usernameCheck.data.exists)} 
