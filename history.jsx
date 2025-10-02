@@ -61,15 +61,15 @@ export default function History() {
     }
   }, []);
 
-  // React Query hook with real-time updates - 5 second polling
+  // React Query hook with optimized settings for large datasets
   const { data: students = [], isLoading, error, refetch, isRefetching, dataUpdatedAt } = useStudentsHistory({
-    // Aggressive real-time settings for immediate updates
-    refetchInterval: 5 * 1000, // Refetch every 5 seconds for real-time updates
-    refetchIntervalInBackground: true, // Continue when tab is not active
+    // Optimized settings for large datasets
+    refetchInterval: 30 * 1000, // Refetch every 30 seconds (reduced from 5s)
+    refetchIntervalInBackground: false, // Don't refetch when tab is not active
     refetchOnWindowFocus: true, // Immediate update when switching back to tab
     refetchOnReconnect: true, // Refetch when reconnecting to internet
-    staleTime: 0, // Always consider data stale to force refetch
-    gcTime: 1000, // Keep in cache for only 1 second
+    staleTime: 60 * 1000, // Consider data stale after 60 seconds (increased from 0s)
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (increased from 1s)
     refetchOnMount: true, // Always refetch when component mounts/page entered
   });
 
@@ -428,7 +428,12 @@ export default function History() {
                         <Table.Td style={{ width: '180px', minWidth: '180px', wordWrap: 'break-word', textAlign: 'center' }}>{student.school || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.phone || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>{student.parentsPhone || 'N/A'}</Table.Td>
-                        <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{record.week ? `week ${String(record.week).padStart(2, '0')}` : 'N/A'}</Table.Td>
+                        <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>
+                          {(() => {
+                            const week = record.week || 1; // Default to week 1 if not present
+                            return `week ${String(week).padStart(2, '0')}`;
+                          })()}
+                        </Table.Td>
                         <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{record.main_center || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>{record.attendanceDate || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>

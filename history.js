@@ -156,7 +156,7 @@ export default async function handler(req, res) {
           },
           historyRecord: {
             studentId: 1,
-            week: 1,
+            week: { $ifNull: ['$week', 1] }, // Ensure week is always present
             main_center: '$student.main_center',
             center: { $ifNull: ['$weekData.lastAttendanceCenter', 'n/a'] },
             attendanceDate: { $ifNull: ['$weekData.lastAttendance', 'n/a'] },
@@ -174,6 +174,11 @@ export default async function handler(req, res) {
     console.log('🚀 Executing aggregation pipeline...');
     const aggregationResult = await db.collection('history').aggregate(pipeline).toArray();
     console.log(`✅ Aggregation completed: ${aggregationResult.length} records`);
+    
+    // Debug: Check first few records for week data
+    if (aggregationResult.length > 0) {
+      console.log('🔍 Sample record structure:', JSON.stringify(aggregationResult[0], null, 2));
+    }
     
     // Group by student to match the expected frontend format
     const studentHistoryMap = new Map();
@@ -200,7 +205,13 @@ export default async function handler(req, res) {
           });
         }
         
-        studentHistoryMap.get(studentId).historyRecords.push(item.historyRecord);
+        // Ensure week is properly set in historyRecord
+        const historyRecord = {
+          ...item.historyRecord,
+          week: item.historyRecord.week || 1 // Fallback to week 1 if not present
+        };
+        
+        studentHistoryMap.get(studentId).historyRecords.push(historyRecord);
       });
     }
     
