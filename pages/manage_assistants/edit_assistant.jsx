@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Title from "../../components/Title";
 import RoleSelect from "../../components/RoleSelect";
+import AccountStateSelect from "../../components/AccountStateSelect";
 import { useAssistant, useAssistants, useUpdateAssistant } from '../../lib/api/assistants';
 
 export default function EditAssistant() {
@@ -9,7 +10,7 @@ export default function EditAssistant() {
   const [step, setStep] = useState(1);
   const [id, setId] = useState("");
   const [searchId, setSearchId] = useState(""); // Separate state for search
-  const [form, setForm] = useState({ id: "", name: "", phone: "", password: "", role: "" });
+  const [form, setForm] = useState({ id: "", name: "", phone: "", password: "", role: "", account_state: "Activated" });
   const [originalForm, setOriginalForm] = useState(null); // Store original data for comparison
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +52,8 @@ export default function EditAssistant() {
         name: assistant.name, 
         phone: assistant.phone, 
         password: "", 
-        role: assistant.role || "assistant" 
+        role: assistant.role || "assistant",
+        account_state: assistant.account_state || "Activated"
       };
       setForm(formData);
       setOriginalForm({ ...formData });
@@ -624,6 +626,11 @@ export default function EditAssistant() {
                   onRoleChange={(role) => setForm({ ...form, role })}
                 />
               </div>
+              <AccountStateSelect
+                value={form.account_state || 'Activated'}
+                onChange={(value) => setForm({ ...form, account_state: value })}
+                required={false}
+              />
               <button type="submit" disabled={updateAssistantMutation.isPending || !hasChanges()} className="submit-btn">
                 {updateAssistantMutation.isPending ? "Saving..." : "Save Changes"}
         </button>

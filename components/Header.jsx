@@ -65,7 +65,7 @@ export default function Header() {
           letterSpacing: 1.2,
           textShadow: '0 2px 8px rgba(31,168,220,0.10)'
         }}>
-          TopPhysics Attendance System
+          Mr. George Magdy Attendance System
         </span>
       </div>
       <UserMenu />

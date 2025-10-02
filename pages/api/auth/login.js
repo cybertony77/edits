@@ -58,6 +58,11 @@ export default async function handler(req, res) {
     if (!valid) {
       return res.status(401).json({ error: 'wrong_password' });
     }
+    
+    // Check if assistant account is deactivated
+    if (assistant.account_state === 'Deactivated') {
+      return res.status(403).json({ error: 'account_deactivated' });
+    }
     const token = jwt.sign(
       { assistant_id: assistant.id, name: assistant.name, role: assistant.role },
       JWT_SECRET,

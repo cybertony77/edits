@@ -39,13 +39,13 @@ export default function AllStudents() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isMobile, setIsMobile] = useState(false);
 
-  // React Query hook for fetching students with optimized settings for large datasets
+  // React Query hook for fetching students with enhanced real-time updates
   const { data: students = [], isLoading, error, refetch } = useStudents({
-    // Optimized settings for large datasets
-    refetchInterval: 60 * 1000, // Refetch every 60 seconds
-    refetchIntervalInBackground: false, // Don't refetch when tab is not active
+    // Enhanced real-time settings
+    refetchInterval: 10 * 1000, // Refetch every 10 seconds for real-time updates
+    refetchIntervalInBackground: true, // Continue when tab is not active
     refetchOnWindowFocus: true, // Immediate update when switching back to tab
-    staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
+    staleTime: 30 * 1000, // Consider data stale after 30 seconds
   });
 
   // Load remembered filter values from sessionStorage
@@ -85,8 +85,33 @@ export default function AllStudents() {
     };
   }, [router]);
 
-  // Filter students whenever dependencies change
   useEffect(() => {
+    filterStudents();
+  }, [students, selectedGrade, selectedCenter, searchTerm]);
+
+  // Handle click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Auto-refresh students data every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [refetch]);
+
+  const filterStudents = () => {
     // Ensure students is always an array
     if (!Array.isArray(students)) {
       setFilteredStudents([]);
@@ -138,30 +163,7 @@ export default function AllStudents() {
       }
     }
     setFilteredStudents(filtered);
-  }, [students, selectedGrade, selectedCenter, searchTerm]);
-
-  // Handle click outside to close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpenDropdown(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Auto-refresh students data every 60 seconds (reduced frequency for large datasets)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetch();
-    }, 60000); // 60 seconds
-    
-    return () => clearInterval(interval);
-  }, [refetch]);
-
+  };
 
 
 
@@ -263,6 +265,7 @@ export default function AllStudents() {
             showMainCenter={true}
             showGrade={true}
             showSchool={true}
+            showAccountStatus={true}
             showComment={false}
             showMainComment={false}
             showWeekComment={false}

@@ -61,15 +61,15 @@ export default function History() {
     }
   }, []);
 
-  // React Query hook with optimized settings for large datasets
+  // React Query hook with real-time updates - 5 second polling
   const { data: students = [], isLoading, error, refetch, isRefetching, dataUpdatedAt } = useStudentsHistory({
-    // Optimized settings for large datasets
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds (reduced from 5s)
-    refetchIntervalInBackground: false, // Don't refetch when tab is not active
+    // Aggressive real-time settings for immediate updates
+    refetchInterval: 5 * 1000, // Refetch every 5 seconds for real-time updates
+    refetchIntervalInBackground: true, // Continue when tab is not active
     refetchOnWindowFocus: true, // Immediate update when switching back to tab
     refetchOnReconnect: true, // Refetch when reconnecting to internet
-    staleTime: 60 * 1000, // Consider data stale after 60 seconds (increased from 0s)
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (increased from 1s)
+    staleTime: 0, // Always consider data stale to force refetch
+    gcTime: 1000, // Keep in cache for only 1 second
     refetchOnMount: true, // Always refetch when component mounts/page entered
   });
 

@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import BackToDashboard from "../../components/BackToDashboard";
 import CenterSelect from "../../components/CenterSelect";
 import GradeSelect from '../../components/GradeSelect';
+import AccountStateSelect from '../../components/AccountStateSelect';
 import Title from '../../components/Title';
 import { useCreateStudent } from '../../lib/api/students';
 
@@ -10,6 +11,7 @@ import { useCreateStudent } from '../../lib/api/students';
 export default function AddStudent() {
   const containerRef = useRef(null);
   const [form, setForm] = useState({
+    id: "",
     name: "",
     age: "",
     grade: "",
@@ -18,6 +20,7 @@ export default function AddStudent() {
     parentsPhone: "",
     main_center: "",
     comment: "",
+    account_state: "Activated", // Default to Activated
   });
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState(""); // Separate state for success message text
@@ -25,6 +28,9 @@ export default function AddStudent() {
   const [showQRButton, setShowQRButton] = useState(false);
   const [error, setError] = useState("");
   const [openDropdown, setOpenDropdown] = useState(null); // 'grade', 'center', or null
+  const [idError, setIdError] = useState("");
+  const [idChecking, setIdChecking] = useState(false);
+  const [idValid, setIdValid] = useState(false);
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(""), 5000);
@@ -68,11 +74,55 @@ export default function AddStudent() {
       document.removeEventListener('focusin', handleDropdownOpen);
     };
   }, [openDropdown]);
+
+  // Debounced ID checking
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (form.id && form.id.trim() !== '') {
+        checkStudentId(form.id);
+      }
+    }, 500); // Check after 500ms of no typing
+
+    return () => clearTimeout(timer);
+  }, [form.id]);
+
   const router = useRouter();
   
   // React Query hook for creating students
   const createStudentMutation = useCreateStudent();
 
+  // Check if student ID is available
+  const checkStudentId = async (id) => {
+    if (!id || id.trim() === '') {
+      setIdError('');
+      setIdValid(false);
+      return;
+    }
+
+    setIdChecking(true);
+    setIdError('');
+
+    try {
+      const response = await fetch(`/api/students/${id}`);
+      if (response.ok) {
+        // Student exists with this ID
+        setIdError('This ID is used, please use another ID');
+        setIdValid(false);
+      } else if (response.status === 404) {
+        // Student doesn't exist, ID is available
+        setIdError('');
+        setIdValid(true);
+      } else {
+        setIdError('Error checking ID availability');
+        setIdValid(false);
+      }
+    } catch (error) {
+      setIdError('Error checking ID availability');
+      setIdValid(false);
+    } finally {
+      setIdChecking(false);
+    }
+  };
 
   const handleChange = (e) => {
     // Reset QR button if user starts entering new data (when form was previously empty)
@@ -87,6 +137,17 @@ export default function AddStudent() {
     e.preventDefault();
     setError("");
     setSuccess(false);
+    
+    // Validate custom ID
+    if (!form.id || form.id.trim() === '') {
+      setError("Student ID is required");
+      return;
+    }
+    
+    if (!idValid) {
+      setError("Please enter a valid, unused student ID");
+      return;
+    }
     
     // Validate phone numbers
     const studentPhone = form.phone;
@@ -125,8 +186,8 @@ export default function AddStudent() {
     createStudentMutation.mutate(payload, {
       onSuccess: (data) => {
         setSuccess(true);
-        setSuccessMessage(`✅ Student added successfully! ID: ${data.id}`); // Use server-generated ID
-        setNewId(data.id); // Use server-generated ID
+        setSuccessMessage(`✅ Student added successfully! ID: ${form.id}`); // Use custom ID
+        setNewId(form.id); // Use custom ID
         setShowQRButton(true); // Show QR button after successful submission
       },
       onError: (err) => {
@@ -149,6 +210,7 @@ export default function AddStudent() {
 
   const handleAddAnotherStudent = () => {
     setForm({
+      id: "",
       name: "",
       age: "",
       grade: "",
@@ -157,6 +219,7 @@ export default function AddStudent() {
       parentsPhone: "",
       main_center: "",
       comment: "",
+      account_state: "Activated", // Reset to default
     });
     setSuccess(false);
     setSuccessMessage(""); // Clear success message
@@ -255,10 +318,68 @@ export default function AddStudent() {
             font-weight: 600;
             box-shadow: 0 4px 16px rgba(220, 53, 69, 0.3);
           }
+          .id-feedback {
+            margin-top: 8px;
+            font-size: 0.9rem;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 500;
+          }
+          .id-feedback.checking {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+          }
+          .id-feedback.taken {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+          }
+          .id-feedback.available {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+          }
+          .error-border {
+            border-color: #dc3545 !important;
+            box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1) !important;
+          }
         `}</style>
         <Title>Add Student</Title>
         <div className="form-container">
           <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Student ID <span style={{color: 'red'}}>*</span></label>
+              <input
+                className={`form-input ${idError ? 'error-border' : ''}`}
+                name="id"
+                placeholder="Enter student ID"
+                value={form.id}
+                onChange={handleChange}
+                required
+                autocomplete="off"
+              />
+              {/* ID availability feedback */}
+              {form.id && (
+                <div>
+                  {idChecking && (
+                    <div className="id-feedback checking">
+                      🔍 Checking availability...
+                    </div>
+                  )}
+                  {!idChecking && idError && (
+                    <div className="id-feedback taken">
+                      ❌ {idError}
+                    </div>
+                  )}
+                  {!idChecking && idValid && !idError && (
+                    <div className="id-feedback available">
+                      ✅ This ID is available
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="form-group">
               <label>Full Name <span style={{color: 'red'}}>*</span></label>
               <input
@@ -364,6 +485,11 @@ export default function AddStudent() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            <AccountStateSelect
+              value={form.account_state}
+              onChange={(value) => handleChange({ target: { name: 'account_state', value } })}
+              required={true}
+            />
           <div className="form-group">
             <label>Main Comment (Optional)</label>
             <textarea
@@ -376,7 +502,11 @@ export default function AddStudent() {
               style={{ resize: 'vertical' }}
             />
           </div>
-            <button type="submit" disabled={createStudentMutation.isPending} className="submit-btn">
+            <button 
+              type="submit" 
+              disabled={createStudentMutation.isPending || idChecking || (idError && !idValid)} 
+              className="submit-btn"
+            >
               {createStudentMutation.isPending ? "Adding..." : "Add Student"}
             </button>
           </form>

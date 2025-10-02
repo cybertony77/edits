@@ -180,9 +180,10 @@ export default function AllAssistants() {
                 <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 10 }}>
                   <Table.Tr>
                     <Table.Th style={{ width: '15%' }}>Username</Table.Th>
-                    <Table.Th style={{ width: '25%' }}>Name</Table.Th>
-                    <Table.Th style={{ width: '35%' }}>Phone Number</Table.Th>
-                    <Table.Th style={{ width: '25%' }}>Role</Table.Th>
+                    <Table.Th style={{ width: '20%' }}>Name</Table.Th>
+                    <Table.Th style={{ width: '25%' }}>Phone Number</Table.Th>
+                    <Table.Th style={{ width: '20%' }}>Role</Table.Th>
+                    <Table.Th style={{ width: '20%' }}>Account Status</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -195,6 +196,13 @@ export default function AllAssistants() {
                         fontWeight: '600',
                         color: assistant.role === 'admin' ? '#dc3545' : '#28a745'
                       }}>{assistant.role}</Table.Td>
+                      <Table.Td style={{ textAlign: 'center' }}>
+                        {assistant.account_state === 'Deactivated' ? (
+                          <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Deactivated</span>
+                        ) : (
+                          <span style={{ color: '#28a745', fontWeight: 'bold' }}>✅ Activated</span>
+                        )}
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>

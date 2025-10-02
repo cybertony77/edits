@@ -43,233 +43,81 @@ export default async function handler(req, res) {
   let client;
   let db;
   try {
-    console.log('🚀 Students API called:', { method: req.method, url: req.url });
-    console.log('📁 Current working directory:', process.cwd());
+    console.log('📋 Students API called - optimizing for large datasets...');
     
     // Validate environment variables
-    console.log('🔧 Environment variables check:', { 
-      MONGO_URI: !!MONGO_URI, 
-      DB_NAME: !!DB_NAME, 
-      JWT_SECRET: !!JWT_SECRET,
-      MONGO_URI_VALUE: MONGO_URI ? `${MONGO_URI.substring(0, 20)}...` : 'undefined',
-      DB_NAME_VALUE: DB_NAME || 'undefined'
-    });
-    
     if (!MONGO_URI || !DB_NAME || !JWT_SECRET) {
-      console.error('❌ Missing environment variables:', { 
-        MONGO_URI: !!MONGO_URI, 
-        DB_NAME: !!DB_NAME, 
-        JWT_SECRET: !!JWT_SECRET 
-      });
+      console.error('❌ Missing environment variables');
       return res.status(500).json({ 
         error: 'Server configuration error', 
-        details: 'Missing required environment variables',
-        missing: {
-          MONGO_URI: !MONGO_URI,
-          DB_NAME: !DB_NAME,
-          JWT_SECRET: !JWT_SECRET
-        }
+        details: 'Missing required environment variables'
       });
     }
 
     console.log('🔗 Connecting to MongoDB...');
-    try {
-      client = await MongoClient.connect(MONGO_URI);
-      db = client.db(DB_NAME);
-      console.log('✅ Connected to database:', DB_NAME);
-    } catch (dbError) {
-      console.error('❌ MongoDB connection failed:', dbError);
-      return res.status(500).json({ 
-        error: 'Database connection failed', 
-        details: dbError.message 
-      });
-    }
+    client = await MongoClient.connect(MONGO_URI);
+    db = client.db(DB_NAME);
+    console.log('✅ Connected to database:', DB_NAME);
     
     // Verify authentication
     console.log('🔐 Authenticating user...');
-    try {
-      const user = await authMiddleware(req);
-      console.log('✅ User authenticated:', user.assistant_id || user.id);
-    } catch (authError) {
-      console.error('❌ Authentication failed:', authError);
-      return res.status(401).json({ 
-        error: 'Authentication failed', 
-        details: authError.message 
-      });
-    }
+    const user = await authMiddleware(req);
+    console.log('✅ User authenticated:', user.assistant_id || user.id);
     
     if (req.method === 'GET') {
-      // Get students with optimized query for large datasets
-      console.log('📋 Fetching students from database...');
-      
       // Check if pagination parameters are provided
-      const hasPagination = req.query.page || req.query.limit;
+      const { page, limit, search, grade, center, sortBy, sortOrder } = req.query;
+      const hasPagination = page || limit;
       
       if (hasPagination) {
-        // Paginated response
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
-        const search = req.query.search || '';
-        const grade = req.query.grade || '';
-        const center = req.query.center || '';
-        const sortBy = req.query.sortBy || 'id';
-        const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+        // Paginated response for large datasets
+        console.log('📊 Building paginated response...');
         
-        const skip = (page - 1) * limit;
+        // Parse pagination parameters
+        const currentPage = parseInt(page) || 1;
+        const pageSize = parseInt(limit) || 50;
+        const searchTerm = search ? search.trim() : '';
+        const gradeFilter = grade ? grade.trim() : '';
+        const centerFilter = center ? center.trim() : '';
+        const sortField = sortBy || 'id';
+        const sortDirection = sortOrder === 'desc' ? -1 : 1;
         
-        console.log(`📊 Pagination: page=${page}, limit=${limit}, skip=${skip}`);
+        console.log('📋 Pagination params:', { currentPage, pageSize, searchTerm, gradeFilter, centerFilter, sortField, sortDirection });
         
-        try {
-          // Build query filter
-          let queryFilter = {};
-          
-          if (search.trim()) {
-            const searchRegex = new RegExp(search.trim(), 'i');
-            queryFilter.$or = [
-              { name: searchRegex },
-              { school: searchRegex },
-              { phone: searchRegex },
-              { parentsPhone: searchRegex },
-              { id: isNaN(search) ? null : parseInt(search) }
-            ].filter(Boolean);
-          }
-          
-          if (grade) {
-            queryFilter.grade = { $regex: new RegExp(`^${grade}$`, 'i') };
-          }
-          
-          if (center) {
-            queryFilter.main_center = { $regex: new RegExp(`^${center}$`, 'i') };
-          }
-          
-          const totalCount = await db.collection('students').countDocuments(queryFilter);
-          const totalPages = Math.ceil(totalCount / limit);
-          
-          const students = await db.collection('students').find(queryFilter, {
-            projection: {
-              id: 1, name: 1, grade: 1, phone: 1, parentsPhone: 1,
-              center: 1, main_center: 1, main_comment: 1, comment: 1,
-              school: 1, age: 1, weeks: 1
-            }
-          })
-          .sort({ [sortBy]: sortOrder })
-          .skip(skip)
-          .limit(limit)
-          .toArray();
-          
-          // Process students in batches
-          const batchSize = 100;
-          const mappedStudents = [];
-          
-          for (let i = 0; i < students.length; i += batchSize) {
-            const batch = students.slice(i, i + batchSize);
-            const processedBatch = batch.map(student => {
-              try {
-                const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
-                let currentWeek;
-                
-                if (hasWeeks) {
-                  const attendedWeek = student.weeks.find(w => w && w.attended);
-                  currentWeek = attendedWeek || student.weeks[0];
-                } else {
-                  currentWeek = { 
-                    week: 1, attended: false, lastAttendance: null, 
-                    lastAttendanceCenter: null, hwDone: false, 
-                    quizDegree: null, message_state: false 
-                  };
-                }
-                
-                if (!currentWeek) {
-                  currentWeek = { 
-                    week: 1, attended: false, lastAttendance: null, 
-                    lastAttendanceCenter: null, hwDone: false, 
-                    quizDegree: null, message_state: false 
-                  };
-                }
-                
-                return {
-                  id: student.id,
-                  name: student.name,
-                  grade: student.grade,
-                  phone: student.phone,
-                  parents_phone: student.parentsPhone,
-                  center: student.center,
-                  main_center: student.main_center,
-                  main_comment: (student.main_comment ?? student.comment ?? null),
-                  attended_the_session: currentWeek.attended || false,
-                  lastAttendance: currentWeek.lastAttendance || null,
-                  lastAttendanceCenter: currentWeek.lastAttendanceCenter || null,
-                  attendanceWeek: `week ${String(currentWeek.week || 1).padStart(2, '0')}`,
-                  hwDone: currentWeek.hwDone || false,
-                  quizDegree: currentWeek.quizDegree || null,
-                  school: student.school || null,
-                  age: student.age || null,
-                  message_state: currentWeek.message_state || false,
-                  weeks: student.weeks || []
-                };
-              } catch (studentError) {
-                console.error(`❌ Error processing student ${student.id}:`, studentError);
-                return {
-                  id: student.id,
-                  name: student.name || 'Unknown',
-                  grade: student.grade || '',
-                  phone: student.phone || '',
-                  parents_phone: student.parentsPhone || '',
-                  center: student.center || '',
-                  main_center: student.main_center || '',
-                  main_comment: (student.main_comment ?? student.comment ?? null),
-                  attended_the_session: false,
-                  lastAttendance: null,
-                  lastAttendanceCenter: null,
-                  attendanceWeek: 'week 01',
-                  hwDone: false,
-                  quizDegree: null,
-                  school: student.school || null,
-                  age: student.age || null,
-                  message_state: false,
-                  weeks: []
-                };
-              }
-            });
-            
-            mappedStudents.push(...processedBatch);
-          }
-          
-          const response = {
-            data: mappedStudents,
-            pagination: {
-              currentPage: page,
-              totalPages: totalPages,
-              totalCount: totalCount,
-              limit: limit,
-              hasNextPage: page < totalPages,
-              hasPrevPage: page > 1,
-              nextPage: page < totalPages ? page + 1 : null,
-              prevPage: page > 1 ? page - 1 : null
-            },
-            filters: {
-              search: search,
-              grade: grade,
-              center: center,
-              sortBy: sortBy,
-              sortOrder: sortOrder === 1 ? 'asc' : 'desc'
-            }
-          };
-          
-          res.json(response);
-          return;
-        } catch (dbQueryError) {
-          console.error('❌ Database query failed:', dbQueryError);
-          return res.status(500).json({ 
-            error: 'Database query failed', 
-            details: dbQueryError.message 
-          });
+        // Build query filter
+        const queryFilter = {};
+        
+        if (searchTerm) {
+          queryFilter.$or = [
+            { name: { $regex: searchTerm, $options: 'i' } },
+            { school: { $regex: searchTerm, $options: 'i' } },
+            { phone: { $regex: searchTerm, $options: 'i' } },
+            { parentsPhone: { $regex: searchTerm, $options: 'i' } },
+            { id: isNaN(searchTerm) ? null : parseInt(searchTerm) }
+          ].filter(condition => condition.id !== null || Object.keys(condition).length > 1);
         }
-      } else {
-        // Original format - return all students (optimized for large datasets)
-        try {
-          // Use projection to only fetch needed fields for better performance
-          const students = await db.collection('students').find({}, {
+        
+        if (gradeFilter) {
+          queryFilter.grade = { $regex: gradeFilter, $options: 'i' };
+        }
+        
+        if (centerFilter) {
+          queryFilter.main_center = { $regex: centerFilter, $options: 'i' };
+        }
+        
+        console.log('🔍 Query filter:', JSON.stringify(queryFilter, null, 2));
+        
+        // Get total count for pagination
+        const totalCount = await db.collection('students').countDocuments(queryFilter);
+        const totalPages = Math.ceil(totalCount / pageSize);
+        const skip = (currentPage - 1) * pageSize;
+        
+        console.log(`📊 Found ${totalCount} students matching filters`);
+        console.log(`📄 Page ${currentPage} of ${totalPages} (${pageSize} per page)`);
+        
+        // Get students with projection for better performance
+        const students = await db.collection('students')
+          .find(queryFilter, {
             projection: {
               id: 1,
               name: 1,
@@ -282,123 +130,182 @@ export default async function handler(req, res) {
               comment: 1,
               school: 1,
               age: 1,
+              account_state: 1,
               weeks: 1
             }
-          }).toArray();
+          })
+          .sort({ [sortField]: sortDirection })
+          .skip(skip)
+          .limit(pageSize)
+          .toArray();
         
-          console.log(`✅ Found ${students.length} students`);
+        console.log(`✅ Retrieved ${students.length} students for page ${currentPage}`);
+        
+        // Process students in batches to avoid memory issues
+        const batchSize = 100;
+        const mappedStudents = [];
+        
+        for (let i = 0; i < students.length; i += batchSize) {
+          const batch = students.slice(i, i + batchSize);
           
-          // Process students in batches to avoid memory issues
-          const batchSize = 100;
-          const mappedStudents = [];
-          
-          for (let i = 0; i < students.length; i += batchSize) {
-            const batch = students.slice(i, i + batchSize);
-            const processedBatch = batch.map(student => {
-              try {
-                // Find the current week (last attended week or week 1 if none)
-                const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
-                let currentWeek;
-                
-                if (hasWeeks) {
-                  // Find last attended week or first week
-                  const attendedWeek = student.weeks.find(w => w && w.attended);
-                  currentWeek = attendedWeek || student.weeks[0];
-                } else {
-                  currentWeek = { 
-                    week: 1, 
-                    attended: false, 
-                    lastAttendance: null, 
-                    lastAttendanceCenter: null, 
-                    hwDone: false, 
-                    quizDegree: null, 
-                    message_state: false 
-                  };
-                }
-                
-                // Ensure currentWeek is not null
-                if (!currentWeek) {
-                  currentWeek = { 
-                    week: 1, 
-                    attended: false, 
-                    lastAttendance: null, 
-                    lastAttendanceCenter: null, 
-                    hwDone: false, 
-                    quizDegree: null, 
-                    message_state: false 
-                  };
-                }
-                
-                return {
-                  id: student.id,
-                  name: student.name,
-                  grade: student.grade,
-                  phone: student.phone,
-                  parents_phone: student.parentsPhone,
-                  center: student.center,
-                  main_center: student.main_center,
-                  main_comment: (student.main_comment ?? student.comment ?? null),
-                  attended_the_session: currentWeek.attended || false,
-                  lastAttendance: currentWeek.lastAttendance || null,
-                  lastAttendanceCenter: currentWeek.lastAttendanceCenter || null,
-                  attendanceWeek: `week ${String(currentWeek.week || 1).padStart(2, '0')}`,
-                  hwDone: currentWeek.hwDone || false,
-                  quizDegree: currentWeek.quizDegree || null,
-                  school: student.school || null,
-                  age: student.age || null,
-                  message_state: currentWeek.message_state || false,
-                  weeks: student.weeks || []
-                };
-              } catch (studentError) {
-                console.error(`❌ Error processing student ${student.id}:`, studentError);
-                // Return a safe default for this student
-                return {
-                  id: student.id,
-                  name: student.name || 'Unknown',
-                  grade: student.grade || '',
-                  phone: student.phone || '',
-                  parents_phone: student.parentsPhone || '',
-                  center: student.center || '',
-                  main_center: student.main_center || '',
-                  main_comment: (student.main_comment ?? student.comment ?? null),
-                  attended_the_session: false,
-                  lastAttendance: null,
-                  lastAttendanceCenter: null,
-                  attendanceWeek: 'week 01',
-                  hwDone: false,
-                  quizDegree: null,
-                  school: student.school || null,
-                  age: student.age || null,
-                  message_state: false,
-                  weeks: []
-                };
-              }
-            });
+          const batchMapped = batch.map(student => {
+            // Find the current week (last attended week or week 1 if none)
+            const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
+            const currentWeek = hasWeeks ?
+              (student.weeks.find(w => w && w.attended) || student.weeks.find(w => w) || student.weeks[0]) :
+              { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
             
-            mappedStudents.push(...processedBatch);
-          }
-          
-          console.log(`✅ Processed ${mappedStudents.length} students successfully`);
-          
-          // Return original format (array of students)
-          res.json(mappedStudents);
-        } catch (dbQueryError) {
-          console.error('❌ Database query failed:', dbQueryError);
-          return res.status(500).json({ 
-            error: 'Database query failed', 
-            details: dbQueryError.message 
+            // Robust null checks for currentWeek
+            const safeCurrentWeek = currentWeek || { 
+              week: 1, 
+              attended: false, 
+              lastAttendance: null, 
+              lastAttendanceCenter: null, 
+              hwDone: false, 
+              quizDegree: null, 
+              message_state: false 
+            };
+            
+            return {
+              id: student.id,
+              name: student.name,
+              grade: student.grade,
+              phone: student.phone,
+              parents_phone: student.parentsPhone,
+              center: student.center,
+              main_center: student.main_center,
+              main_comment: (student.main_comment ?? student.comment ?? null),
+              attended_the_session: safeCurrentWeek.attended || false,
+              lastAttendance: safeCurrentWeek.lastAttendance || null,
+              lastAttendanceCenter: safeCurrentWeek.lastAttendanceCenter || null,
+              attendanceWeek: `week ${String(safeCurrentWeek.week || 1).padStart(2, '0')}`,
+              hwDone: safeCurrentWeek.hwDone || false,
+              quizDegree: safeCurrentWeek.quizDegree || null,
+              school: student.school || null,
+              age: student.age || null,
+              message_state: safeCurrentWeek.message_state || false,
+              account_state: student.account_state || "Activated",
+              weeks: student.weeks || []
+            };
           });
+          
+          mappedStudents.push(...batchMapped);
         }
+        
+        console.log(`📈 Returning ${mappedStudents.length} students for page ${currentPage}`);
+        
+        res.json({
+          data: mappedStudents,
+          pagination: {
+            currentPage,
+            pageSize,
+            totalCount,
+            totalPages,
+            hasNextPage: currentPage < totalPages,
+            hasPrevPage: currentPage > 1
+          },
+          filters: {
+            search: searchTerm,
+            grade: gradeFilter,
+            center: centerFilter,
+            sortBy: sortField,
+            sortOrder: sortDirection === 1 ? 'asc' : 'desc'
+          }
+        });
+        
+      } else {
+        // Original format for backward compatibility (optimized)
+        console.log('📊 Building original format response (optimized)...');
+        
+        // Get all students with projection for better performance
+        const students = await db.collection('students').find({}, {
+          projection: {
+            id: 1,
+            name: 1,
+            grade: 1,
+            phone: 1,
+            parentsPhone: 1,
+            center: 1,
+            main_center: 1,
+            main_comment: 1,
+            comment: 1,
+            school: 1,
+            age: 1,
+            account_state: 1,
+            weeks: 1
+          }
+        }).toArray();
+        
+        console.log(`📊 Found ${students.length} students`);
+        
+        // Process students in batches to avoid memory issues
+        const batchSize = 100;
+        const mappedStudents = [];
+        
+        for (let i = 0; i < students.length; i += batchSize) {
+          const batch = students.slice(i, i + batchSize);
+          
+          const batchMapped = batch.map(student => {
+            // Find the current week (last attended week or week 1 if none)
+            const hasWeeks = Array.isArray(student.weeks) && student.weeks.length > 0;
+            const currentWeek = hasWeeks ?
+              (student.weeks.find(w => w && w.attended) || student.weeks.find(w => w) || student.weeks[0]) :
+              { week: 1, attended: false, lastAttendance: null, lastAttendanceCenter: null, hwDone: false, quizDegree: null, message_state: false };
+            
+            // Robust null checks for currentWeek
+            const safeCurrentWeek = currentWeek || { 
+              week: 1, 
+              attended: false, 
+              lastAttendance: null, 
+              lastAttendanceCenter: null, 
+              hwDone: false, 
+              quizDegree: null, 
+              message_state: false 
+            };
+            
+            return {
+              id: student.id,
+              name: student.name,
+              grade: student.grade,
+              phone: student.phone,
+              parents_phone: student.parentsPhone,
+              center: student.center,
+              main_center: student.main_center,
+              main_comment: (student.main_comment ?? student.comment ?? null),
+              attended_the_session: safeCurrentWeek.attended || false,
+              lastAttendance: safeCurrentWeek.lastAttendance || null,
+              lastAttendanceCenter: safeCurrentWeek.lastAttendanceCenter || null,
+              attendanceWeek: `week ${String(safeCurrentWeek.week || 1).padStart(2, '0')}`,
+              hwDone: safeCurrentWeek.hwDone || false,
+              quizDegree: safeCurrentWeek.quizDegree || null,
+              school: student.school || null,
+              age: student.age || null,
+              message_state: safeCurrentWeek.message_state || false,
+              account_state: student.account_state || "Activated",
+              weeks: student.weeks || []
+            };
+          });
+          
+          mappedStudents.push(...batchMapped);
+        }
+        
+        console.log(`📈 Returning ${mappedStudents.length} students in original format`);
+        res.json(mappedStudents);
       }
     } else if (req.method === 'POST') {
       // Add new student
-      const { name, grade, phone, parents_phone, main_center, age, school, main_comment, comment } = req.body;
-      if (!name || !grade || !phone || !parents_phone || !main_center || age === undefined || !school) {
+      const { id, name, grade, phone, parents_phone, main_center, age, school, main_comment, comment, account_state } = req.body;
+      if (!id || !name || !grade || !phone || !parents_phone || !main_center || age === undefined || !school) {
         return res.status(400).json({ error: 'All fields are required' });
       }
-      // Generate a new unique student id (max id + 1)
-      const lastStudent = await db.collection('students').find().sort({ id: -1 }).limit(1).toArray();
-      const newId = lastStudent.length > 0 ? lastStudent[0].id + 1 : 1;
+      
+      // Check if the custom ID is already used
+      const existingStudent = await db.collection('students').findOne({ id: parseInt(id) });
+      if (existingStudent) {
+        return res.status(400).json({ error: 'This ID is used, please use another ID' });
+      }
+      
+      const newId = parseInt(id);
       
       // New students start with no weeks; weeks are created on demand
       const weeks = [];
@@ -413,36 +320,28 @@ export default async function handler(req, res) {
         parentsPhone: parents_phone,
         main_center,
         main_comment: (main_comment ?? comment ?? null),
+        account_state: account_state || "Activated", // Default to Activated
         weeks: weeks
       };
       await db.collection('students').insertOne(student);
       res.json({ id: newId });
     } else {
-      res.setHeader('Allow', ['GET', 'POST']);
       res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
     console.error('❌ Students API error:', error);
     
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
+    if (error.message.includes('Unauthorized') || error.message.includes('Invalid token')) {
+      return res.status(401).json({ error: error.message });
     }
     
     if (error.message === 'No token provided') {
       return res.status(401).json({ error: 'No token provided' });
     }
     
-    // Log more details for debugging
-    console.error('Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
-    
     res.status(500).json({ 
-      error: 'Internal server error', 
-      details: error.message,
-      type: error.name
+      error: 'Failed to fetch student data', 
+      details: error.message 
     });
   } finally {
     if (client) await client.close();

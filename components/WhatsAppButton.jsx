@@ -77,9 +77,9 @@ const WhatsAppButton = ({ student, onMessageSent }) => {
       // Create the message using the specified format
       // Extract first name from full name
       const firstName = student.name ? student.name.split(' ')[0] : 'Student';
-      let whatsappMessage = `TopPhysics academy:
+      let whatsappMessage = `Follow up Message:
 
-Dear, ${firstName}'s Parent 
+Dear, ${firstName}'s Parent
 We want to inform you that we are in:
 
   • Week: ${student.currentWeekNumber || 1}
@@ -110,14 +110,26 @@ We want to inform you that we are in:
         }
       }
       
+      // Add comment if it exists and is not null/undefined
+      // Get comment from the current week data
+      const currentWeekNumber = student.currentWeekNumber;
+      const weekIndex = currentWeekNumber - 1;
+      const weekData = student.weeks && student.weeks[weekIndex];
+      const weekComment = weekData ? weekData.comment : null;
+      
+      if (weekComment && weekComment.trim() !== '' && weekComment !== 'undefined') {
+        whatsappMessage += `
+  • Comment: ${weekComment}`;
+      }
+
       whatsappMessage += `
       
 Note :-
   • ${firstName}'s ID: ${student.id}
 
-Thanks for choosing us 😊❤
+We are always happy to stay in touch 😊❤
 
-– Eng. Mina Narouz`;
+– Here's Mr. George's team`;
 
       // Create WhatsApp URL with the formatted message
       const whatsappUrl = `https://wa.me/${parentNumber}?text=${encodeURIComponent(whatsappMessage)}`;

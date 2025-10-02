@@ -64,11 +64,12 @@ export default async function handler(req, res) {
         id: assistant.id, 
         name: assistant.name, 
         phone: assistant.phone, 
-        role: assistant.role 
+        role: assistant.role,
+        account_state: assistant.account_state || "Activated" // Default to Activated
       });
     } else if (req.method === 'PUT') {
       // Edit assistant - handle partial updates properly
-      const { id: newId, name, phone, password, role } = req.body;
+      const { id: newId, name, phone, password, role, account_state } = req.body;
       
       // Build update object with only defined values (not null or undefined)
       const update = {};
@@ -92,6 +93,9 @@ export default async function handler(req, res) {
           return res.status(409).json({ error: 'Assistant ID already exists' });
         }
         update.id = newId;
+      }
+      if (account_state !== undefined && account_state !== null) {
+        update.account_state = account_state;
       }
       
       // Only proceed if there are fields to update

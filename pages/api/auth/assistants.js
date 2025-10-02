@@ -58,10 +58,14 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       // Get all assistants
       const assistants = await db.collection('assistants').find().toArray();
-      res.json(assistants);
+      const mappedAssistants = assistants.map(assistant => ({
+        ...assistant,
+        account_state: assistant.account_state || "Activated" // Default to Activated
+      }));
+      res.json(mappedAssistants);
     } else if (req.method === 'POST') {
       // Create new assistant
-      const { id, name, phone, password, role } = req.body;
+      const { id, name, phone, password, role, account_state } = req.body;
       if (!id || !name || !phone || !password || !role) {
         return res.status(400).json({ error: 'All fields are required' });
       }
@@ -70,7 +74,7 @@ export default async function handler(req, res) {
         return res.status(409).json({ error: 'Assistant ID already exists' });
       }
       const hashedPassword = await bcrypt.hash(password, 10);
-      await db.collection('assistants').insertOne({ id, name, phone, password: hashedPassword, role });
+      await db.collection('assistants').insertOne({ id, name, phone, password: hashedPassword, role, account_state: account_state || "Activated" });
       res.json({ success: true });
     } else {
       res.status(405).json({ error: 'Method not allowed' });
