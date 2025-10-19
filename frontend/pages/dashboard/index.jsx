@@ -15,7 +15,7 @@ export default function Dashboard() {
   return (
     <div style={{ 
       // height: "calc(100dvh - 10rem)",
-      padding: "10px 35px 5px 35px",
+      padding: "10px 50px 5px 35px",
       display: 'flex',
       flexDirection: 'column',
       overflow: 'auto'

@@ -23,6 +23,7 @@ export default function Payment() {
   const [cost, setCost] = useState("");
   const [paymentComment, setPaymentComment] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [isClearing, setIsClearing] = useState(false);
 
   // Get all students for search functionality
   const { data: allStudents, isLoading: allStudentsLoading } = useStudents();
@@ -287,6 +288,72 @@ export default function Payment() {
     setSaveMessage("");
   };
 
+  // Handle clear payment form and database
+  const handleClearPayment = async () => {
+    if (!student) {
+      setError("Please search and select a student first.");
+      return;
+    }
+
+    setError("");
+    setSaveMessage("");
+    setIsClearing(true);
+
+    // Clear form fields
+    setNumberOfSessions("");
+    setCost("");
+    setPaymentComment("");
+
+    try {
+      // Clear payment data in database
+      const clearPaymentData = {
+        studentId: student.id,
+        numberOfSessions: null,
+        cost: null,
+        paymentComment: null,
+        date: null
+      };
+
+      console.log('🗑️ Clearing payment data:', clearPaymentData);
+
+      // Make direct API call instead of using mutation
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clearPaymentData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Payment cleared successfully:', result);
+        setSaveMessage("✅ Payment data cleared successfully");
+        setError("");
+        
+        // Force refetch to sync with DB
+        if (refetchStudent) {
+          try { await refetchStudent(); } catch {}
+        }
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSaveMessage(""), 3000);
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Payment clear error:', errorData);
+        setError(errorData.error || "Failed to clear payment data. Please try again.");
+        setSaveMessage("");
+      }
+
+    } catch (err) {
+      console.error('❌ Error clearing payment:', err);
+      setError("Error clearing payment data. Please try again.");
+      setSaveMessage("");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', padding: '20px 5px 20px 5px' }}>
       <div ref={containerRef} style={{ maxWidth: 600, margin: '40px auto', padding: 24 }}>
@@ -394,6 +461,27 @@ export default function Payment() {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+          }
+          .clear-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 12px;
+          }
+          .clear-btn:hover {
+            background: linear-gradient(90deg, #c82333 0%, #bd2130 100%);
+            transform: translateY(-1px);
           }
           .search-results {
             margin-top: 16px;
@@ -589,7 +677,7 @@ export default function Payment() {
                   placeholder="Enter number of sessions"
                   value={numberOfSessions}
                   onChange={(e) => setNumberOfSessions(e.target.value)}
-                  min="1"
+                  min="0"
                   required
                 />
               </div>
@@ -623,7 +711,7 @@ export default function Payment() {
               <button
                 type="submit"
                 className="save-btn"
-                disabled={savePaymentMutation.isPending || !numberOfSessions.trim() || !cost.trim()}
+                disabled={savePaymentMutation.isPending || isClearing || !numberOfSessions.trim() || !cost.trim()}
               >
                 {savePaymentMutation.isPending ? (
                   <>
@@ -641,6 +729,31 @@ export default function Payment() {
                   <>
                     <IconCheck size={16} />
                     Save Payment
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="clear-btn"
+                onClick={handleClearPayment}
+                disabled={savePaymentMutation.isPending || isClearing}
+              >
+                {isClearing ? (
+                  <>
+                    <div style={{
+                      width: 16,
+                      height: 16,
+                      border: '2px solid #ffffff',
+                      borderTop: '2px solid transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                  ⟲ Clear Payment
                   </>
                 )}
               </button>

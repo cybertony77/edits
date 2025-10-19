@@ -55,6 +55,12 @@ const studentsApi = {
     return response.data;
   },
 
+  // Clear payment for student
+  clearPayment: async (paymentData) => {
+    const response = await apiClient.post('/api/payments', paymentData);
+    return response.data;
+  },
+
   // Save mock exam for student
   saveMockExam: async (mockExamData) => {
     const response = await apiClient.post('/api/mock-exams', mockExamData);
@@ -113,6 +119,12 @@ const studentsApi = {
     );
     return response.data;
   },
+
+  // Get student by ID (public access with HMAC)
+  getByIdPublic: async (id, signature) => {
+    const response = await apiClient.get(`/api/students/public/${id}?sig=${signature}`);
+    return response.data;
+  },
 };
 
 // React Query hooks
@@ -129,6 +141,15 @@ export const useStudent = (id, options = {}) => {
     queryKey: studentKeys.detail(id),
     queryFn: () => studentsApi.getById(id),
     enabled: !!id,
+    ...options, // Spread the options to allow custom configuration
+  });
+};
+
+export const useStudentPublic = (id, signature, options = {}) => {
+  return useQuery({
+    queryKey: [...studentKeys.detail(id), 'public', signature],
+    queryFn: () => studentsApi.getByIdPublic(id, signature),
+    enabled: !!id && !!signature,
     ...options, // Spread the options to allow custom configuration
   });
 };

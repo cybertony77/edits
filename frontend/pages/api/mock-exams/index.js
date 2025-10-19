@@ -45,8 +45,8 @@ export default async function handler(req, res) {
   const { studentId, examIndex, examDegree, outOf, percentage } = req.body;
   
   // Validate required fields
-  if (!studentId || examIndex === undefined || !examDegree || !outOf || percentage === undefined) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!studentId || examIndex === undefined) {
+    return res.status(400).json({ error: 'Student ID and exam index are required' });
   }
   
   // Validate exam index (0-9)
@@ -54,9 +54,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Exam index must be between 0 and 9' });
   }
   
-  // Validate exam degree and outOf
-  if (examDegree < 0 || outOf <= 0 || examDegree > outOf) {
-    return res.status(400).json({ error: 'Invalid exam degree or out of value' });
+  // Check if this is a clear operation (all values are null)
+  const isClearOperation = examDegree === null && outOf === null && percentage === null;
+  
+  if (!isClearOperation) {
+    // Validate required fields for normal mock exam
+    if (!examDegree || !outOf || percentage === undefined) {
+      return res.status(400).json({ error: 'Exam degree, out of, and percentage are required' });
+    }
+    
+    // Validate exam degree and outOf
+    if (examDegree < 0 || outOf <= 0 || examDegree > outOf) {
+      return res.status(400).json({ error: 'Invalid exam degree or out of value' });
+    }
   }
   
   console.log('📝 Saving mock exam for student:', studentId, 'exam:', examIndex + 1);
@@ -85,17 +95,6 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Student account is deactivated' });
     }
     
-    // Create date string
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = now.getFullYear();
-    const hours = now.getHours();
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    const date = `${day}/${month}/${year} at ${displayHours}:${minutes} ${ampm}`;
-    
     // Initialize mockExams array if it doesn't exist
     if (!student.mockExams || !Array.isArray(student.mockExams)) {
       // Create array with proper default objects
@@ -119,13 +118,39 @@ export default async function handler(req, res) {
       student.mockExams = defaultMockExams;
     }
     
-    // Update the specific exam data
-    const examData = {
-      examDegree: examDegree,
-      outOf: outOf,
-      percentage: percentage,
-      date: date
-    };
+    // Create exam data based on operation type
+    let examData;
+    
+    if (isClearOperation) {
+      // Clear operation - set all values to null
+      examData = {
+        examDegree: null,
+        outOf: null,
+        percentage: null,
+        date: null
+      };
+      console.log('🗑️ Clearing mock exam data for student:', student.name);
+    } else {
+      // Normal mock exam operation
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit', 
+        year: 'numeric'
+      }) + ' at ' + now.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      examData = {
+        examDegree: examDegree,
+        outOf: outOf,
+        percentage: percentage,
+        date: formattedDate
+      };
+      console.log('💾 Saving mock exam data for student:', student.name);
+    }
     
     // Update the student document
     const result = await db.collection('students').updateOne(
@@ -142,12 +167,15 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Student not found' });
     }
     
-    console.log('✅ Mock exam saved successfully for student:', studentId, 'exam:', examIndex + 1);
+    console.log('✅ Mock exam operation completed successfully for student:', studentId, 'exam:', examIndex + 1);
+    
+    const responseMessage = isClearOperation ? 'Mock exam data cleared successfully' : 'Mock exam saved successfully';
     
     res.json({ 
       success: true, 
-      message: 'Mock exam saved successfully',
-      examData: examData
+      message: responseMessage,
+      examData: examData,
+      operation: isClearOperation ? 'clear' : 'save'
     });
     
   } catch (error) {

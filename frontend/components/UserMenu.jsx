@@ -46,8 +46,8 @@ export default function UserMenu() {
     router.push('/contact_developer');
   };
 
-  const handleCreateQRCode = () => {
-    router.push('/dashboard/qr_generator');
+  const handlePublicLinkGenerator = () => {
+    router.push('/dashboard/public_link_generator');
   };
 
   return (
@@ -113,6 +113,7 @@ export default function UserMenu() {
           {userData.role === 'admin' && (
             <button style={menuBtnStyle} onClick={handleManageAssistants}>Manage Assistants</button>
           )}
+          <button style={menuBtnStyle} onClick={handlePublicLinkGenerator}>Public Link Generator</button>
           <button style={menuBtnStyle} onClick={handleEditProfile}>Edit My Profile</button>
           <button style={menuBtnStyle} onClick={handleContactDeveloper}>Contact Developer</button>
         </div>

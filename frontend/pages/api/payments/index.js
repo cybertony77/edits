@@ -53,21 +53,32 @@ export default async function handler(req, res) {
   console.log('📋 Extracted data:', { studentId, numberOfSessions, cost, paymentComment });
 
   // Validate required fields
-  if (!studentId || !numberOfSessions || !cost) {
-    console.log('❌ Validation failed - missing required fields');
-    return res.status(400).json({ error: 'Student ID, number of sessions, and cost are required' });
+  if (!studentId) {
+    console.log('❌ Validation failed - missing student ID');
+    return res.status(400).json({ error: 'Student ID is required' });
   }
 
-  // Validate data types
-  const sessions = parseInt(numberOfSessions);
-  const costValue = parseFloat(cost);
+  // Check if this is a clear operation (all values are null)
+  const isClearOperation = numberOfSessions === null && cost === null && paymentComment === null;
 
-  if (isNaN(sessions) || sessions <= 0) {
-    return res.status(400).json({ error: 'Number of sessions must be a positive number' });
-  }
+  if (!isClearOperation) {
+    // Validate required fields for normal payment
+    if (!numberOfSessions || !cost) {
+      console.log('❌ Validation failed - missing required fields');
+      return res.status(400).json({ error: 'Number of sessions and cost are required' });
+    }
 
-  if (isNaN(costValue) || costValue <= 0) {
-    return res.status(400).json({ error: 'Cost must be a positive number' });
+    // Validate data types
+    const sessions = parseInt(numberOfSessions);
+    const costValue = parseFloat(cost);
+
+    if (isNaN(sessions) || sessions <= 0) {
+      return res.status(400).json({ error: 'Number of sessions must be a positive number' });
+    }
+
+    if (isNaN(costValue) || costValue <= 0) {
+      return res.status(400).json({ error: 'Cost must be a positive number' });
+    }
   }
 
   let client;
@@ -103,23 +114,41 @@ export default async function handler(req, res) {
     console.log('✅ Student found:', student.name);
 
     // Create payment record
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit', 
-      year: 'numeric'
-    }) + ' at ' + now.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+    let paymentData;
+    
+    if (isClearOperation) {
+      // Clear operation - set all values to null
+      paymentData = {
+        numberOfSessions: null,
+        cost: null,
+        paymentComment: null,
+        date: null
+      };
+      console.log('🗑️ Clearing payment data for student:', student.name);
+    } else {
+      // Normal payment operation
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit', 
+        year: 'numeric'
+      }) + ' at ' + now.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
 
-    const paymentData = {
-      numberOfSessions: sessions,
-      cost: costValue,
-      paymentComment: paymentComment && paymentComment.trim() ? paymentComment.trim() : null,
-      date: formattedDate
-    };
+      const sessions = parseInt(numberOfSessions);
+      const costValue = parseFloat(cost);
+
+      paymentData = {
+        numberOfSessions: sessions,
+        cost: costValue,
+        paymentComment: paymentComment && paymentComment.trim() ? paymentComment.trim() : null,
+        date: formattedDate
+      };
+      console.log('💾 Saving payment data for student:', student.name);
+    }
 
     // Update student with payment object (overwrites any existing payment)
     console.log('💾 Updating payment for student:', student.name);
@@ -128,17 +157,20 @@ export default async function handler(req, res) {
       { $set: { payment: paymentData } }
     );
     
-    console.log('✅ Payment saved successfully to student record');
+    console.log('✅ Payment operation completed successfully');
     console.log('📊 Update result:', result);
+    
+    const responseMessage = isClearOperation ? 'Payment data cleared successfully' : 'Payment saved successfully';
     
     res.status(201).json({ 
       success: true, 
-      message: 'Payment saved successfully',
+      message: responseMessage,
       data: {
         studentName: student.name,
-        numberOfSessions: sessions,
-        cost: costValue,
-        paymentComment: paymentData.paymentComment
+        numberOfSessions: paymentData.numberOfSessions,
+        cost: paymentData.cost,
+        paymentComment: paymentData.paymentComment,
+        operation: isClearOperation ? 'clear' : 'save'
       }
     });
 

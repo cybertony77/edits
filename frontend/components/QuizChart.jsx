@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -37,6 +37,36 @@ function parseDegreeToNumber(value) {
 }
 
 export default function QuizChart({ lessons }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipData, setTooltipData] = useState(null);
+  const chartRef = useRef(null);
+
+  // Handle click outside to hide tooltip
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (chartRef.current && !chartRef.current.contains(event.target)) {
+        setShowTooltip(false);
+        setTooltipData(null);
+      }
+    };
+
+    const handleTouchOutside = (event) => {
+      if (chartRef.current && !chartRef.current.contains(event.target)) {
+        setShowTooltip(false);
+        setTooltipData(null);
+      }
+    };
+
+    // Add event listeners for both mouse and touch events
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleTouchOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleTouchOutside);
+    };
+  }, []);
+
   const data = useMemo(() => {
     if (!lessons) return [];
     return lessons
@@ -69,7 +99,7 @@ export default function QuizChart({ lessons }) {
   }
 
   return (
-    <div style={{ width: '100%', height: 500 }}>
+    <div ref={chartRef} style={{ width: '100%', height: 500 }}>
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 20, right: 10, left: 10, bottom: 50 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
@@ -80,6 +110,7 @@ export default function QuizChart({ lessons }) {
             label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip
+            active={showTooltip}
             contentStyle={{
               backgroundColor: '#ffffff',
               border: '1px solid #dee2e6',
@@ -101,7 +132,20 @@ export default function QuizChart({ lessons }) {
             }}
             labelStyle={{ display: 'none' }}
           />
-          <Bar dataKey="degree" radius={[6, 6, 0, 0]} maxBarSize={50} isAnimationActive>
+          <Bar 
+            dataKey="degree" 
+            radius={[6, 6, 0, 0]} 
+            maxBarSize={50} 
+            isAnimationActive
+            onClick={(data, index) => {
+              setShowTooltip(true);
+              setTooltipData(data);
+            }}
+            onTouchStart={(data, index) => {
+              setShowTooltip(true);
+              setTooltipData(data);
+            }}
+          >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}

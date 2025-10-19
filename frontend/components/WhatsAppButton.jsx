@@ -102,7 +102,7 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
       // Build custom messages for parents and students
       const firstName = student.name ? student.name.split(' ')[0] : 'Student';
       const attendanceInfo = currentLesson.lastAttendance && currentLesson.lastAttendanceCenter
-        ? `${currentLesson.lastAttendance} in ${currentLesson.lastAttendanceCenter}`
+        ? `${currentLesson.lastAttendance}.`
         : (currentLesson.attended ? (currentLesson.lastAttendance || 'Attended') : 'Absent');
 
       // Previous Assignment status
@@ -124,9 +124,10 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         previousAssignment = 'Not Done';
       }
 
-      const previousQuiz = (currentLesson.quizDegree !== null && String(currentLesson.quizDegree).trim() !== '')
-        ? String(currentLesson.quizDegree)
-        : "Didn't Attend The Quiz";
+      // Check if quiz degree exists and is not null/empty
+      const hasQuizDegree = currentLesson.quizDegree !== null && 
+                           currentLesson.quizDegree !== undefined && 
+                           String(currentLesson.quizDegree).trim() !== '';
 
       let whatsappMessage;
       if (!isStudentMessage) {
@@ -134,13 +135,22 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         const commentLine = (currentLesson.comment && currentLesson.comment.trim() !== '' && currentLesson.comment !== 'undefined') 
           ? `  • Comment : ${currentLesson.comment}\n` 
           : '';
-        whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear, ${firstName}'s Parent \nHere are our session's info for today:\n\n  • Lesson: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n  • Previous Assignment : ${previousAssignment}\n  • Previous Quiz Degree : ${previousQuiz}\n${commentLine}\nNote :-\n  • ${firstName}'s ID: ${student.id}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
+        
+        // Include assignment and quiz lines only if not absent
+        const assignmentLine = (attendanceInfo !== 'Absent') ? `  • Previous Assignment : ${previousAssignment}\n` : '';
+        const quizLine = (attendanceInfo !== 'Absent' && hasQuizDegree) ? `  • Previous Quiz Degree : ${currentLesson.quizDegree}\n` : '';
+        
+        whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear, ${firstName}'s Parent \nHere are our session's info for today:\n\n  • Lesson: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n${assignmentLine}${quizLine}${commentLine}\nNote :-\n  • ${firstName}'s ID: ${student.id}\n\nWe wish ${firstName} gets high scores 😊❤\n\n– Mr. Ahmed Badr`;
       } else {
         // Student template (omit assignment/quiz links and previous work if absent)
         if (attendanceInfo === 'Absent') {
           whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear Student : ${firstName}\nHere are our session's info for today: \n\n  • Lesson covered: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n\nNote :-\n  •Your ID: ${student.id}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
         } else {
-          whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear Student : ${firstName}\nHere are our session's info for today: \n\n  • Lesson covered: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n  • Your Assignment link : \n  • Your Quiz link : \n\n• Previous Assignment : ${previousAssignment}\n\n• Previous Quiz Degree : ${previousQuiz}\n\nNote :-\n  •Your ID: ${student.id}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
+          // Include assignment and quiz lines only if not absent
+          const assignmentLine = `• Previous Assignment : ${previousAssignment}\n`;
+          const quizLine = hasQuizDegree ? `• Previous Quiz Degree : ${currentLesson.quizDegree}\n` : '';
+          
+          whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear Student : ${firstName}\nHere are our session's info for today: \n\n  • Lesson covered: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n  • Your Assignment link : \n  • Your Quiz link : \n\n${assignmentLine}${quizLine}\nNote :-\n  •Your ID: ${student.id}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
         }
       }
 

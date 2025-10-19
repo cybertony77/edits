@@ -110,46 +110,48 @@ export default async function handler(req, res) {
       {
         $addFields: {
           lessonData: {
-            $let: {
-              vars: {
-                lessonName: '$lesson',
-                studentLessons: '$student.lessons'
+            $cond: {
+              if: {
+                $and: [
+                  { $ne: ['$student.lessons', null] },
+                  { $ne: ['$student.lessons', undefined] }
+                ]
               },
-              in: {
+              then: {
                 $cond: {
-                  if: {
-                    $and: [
-                      { $ne: ['$$studentLessons', null] },
-                      { $ne: ['$$studentLessons', undefined] }
+                  if: { $isArray: '$student.lessons' },
+                  then: {
+                    // Handle old array format - find by lesson name
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$student.lessons',
+                          cond: { $eq: ['$$this.lesson', '$lesson'] }
+                        }
+                      },
+                      0
                     ]
                   },
-                  then: {
-                    $cond: {
-                      if: { $isArray: '$$studentLessons' },
-                      then: {
-                        // Handle old array format - find by lesson name
+                  else: {
+                    // Handle new object format - use $objectToArray to convert to array and find matching lesson
+                    $getField: {
+                      field: 'v',
+                      input: {
                         $arrayElemAt: [
                           {
                             $filter: {
-                              input: '$$studentLessons',
-                              cond: { $eq: ['$$this.lesson', '$$lessonName'] }
+                              input: { $objectToArray: '$student.lessons' },
+                              cond: { $eq: ['$$this.k', '$lesson'] }
                             }
                           },
                           0
                         ]
-                      },
-                      else: {
-                        // Handle new object format - access by lesson name
-                        $getField: {
-                          field: '$$lessonName',
-                          input: '$$studentLessons'
-                        }
                       }
                     }
-                  },
-                  else: null
+                  }
                 }
-              }
+              },
+              else: null
             }
           }
         }

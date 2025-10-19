@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { AVAILABLE_CENTERS } from '../../constants/centers';
 import CenterSelect from '../../components/CenterSelect';
 import AttendanceWeekSelect from '../../components/AttendancelessonSelect';
 import { SessionTable } from '../../components/SessionTable.jsx';
@@ -120,8 +119,6 @@ export default function SessionInfo() {
     };
   }, [openDropdown]);
 
-  // Get all possible centers for dropdown
-  const allCenters = AVAILABLE_CENTERS;
 
   // Filtering logic
   const handleFilterFormSubmit = (e) => {

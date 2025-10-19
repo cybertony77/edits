@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
-import { AVAILABLE_CENTERS } from "../../constants/centers";
 // Removed weeks import - using lessons instead
 import Title from "../../components/Title";
 import GradeSelect from "../../components/CourseSelect";

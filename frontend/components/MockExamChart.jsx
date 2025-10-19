@@ -1,6 +1,36 @@
+import { useState, useRef, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function MockExamChart({ mockExams }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipData, setTooltipData] = useState(null);
+  const chartRef = useRef(null);
+
+  // Handle click outside to hide tooltip
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (chartRef.current && !chartRef.current.contains(event.target)) {
+        setShowTooltip(false);
+        setTooltipData(null);
+      }
+    };
+
+    const handleTouchOutside = (event) => {
+      if (chartRef.current && !chartRef.current.contains(event.target)) {
+        setShowTooltip(false);
+        setTooltipData(null);
+      }
+    };
+
+    // Add event listeners for both mouse and touch events
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleTouchOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleTouchOutside);
+    };
+  }, []);
   if (!mockExams || mockExams.length === 0) {
     return (
       <div style={{
@@ -27,25 +57,19 @@ export default function MockExamChart({ mockExams }) {
   }));
 
   return (
-    <div>
-      <div style={{
-        textAlign: 'center',
-        marginBottom: '20px',
-        fontSize: '1.2rem',
-        fontWeight: '600',
-        color: '#495057'
-      }}>
-        Mock Exam Performance Over Time
-      </div>
-      
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+    <div ref={chartRef} style={{ width: '100%', height: 500 }}>
+      <ResponsiveContainer>
+        <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 50 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
           <XAxis 
             dataKey="exam" 
             stroke="#6c757d"
             fontSize={12}
             tick={{ fill: '#495057' }}
+            interval={0} 
+            angle={-20} 
+            textAnchor="end" 
+            height={50}
           />
           <YAxis 
             stroke="#6c757d"
@@ -55,6 +79,7 @@ export default function MockExamChart({ mockExams }) {
             label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip
+            active={showTooltip}
             contentStyle={{
               backgroundColor: '#ffffff',
               border: '1px solid #dee2e6',
@@ -81,10 +106,17 @@ export default function MockExamChart({ mockExams }) {
             fill="#1FA8DC"
             radius={[4, 4, 0, 0]}
             maxBarSize={50}
+            onClick={(data, index) => {
+              setShowTooltip(true);
+              setTooltipData(data);
+            }}
+            onTouchStart={(data, index) => {
+              setShowTooltip(true);
+              setTooltipData(data);
+            }}
           />
         </BarChart>
       </ResponsiveContainer>
-      
     </div>
   );
 }

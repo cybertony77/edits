@@ -43,8 +43,8 @@ function Preloader() {
           <Image 
             src="/logo.png" 
             alt="Mr. Ahmed Badr Logo" 
-            width={200}
-            height={200}
+            width={150}
+            height={150}
             style={{
               objectFit: 'cover',
               background: 'transparent'
@@ -198,7 +198,7 @@ export default function App({ Component, pageProps }) {
   const [showExpiryWarning, setShowExpiryWarning] = useState(false);
 
   // Define public pages using useMemo to prevent recreation on every render
-  const publicPages = useMemo(() => ["/", "/404", "/contact_developer"], []);
+  const publicPages = useMemo(() => ["/", "/404", "/contact_developer", "/dashboard/student_info", "/student_not_found"], []);
   
   // Define admin-only pages
   const adminPages = useMemo(() => [

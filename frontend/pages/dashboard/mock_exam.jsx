@@ -24,6 +24,7 @@ export default function MockExam() {
   const [examOutOf, setExamOutOf] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isExamDropdownOpen, setIsExamDropdownOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   // Get all students for search functionality
   const { data: allStudents, isLoading: allStudentsLoading } = useStudents();
@@ -271,6 +272,77 @@ export default function MockExam() {
     setSaveMessage("");
   };
 
+  // Handle clear mock exam form and database
+  const handleClearMockExam = async () => {
+    if (!student) {
+      setError("Please search and select a student first.");
+      return;
+    }
+
+    if (!selectedExam) {
+      setError("Please select an exam to clear.");
+      return;
+    }
+
+    setError("");
+    setSaveMessage("");
+    setIsClearing(true);
+
+    // Clear form fields
+    setExamDegree("");
+    setExamOutOf("");
+
+    try {
+      // Clear mock exam data in database
+      const examIndex = parseInt(selectedExam.replace('Exam ', '')) - 1;
+      const clearMockExamData = {
+        studentId: student.id,
+        examIndex: examIndex,
+        examDegree: null,
+        outOf: null,
+        percentage: null
+      };
+
+      console.log('🗑️ Clearing mock exam data:', clearMockExamData);
+
+      // Make direct API call instead of using mutation
+      const response = await fetch('/api/mock-exams', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clearMockExamData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Mock exam cleared successfully:', result);
+        setSaveMessage("✅ Mock exam data cleared successfully");
+        setError("");
+        
+        // Force refetch to sync with DB
+        if (refetchStudent) {
+          try { await refetchStudent(); } catch {}
+        }
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSaveMessage(""), 3000);
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Mock exam clear error:', errorData);
+        setError(errorData.error || "Failed to clear mock exam data. Please try again.");
+        setSaveMessage("");
+      }
+
+    } catch (err) {
+      console.error('❌ Error clearing mock exam:', err);
+      setError("Error clearing mock exam data. Please try again.");
+      setSaveMessage("");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   
 
   // Exam options for dropdown
@@ -310,7 +382,7 @@ export default function MockExam() {
           .detail-item { padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #e9ecef; border-left: 4px solid #1FA8DC; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s ease; }
           .detail-label { font-weight: 700; color: #6c757d; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
           .detail-value { font-size: 1rem; color: #212529; font-weight: 600; line-height: 1.4; }
-          .mock-exam-form { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); margin-top: 20px; }
+          .mock-exam-form { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); margin-top: 20px; margin-bottom: 50px;}
           .form-group { margin-bottom: 16px; }
           .form-label { display: block; font-weight: 600; color: #495057; margin-bottom: 6px; }
           .form-input { width: 100%; padding: 10px 12px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 1rem; background: #fff; color: #222; box-sizing: border-box; }
@@ -318,6 +390,27 @@ export default function MockExam() {
           .save-btn { width: 100%; padding: 12px; background: linear-gradient(90deg, #28a745 0%, #20c997 100%); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
           .save-btn:hover { background: linear-gradient(90deg, #218838 0%, #1e7e34 100%); transform: translateY(-1px); }
           .save-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+          .clear-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 12px;
+          }
+          .clear-btn:hover {
+            background: linear-gradient(90deg, #c82333 0%, #bd2130 100%);
+            transform: translateY(-1px);
+          }
           .search-results { margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; max-height: 240px; overflow-y: auto; }
           .search-result-button { display: block; width: 100%; padding: 12px 16px; margin: 8px 0; background: white; border: 1px solid #dee2e6; border-radius: 6px; text-align: left; cursor: pointer; transition: all 0.2s ease; }
           .result-name { font-weight: 600; color: #1FA8DC; }
@@ -584,7 +677,7 @@ export default function MockExam() {
                           value={examOutOf}
                           onChange={(e) => setExamOutOf(e.target.value)}
                           required
-                          min="1"
+                          min="0"
                           step="0.1"
                         />
                       </div>
@@ -594,7 +687,7 @@ export default function MockExam() {
                   <button 
                     type="submit" 
                     className="save-btn"
-                    disabled={saveMockExamMutation.isPending || !examDegree.trim() || !examOutOf.trim()}
+                    disabled={saveMockExamMutation.isPending || isClearing || !examDegree.trim() || !examOutOf.trim()}
                   >
                     {saveMockExamMutation.isPending ? (
                       <>
@@ -612,6 +705,31 @@ export default function MockExam() {
                       <>
                         <IconCheck size={16} />
                         Save Mock Exam
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="clear-btn"
+                    onClick={handleClearMockExam}
+                    disabled={saveMockExamMutation.isPending || isClearing}
+                  >
+                    {isClearing ? (
+                      <>
+                        <div style={{
+                          width: 16,
+                          height: 16,
+                          border: '2px solid #ffffff',
+                          borderTop: '2px solid transparent',
+                          borderRadius: '50%',
+                          animation: 'spin 1s linear infinite'
+                        }} />
+                        Clearing...
+                      </>
+                    ) : (
+                      <>
+                        ⟲ Clear Mock Exam
                       </>
                     )}
                   </button>
