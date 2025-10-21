@@ -90,14 +90,20 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         return;
       }
 
-      // Get current lesson data
-      const currentLesson = student.lessons && student.lessons[lessonName] ? student.lessons[lessonName] : {
-        attended: false,
-        lastAttendance: null,
-        hwDone: false,
-        quizDegree: null,
-        comment: null
-      };
+      // Get current lesson and its previous lesson (based on object key order)
+      const lessonKeys = Object.keys(student.lessons || {});
+      const currentIndex = lessonKeys.findIndex(
+        key => key.trim().toLowerCase() === lessonName.trim().toLowerCase()
+      );
+
+      let currentLesson = student.lessons?.[lessonName] || {};
+      let previousLesson = null;
+
+      if (currentIndex > 0) {
+        const prevLessonName = lessonKeys[currentIndex - 1];
+        previousLesson = student.lessons[prevLessonName];
+      }
+
 
       // Map lesson names to their Quiz and Assignment links (case-insensitive)
       const lessonKey = String(lessonName || '').trim().toLowerCase();
@@ -236,24 +242,40 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         if (dayName === 'sunday') deadlineText = 'Assignment and quiz deadline: Saturday at 9 PM.';
       }
 
-      // Previous Assignment status
-      let previousAssignment = '';
-        if (currentLesson.hwDone === true) {
-        // Check if there's a homework degree
-        if (currentLesson.homework_degree !== null && currentLesson.homework_degree !== undefined && String(currentLesson.homework_degree).trim() !== '') {
-          previousAssignment = `Done (${currentLesson.homework_degree})`;
+      // Previous Assignment & Quiz only if a previous lesson exists
+      let previousAssignment = null;
+      let previousQuizDegree = null;
+
+      if (previousLesson) {
+        if (previousLesson.hwDone === true) {
+          if (
+            previousLesson.homework_degree !== null &&
+            previousLesson.homework_degree !== undefined &&
+            String(previousLesson.homework_degree).trim() !== ''
+          ) {
+            previousAssignment = `Done (${previousLesson.homework_degree})`;
+          } else {
+            previousAssignment = 'Done';
+          }
+        } else if (previousLesson.hwDone === false) {
+          previousAssignment = 'Not Done';
+        } else if (previousLesson.hwDone === 'No Homework') {
+          previousAssignment = 'No Homework';
+        } else if (previousLesson.hwDone === 'Not Completed') {
+          previousAssignment = 'Not Completed';
         } else {
-          previousAssignment = 'Done';
+          previousAssignment = 'Not Done';
         }
-      } else if (currentLesson.hwDone === false) {
-        previousAssignment = 'Not Done';
-      } else if (currentLesson.hwDone === 'No Homework') {
-        previousAssignment = 'No Homework';
-      } else if (currentLesson.hwDone === 'Not Completed') {
-        previousAssignment = 'Not Completed';
-      } else {
-        previousAssignment = 'Not Done';
+
+        if (
+          previousLesson.quizDegree !== null &&
+          previousLesson.quizDegree !== undefined &&
+          String(previousLesson.quizDegree).trim() !== ''
+        ) {
+          previousQuizDegree = previousLesson.quizDegree;
+        }
       }
+
 
       // Check if quiz degree exists and is not null/empty
       const hasQuizDegree = currentLesson.quizDegree !== null && 
@@ -267,12 +289,19 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
           ? `  • Comment : ${currentLesson.comment}\n` 
           : '';
         
-        // Include assignment and quiz lines only if not absent
-        const assignmentLine = (attendanceInfo !== 'Absent') ? `  • Previous Assignment : ${previousAssignment}\n` : '';
-        const quizLine = (attendanceInfo !== 'Absent' && hasQuizDegree) ? `  • Previous Quiz Degree : ${currentLesson.quizDegree}\n` : '';
-        const sessionsLine = (remainingSessions !== null)
-          ? `  • ${firstName}'s Number of remaining sessions: ${remainingSessions}\n`
-          : '';
+          // Include assignment and quiz lines only if not absent
+          const assignmentLine = (previousAssignment)
+            ? `• Previous Assignment : ${previousAssignment}\n`
+            : '';
+
+          const quizLine = (previousQuizDegree)
+            ? `• Previous Quiz Degree : ${previousQuizDegree}\n`
+            : '';
+
+          const sessionsLine = (remainingSessions !== null)
+            ? `  • Number of remaining sessions: ${remainingSessions}\n`
+            : '';
+
         
         whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear, ${firstName}'s Parent \nHere are our session's info for today:\n\n  • Lesson: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n${assignmentLine}${quizLine}${commentLine}\nNote :-\n  • ${firstName}'s ID: ${student.id}\n${sessionsLine}\nWe wish ${firstName} gets high scores 😊❤\n\n– Mr. Ahmed Badr`;
       } else {
@@ -284,8 +313,14 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
           whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear Student : ${firstName}\nHere are our session's info for today: \n\n  • Lesson covered: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n\nNote :-\n  •Your ID: ${student.id}${sessionsLine}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
         } else {
           // Include assignment and quiz lines only if not absent
-          const assignmentLine = `• Previous Assignment : ${previousAssignment}\n`;
-          const quizLine = hasQuizDegree ? `• Previous Quiz Degree : ${currentLesson.quizDegree}\n` : '';
+          const assignmentLine = previousAssignment
+          ? `• Previous Assignment : ${previousAssignment}\n`
+          : '';
+        
+        const quizLine = previousQuizDegree
+          ? `• Previous Quiz Degree : ${previousQuizDegree}\n`
+          : '';
+        
           const assignmentLinkLine = assignmentLink ? `  • Your Assignment link : ${assignmentLink}\n` : '';
           const quizLinkLine = quizLink ? `  • Your Quiz link : ${quizLink}\n` : '';
           const sessionsLine = (remainingSessions !== null)
