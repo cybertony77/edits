@@ -188,6 +188,8 @@ export default async function handler(req, res) {
             center: { $ifNull: ['$lessonData.lastAttendanceCenter', 'n/a'] },
             attendanceDate: { $ifNull: ['$lessonData.lastAttendance', 'n/a'] },
             hwDone: { $ifNull: ['$lessonData.hwDone', false] },
+            homework_degree: { $ifNull: ['$lessonData.homework_degree', null] },
+            hwDegree: { $ifNull: ['$lessonData.hwDegree', null] },
             quizDegree: { $ifNull: ['$lessonData.quizDegree', null] },
             message_state: { $ifNull: ['$lessonData.message_state', false] },
             student_message_state: { $ifNull: ['$lessonData.student_message_state', false] },

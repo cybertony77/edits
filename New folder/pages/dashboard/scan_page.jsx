@@ -1279,7 +1279,7 @@ export default function QR() {
                   <input
           className="manual-input"
           type="text"
-          placeholder="Enter student ID or Name or Student Phone No."
+          placeholder="Enter Student ID, Name, Phone Number"
           value={studentId}
           onChange={(e) => {
             setStudentId(e.target.value);

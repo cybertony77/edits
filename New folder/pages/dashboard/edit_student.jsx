@@ -623,7 +623,7 @@ export default function EditStudent() {
           <input
             className="fetch-input"
             type="text"
-            placeholder="Enter student ID or Name or Student Phone No."
+            placeholder="Enter Student ID, Name, Phone Number"
             value={studentId}
             onChange={handleIdChange}
           />

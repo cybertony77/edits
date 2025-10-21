@@ -547,7 +547,7 @@ export default function Payment() {
             <input
               type="text"
               className="fetch-input"
-              placeholder="Enter student ID or Name or Student Phone No."
+              placeholder="Enter Student ID, Name, Phone Number"
               value={studentId}
               onChange={handleIdChange}
               disabled={isSearching}
@@ -753,7 +753,7 @@ export default function Payment() {
                   </>
                 ) : (
                   <>
-                  ⟲ Clear Payment
+                  🗑️ Clear Payment
                   </>
                 )}
               </button>

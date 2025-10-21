@@ -108,6 +108,7 @@ export default async function handler(req, res) {
             attended: false,
             lastAttendance: null,
             lastAttendanceCenter: null,
+            attendanceDate: null,
             hwDone: false,
             quizDegree: null,
             comment: null,
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
           attended: false,
           lastAttendance: null,
           lastAttendanceCenter: null,
+          attendanceDate: null,
           hwDone: false,
           quizDegree: null,
           comment: null,
@@ -144,11 +146,19 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No available sessions' });
       }
       
+      // Compute attendance date in DD/MM/YYYY format using local timezone
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = String(now.getFullYear());
+      const attendanceDateOnly = `${day}/${month}/${year}`;
+
       // Mark as attended and set paid to true
       const updateQuery = {
         [`lessons.${lessonName}.attended`]: true,
         [`lessons.${lessonName}.lastAttendance`]: lastAttendance || null,
         [`lessons.${lessonName}.lastAttendanceCenter`]: lastAttendanceCenter || null,
+        [`lessons.${lessonName}.attendanceDate`]: attendanceDateOnly,
         [`lessons.${lessonName}.paid`]: true
       };
       
@@ -191,6 +201,7 @@ export default async function handler(req, res) {
         [`lessons.${lessonName}.attended`]: false,
         [`lessons.${lessonName}.lastAttendance`]: null,
         [`lessons.${lessonName}.lastAttendanceCenter`]: null,
+        [`lessons.${lessonName}.attendanceDate`]: null,
         [`lessons.${lessonName}.hwDone`]: false,
         [`lessons.${lessonName}.quizDegree`]: null,
         [`lessons.${lessonName}.comment`]: null,

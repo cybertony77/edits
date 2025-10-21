@@ -454,7 +454,7 @@ export default function MockExam() {
             <input
               type="text"
               className="fetch-input"
-              placeholder="Enter student ID or Name or Student Phone No."
+              placeholder="Enter Student ID, Name, Phone Number"
               value={studentId}
               onChange={handleIdChange}
               disabled={isSearching}
@@ -729,7 +729,7 @@ export default function MockExam() {
                       </>
                     ) : (
                       <>
-                        ⟲ Clear Mock Exam
+                        🗑️ Clear Mock Exam
                       </>
                     )}
                   </button>

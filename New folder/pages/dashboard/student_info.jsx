@@ -721,7 +721,7 @@ export default function StudentInfo() {
               <input
                 className="fetch-input"
                 type="text"
-                placeholder="Enter student ID or Name or Student Phone No."
+                placeholder="Enter Student ID, Name, Phone Number"
                 value={studentId}
                 onChange={handleIdChange}
                 required
@@ -809,21 +809,16 @@ export default function StudentInfo() {
         {currentStudent && !studentDeleted && (
           <div className="info-container">
             <div className="student-details">
+              {/* Only show Student ID if user doesn't have token */}
+              {!hasAuthToken && (
+                <div className="detail-item">
+                  <div className="detail-label">Student ID</div>
+                  <div className="detail-value">{currentStudent.id}</div>
+                </div>
+              )}
               <div className="detail-item">
                 <div className="detail-label">Student Name</div>
                 <div className="detail-value">{currentStudent.name}</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-label">Student ID</div>
-                <div className="detail-value">{currentStudent.id}</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-label">Course</div>
-                <div className="detail-value">{currentStudent.grade || currentStudent.course || 'N/A'}</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-label">School</div>
-                <div className="detail-value">{currentStudent.school || 'N/A'}</div>
               </div>
               <div className="detail-item">
                 <div className="detail-label">Student Phone</div>
@@ -838,12 +833,20 @@ export default function StudentInfo() {
                 <div className="detail-value" style={{ fontFamily: 'monospace' }}>{currentStudent.parentsPhone2 || 'N/A'}</div>
               </div>
               <div className="detail-item">
+                <div className="detail-label">School</div>
+                <div className="detail-value">{currentStudent.school || 'N/A'}</div>
+              </div>
+              <div className="detail-item">
                 <div className="detail-label">Address</div>
                 <div className="detail-value">{currentStudent.address || 'N/A'}</div>
               </div>
               <div className="detail-item">
                 <div className="detail-label">Main Center</div>
                 <div className="detail-value">{currentStudent.main_center}</div>
+              </div>
+              <div className="detail-item">
+                <div className="detail-label">Course</div>
+                <div className="detail-value">{currentStudent.grade || currentStudent.course || 'N/A'}</div>
               </div>
               <div className="detail-item">
                 <div className="detail-label">Available Number of Sessions</div>
@@ -873,12 +876,14 @@ export default function StudentInfo() {
                   </span>
                 </div>
               </div>
-              {/* Only show hidden comment if authenticated */}
-              {hasAuthToken && currentStudent.main_comment && (
-              <div className="detail-item">
-                <div className="detail-label">Hidden Comment</div>
-                <div className="detail-value" style={{ fontSize: '1rem' }}>{currentStudent.main_comment}</div>
-              </div>
+              {/* Always show hidden comment if authenticated */}
+              {hasAuthToken && (
+                <div className="detail-item">
+                  <div className="detail-label">Hidden Comment</div>
+                  <div className="detail-value" style={{ fontSize: '1rem' }}>
+                    {currentStudent.main_comment || 'No Comment'}
+                  </div>
+                </div>
               )}
               <div className="detail-item">
                 <div className="detail-label">Account Status</div>

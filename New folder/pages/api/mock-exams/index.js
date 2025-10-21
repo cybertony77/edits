@@ -133,15 +133,15 @@ export default async function handler(req, res) {
     } else {
       // Normal mock exam operation
       const now = new Date();
-      // Use a more consistent date formatting approach that preserves local time
+      // Use Egypt/Cairo timezone for date formatting
       const formattedDate = now.toLocaleString('en-US', {
         month: '2-digit',
         day: '2-digit',
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true
-        // Remove timeZone to use local timezone
+        hour12: true,
+        timeZone: 'Africa/Cairo'
       });
       
       examData = {

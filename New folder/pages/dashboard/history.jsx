@@ -463,10 +463,36 @@ export default function History() {
                                 fontWeight: 'bold'
                               }}>⚠️ Not Completed</span>;
                             } else if (record.hwDone === true) {
-                              return <span style={{ 
-                                color: '#28a745',
-                                fontWeight: 'bold'
-                              }}>✅ Done</span>;
+                              // Show Done with degree if available
+                              let degree = '';
+                              try {
+                                // Prefer degree from the history record if present
+                                degree = (record.homework_degree ?? record.hwDegree ?? '').toString().trim();
+                                if (!degree) {
+                                  // Fallback: derive from student's lessons by lesson name or week index
+                                  if (record.lesson && typeof record.lesson === 'string') {
+                                    if (student.lessons && typeof student.lessons === 'object' && !Array.isArray(student.lessons)) {
+                                      degree = (student.lessons[record.lesson]?.homework_degree ?? '').toString().trim();
+                                    } else if (Array.isArray(student.lessons)) {
+                                      const lessonData = student.lessons.find(l => l && l.lesson === record.lesson);
+                                      degree = (lessonData?.homework_degree ?? '').toString().trim();
+                                    }
+                                  } else {
+                                    const weekIdx = ((record?.week ?? 0) - 1);
+                                    if (Array.isArray(student.lessons) && weekIdx >= 0) {
+                                      degree = (student.lessons[weekIdx]?.homework_degree ?? '').toString().trim();
+                                    } else if (Array.isArray(student.weeks) && weekIdx >= 0) {
+                                      degree = (student.weeks[weekIdx]?.homework_degree ?? '').toString().trim();
+                                    }
+                                  }
+                                }
+                              } catch {}
+                              const hasDegree = degree && degree !== '';
+                              return (
+                                <span style={{ color: '#28a745', fontWeight: 'bold' }}>
+                                  {hasDegree ? `✅ Done (${degree})` : '✅ Done'}
+                                </span>
+                              );
                             } else {
                               return <span style={{ 
                                 color: '#dc3545',

@@ -406,7 +406,7 @@ export default function DeleteStudent() {
                     setShowSearchResults(false);
                   }
                 }}
-                placeholder="Enter student ID or Name or Student Phone No."
+                placeholder="Enter Student ID, Name, Phone Number"
                 disabled={studentLoading || deleteStudentMutation.isPending}
                 required
               />
@@ -481,14 +481,15 @@ export default function DeleteStudent() {
             {student && (
               <div className="student-info">
                 <h3>Student Found:</h3>
-                <p><strong>Name:</strong> {student.name}</p>
-                {student.age && <p><strong>Age:</strong> {student.age}</p>}
+                <p><strong>Student name:</strong> {student.name}</p>
                 <p><strong>Course:</strong> {student.grade}</p>
                 <p><strong>School:</strong> {student.school}</p>
-                <p><strong>Phone:</strong> {student.phone}</p>
-                <p><strong>Parent's Phone:</strong> {student.parents_phone || student.parentsPhone}</p>
-                <p><strong>Main Center:</strong> {student.main_center}</p>
-                <p><strong>Hidden Comment:</strong> {student.main_comment ||"No Comment"}</p>
+                <p><strong>Student phone:</strong> {student.phone}</p>
+                <p><strong>Parent's phone 1:</strong> {student.parents_phone || student.parentsPhone || 'N/A'}</p>
+                <p><strong>Parent's phone 2:</strong> {student.parentsPhone2 || 'N/A'}</p>
+                <p><strong>Address:</strong> {student.address || 'N/A'}</p>
+                <p><strong>Main center:</strong> {student.main_center}</p>
+                <p><strong>Hidden comment:</strong> {student.main_comment || "No Comment"}</p>
                 
                 <div style={{ marginTop: "20px" }}>
                   <p style={{ color: "#dc3545", fontWeight: "bold", marginBottom: "16px" }}>

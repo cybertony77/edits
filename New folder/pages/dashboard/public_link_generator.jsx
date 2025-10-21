@@ -404,7 +404,7 @@ export default function GenerateLink() {
             <input
               className="fetch-input"
               type="text"
-              placeholder="Enter student ID, Name, or Phone Number"
+              placeholder="Enter Student ID, Name, Phone Number"
               value={studentId}
               onChange={handleIdChange}
               required
@@ -745,11 +745,12 @@ export default function GenerateLink() {
                           const message = `Ahmed Badr's Quality Team: 
 
 Dear ${selectedStudent.name?.split(' ')[0] || 'Student'},
-Want to keep track of your attendance, homework, and quiz results?
+If you want to keep track of your attendance, homework, and quizzes results.
 Just click the link below to stay updated:
+
 🖇️ ${generatedLink}
 
-We wish you a high score 😊❤
+We wish you gets high scores 😊❤
 
 – Mr. Ahmed Badr`;
                           const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
@@ -806,6 +807,7 @@ We wish you a high score 😊❤
 
 Dear ${selectedStudent.name?.split(' ')[0] || 'Student'}'s Parent,
 If you'd like to track ${selectedStudent.name}'s attendance, homework, and quizzes, please visit the link below:
+
 🖇️ ${generatedLink}
 
 We wish ${selectedStudent.name?.split(' ')[0] || 'Student'} gets high scores 😊❤
@@ -865,6 +867,7 @@ We wish ${selectedStudent.name?.split(' ')[0] || 'Student'} gets high scores �
 
 Dear ${selectedStudent.name?.split(' ')[0] || 'Student'}'s Parent,
 If you'd like to track ${selectedStudent.name}'s attendance, homework, and quizzes, please visit the link below:
+
 🖇️ ${generatedLink}
 
 We wish ${selectedStudent.name?.split(' ')[0] || 'Student'} gets high scores 😊❤
