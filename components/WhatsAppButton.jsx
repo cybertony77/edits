@@ -102,6 +102,9 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
       if (currentIndex > 0) {
         const prevLessonName = lessonKeys[currentIndex - 1];
         previousLesson = student.lessons[prevLessonName];
+        console.log(`Previous lesson found: ${prevLessonName}`, previousLesson);
+      } else {
+        console.log(`No previous lesson found for ${lessonName}`);
       }
 
 
@@ -247,6 +250,8 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
       let previousQuizDegree = null;
 
       if (previousLesson) {
+        console.log(`Processing previous lesson data:`, previousLesson);
+        
         if (previousLesson.hwDone === true) {
           if (
             previousLesson.homework_degree !== null &&
@@ -274,6 +279,10 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         ) {
           previousQuizDegree = previousLesson.quizDegree;
         }
+        
+        console.log(`Previous assignment: ${previousAssignment}, Previous quiz: ${previousQuizDegree}`);
+      } else {
+        console.log(`No previous lesson data available`);
       }
 
 
@@ -305,12 +314,28 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         
         whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear, ${firstName}'s Parent \nHere are our session's info for today:\n\n  • Lesson: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n${assignmentLine}${quizLine}${commentLine}\nNote :-\n  • ${firstName}'s ID: ${student.id}\n${sessionsLine}\nWe wish ${firstName} gets high scores 😊❤\n\n– Mr. Ahmed Badr`;
       } else {
-        // Student template (omit assignment/quiz links and previous work if absent)
+        // Student template - include previous work even if absent
         if (attendanceInfo === 'Absent') {
+          console.log(`Creating absent student message for ${firstName}`);
+          console.log(`Previous assignment: ${previousAssignment}, Previous quiz: ${previousQuizDegree}`);
+          
+          // Include previous assignment and quiz even when absent
+          const assignmentLine = previousAssignment
+            ? `• Previous Assignment : ${previousAssignment}\n`
+            : '';
+        
+          const quizLine = previousQuizDegree
+            ? `• Previous Quiz Degree : ${previousQuizDegree}\n`
+            : '';
+          
           const sessionsLine = (remainingSessions !== null)
             ? `\n  • Number of remaining sessions: ${remainingSessions}`
             : '';
-          whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear Student : ${firstName}\nHere are our session's info for today: \n\n  • Lesson covered: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n\nNote :-\n  •Your ID: ${student.id}${sessionsLine}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
+          
+          console.log(`Assignment line: "${assignmentLine}", Quiz line: "${quizLine}"`);
+          
+          // For absent students, show what they missed and previous work
+          whatsappMessage = `Ahmed Badr's Quality Team: \n\nDear Student : ${firstName}\nHere are our session's info for today: \n\n  • Lesson covered: ${lessonName}\n  • Attendance Info: ${attendanceInfo}\n\n${assignmentLine}${quizLine}\nNote :-\n  •Your ID: ${student.id}${sessionsLine}\n\nWe wish you a high score 😊❤\n\n– Mr. Ahmed Badr`;
         } else {
           // Include assignment and quiz lines only if not absent
           const assignmentLine = previousAssignment
