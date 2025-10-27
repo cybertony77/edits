@@ -122,8 +122,8 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
         },
         'if conditionals and pronouns': {
           if_conditions_quiz: 'https://www.zipgrade.com/s/joL63ws/',
-          pronouns_quiz: 'https://www.zipgrade.com/s/2BubGv6/',
           if_conditions_assignment: 'https://www.zipgrade.com/s/szlikJK/',
+          pronouns_quiz: 'https://www.zipgrade.com/s/2BubGv6/',
           pronouns_assignment: 'https://www.zipgrade.com/s/NOIgf45/'
         },
         'comparison and superlative and parallel structure': {
@@ -300,12 +300,6 @@ const WhatsAppButton = ({ student, onMessageSent, lesson, isStudentMessage = fal
       } else {
         console.log(`No previous lesson data available`);
       }
-
-
-      // Check if quiz degree exists and is not null/empty
-      const hasQuizDegree = currentLesson.quizDegree !== null && 
-                           currentLesson.quizDegree !== undefined && 
-                           String(currentLesson.quizDegree).trim() !== '';
 
       // Generate public link for student progress tracking
       const publicLink = generatePublicStudentLink(student.id);

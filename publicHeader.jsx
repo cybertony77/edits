@@ -11,11 +11,12 @@ export default function CustomHeader() {
         padding: "18px 0",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: "flex-start",
         borderBottom: "2px solid #e9ecef",
         gap: 20,
         position: "relative",
         zIndex: 10,
+        marginLeft: "15px"
       }}
     >
       <Image
@@ -54,7 +55,7 @@ export default function CustomHeader() {
         }
         @media (max-width: 480px) {
           span {
-            font-size: 17px !important;
+            font-size: 20px !important;
             letter-spacing: 0.5px !important;
           }
         }
