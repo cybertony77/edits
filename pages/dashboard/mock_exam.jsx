@@ -521,7 +521,7 @@ export default function MockExam() {
                 <div className="detail-value" style={{ fontFamily: 'monospace' }}>{student.phone || 'N/A'}</div>
               </div>
               <div className="detail-item">
-                <div className="detail-label">Parent Phone</div>
+                <div className="detail-label">Parent Phone 1</div>
                 <div className="detail-value" style={{ fontFamily: 'monospace' }}>{student.parents_phone || 'N/A'}</div>
               </div>
             </div>

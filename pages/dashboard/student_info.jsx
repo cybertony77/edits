@@ -801,7 +801,7 @@ export default function StudentInfo() {
               margin: "0",
               textShadow: "0 2px 4px rgba(0,0,0,0.1)"
             }}>
-              Welcome!
+              Welcome to Trackify!
             </h1>
           </div>
         )}

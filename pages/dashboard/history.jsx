@@ -441,8 +441,8 @@ export default function History() {
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Course</Table.Th>
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Course Type</Table.Th>
                     <Table.Th style={{ width: '180px', minWidth: '180px', textAlign: 'center' }}>School</Table.Th>
-                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Phone</Table.Th>
-                    <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Parent Phone</Table.Th>
+                    <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Phone No.</Table.Th>
+                    <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Parent No. 1</Table.Th>
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Lesson</Table.Th>
                     <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Main Center</Table.Th>
                     <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Attendance Info</Table.Th>

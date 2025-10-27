@@ -146,6 +146,7 @@ export function SessionTable({
       <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center', fontSize: '15px' }}>{student.name}</Table.Td>
       {showGrade && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.grade || 'N/A'}</Table.Td>}
       {showCourseType && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.courseType || 'N/A'}</Table.Td>}
+      {showMainCenter && <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px', fontSize: '15px' }}>{student.main_center}</Table.Td>}
       {showSchool && <Table.Td style={{ width: '150px', minWidth: '150px', textAlign: 'center', fontSize: '15px' }}>{student.school || 'N/A'}</Table.Td>}
       <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>{student.phone || ''}</Table.Td>
       {showMessageState && (
@@ -221,7 +222,6 @@ export function SessionTable({
       )}
       {showParentsPhone2 && <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>{student.parentsPhone2 || student.parents_phone2 || 'N/A'}</Table.Td>}
       {showAddress && <Table.Td style={{ width: '150px', minWidth: '150px', fontSize: '15px', textAlign: 'center' }}>{student.address || 'N/A'}</Table.Td>}
-      {showMainCenter && <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px', fontSize: '15px' }}>{student.main_center}</Table.Td>}
       {showAccountStatus && (
         <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px', fontSize: '15px' }}>
           {student.account_state === 'Deactivated' ? (
@@ -410,16 +410,16 @@ export function SessionTable({
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Name</Table.Th>
           {showGrade && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Course</Table.Th>}
           {showCourseType && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Course Type</Table.Th>}
+          {showMainCenter && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Main Center</Table.Th>}
           {showSchool && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '150px', width: '150px', textAlign: 'center' }}>School</Table.Th>}
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Student No.</Table.Th>
           {showMessageState && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Student Message State</Table.Th>}
           {showWhatsApp && data.length > 0 && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>Student Message Button</Table.Th>}
-          <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Parents No.</Table.Th>
+          <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Parents No. 1</Table.Th>
           {showMessageState && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Parent Message State</Table.Th>}
           {showWhatsApp && data.length > 0 && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>Parent Message Button</Table.Th>}
           {showParentsPhone2 && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Parents No. 2</Table.Th>}
           {showAddress && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '150px', width: '150px', textAlign: 'center' }}>Address</Table.Th>}
-          {showMainCenter && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Main Center</Table.Th>}
           {showAccountStatus && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Account Status</Table.Th>}
           {showStatsColumns && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Attend In</Table.Th>}
           {showHW && <Table.Th style={{ minWidth: data.length === 0 ? '70px' : '120px', width: '120px', textAlign: 'center' }}>HW State</Table.Th>}

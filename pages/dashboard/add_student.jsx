@@ -14,7 +14,7 @@ export default function AddStudent() {
   const [form, setForm] = useState({
     name: "",
     grade: "",
-    courseType: "",
+    courseType: "basics", // Default to basics
     school: "",
     homeschooling: false,
     phone: "",
@@ -161,7 +161,7 @@ export default function AddStudent() {
         setForm({
           name: "",
           grade: "",
-          courseType: "",
+          courseType: "basics", // Reset to basics default
           school: "",
           homeschooling: false,
           phone: "",

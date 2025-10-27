@@ -694,7 +694,7 @@ export default function SessionInfo() {
             onToggle={() => setOpenDropdown(openDropdown === 'center' ? null : 'center')}
             onClose={() => setOpenDropdown(null)}
           />
-          <div className="filter-label">Course Type <span style={{color: 'red'}}>*</span></div>
+          <div className="filter-label">Course Type</div>
           <CourseTypeSelect
             selectedCourseType={selectedCourseType}
             onCourseTypeChange={(courseType) => {

@@ -806,7 +806,7 @@ We wish you gets high scores 😊❤
                           const message = `Ahmed Badr's Quality Team: 
 
 Dear ${selectedStudent.name?.split(' ')[0] || 'Student'}'s Parent,
-If you'd like to track ${selectedStudent.name}'s attendance, homework, and quizzes, please visit the link below:
+If you'd like to track ${selectedStudent.name?.split(' ')[0] || 'Student'}'s attendance, homework, and quizzes, please visit the link below:
 
 🖇️ ${generatedLink}
 
@@ -866,7 +866,7 @@ We wish ${selectedStudent.name?.split(' ')[0] || 'Student'} gets high scores �
                           const message = `Ahmed Badr's Quality Team: 
 
 Dear ${selectedStudent.name?.split(' ')[0] || 'Student'}'s Parent,
-If you'd like to track ${selectedStudent.name}'s attendance, homework, and quizzes, please visit the link below:
+If you'd like to track ${selectedStudent.name?.split(' ')[0] || 'Student'}'s attendance, homework, and quizzes, please visit the link below:
 
 🖇️ ${generatedLink}
 

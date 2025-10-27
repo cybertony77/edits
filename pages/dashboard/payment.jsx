@@ -614,9 +614,17 @@ export default function Payment() {
                 <div className="detail-value" style={{ fontFamily: 'monospace' }}>{student.phone || 'N/A'}</div>
               </div>
               <div className="detail-item">
-                <div className="detail-label">Parent Phone</div>
+                <div className="detail-label">Parent Phone 1</div>
                 <div className="detail-value" style={{ fontFamily: 'monospace' }}>{student.parents_phone || 'N/A'}</div>
               </div>
+              {student.main_comment && (
+                <div className="detail-item">
+                  <div className="detail-label">Hidden Comment</div>
+                  <div className="detail-value">
+                    <strong>{student.main_comment}</strong>
+                  </div>
+                </div>
+              )}
               <div className="detail-item">
                 <div className="detail-label">Number of Sessions</div>
                 <div className="detail-value" style={{ 

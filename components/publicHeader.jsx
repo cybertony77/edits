@@ -21,14 +21,13 @@ export default function CustomHeader() {
       <Image
         src="/logo.png"
         alt="Trackify Logo"
-        width={60}
-        height={60}
+        width={50}
+        height={50}
         style={{
           borderRadius: "50%",
           background: "white",
           boxShadow: "0 2px 8px rgba(31,168,220,0.10)",
           objectFit: "cover",
-          marginLeft: "20px"
         }}
         onClick={() => router.push('/')}
       />
@@ -40,7 +39,7 @@ export default function CustomHeader() {
           textShadow: "0 2px 8px rgba(31,168,220,0.10)",
         }}
       >
-        Mr. Ahmad Badr Trackify System
+        Track the scores... 🎯
       </span>
       <style jsx>{`
         @media (max-width: 768px) {
