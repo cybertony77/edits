@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import VideoWatermarkOverlay from './VideoWatermarkOverlay';
 import { buildZoomVideoProxyPath } from '../lib/zoomUtils';
+import { useVideoSeekGestures, VideoSeekFeedback, VideoPlayerChromeStyles } from './videoSeekGestures';
 
 export default function ZoomVideoPlayer({
   meetingId,
@@ -10,6 +11,8 @@ export default function ZoomVideoPlayer({
   watermarkText,
   hideWatermark = false,
 }) {
+  const videoRef = useRef(null);
+  const containerRef = useRef(null);
   const hasMilestoneRef = useRef(false);
   const hasCompleteRef = useRef(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -28,6 +31,12 @@ export default function ZoomVideoPlayer({
     // Cache-bust so browsers never reuse an expired Range/segment response
     return retryNonce ? `${base}?_=${retryNonce}` : base;
   }, [meetingId, retryNonce]);
+
+  const { feedback, containerProps, isFullscreen } = useVideoSeekGestures(videoRef, {
+    enabled: Boolean(src),
+    attachKey: src,
+    containerRef,
+  });
 
   const handleTimeUpdate = (event) => {
     const video = event.currentTarget;
@@ -71,17 +80,21 @@ export default function ZoomVideoPlayer({
 
   return (
     <div
+      ref={containerRef}
+      {...containerProps}
       style={{
         width: '100%',
         aspectRatio: '16 / 9',
-        maxHeight: '100vh',
+        maxHeight: 'min(100vh, 100%)',
         position: 'relative',
         backgroundColor: '#000',
         overflow: 'hidden',
+        outline: 'none',
       }}
     >
       <video
         key={src}
+        ref={videoRef}
         src={src}
         controls
         controlsList="nodownload"
@@ -89,16 +102,19 @@ export default function ZoomVideoPlayer({
         playsInline
         style={{
           width: '100%',
-          height: 'auto',
-          maxHeight: '100vh',
+          height: '100%',
+          maxHeight: '100%',
           aspectRatio: '16 / 9',
           backgroundColor: '#000',
           outline: 'none',
           display: 'block',
+          objectFit: 'contain',
         }}
         onTimeUpdate={handleTimeUpdate}
         onError={handleVideoError}
       />
+      <VideoPlayerChromeStyles />
+      <VideoSeekFeedback feedback={feedback} isFullscreen={isFullscreen} />
       {!hideWatermark ? <VideoWatermarkOverlay text={watermarkText} /> : null}
     </div>
   );

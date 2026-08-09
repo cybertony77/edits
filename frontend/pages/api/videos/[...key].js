@@ -6,7 +6,11 @@ import https from 'https';
 import path from 'path';
 import { MongoClient } from 'mongodb';
 import { authMiddleware } from '../../../lib/authMiddleware';
-import { getZoomAccessToken, resolveZoomMp4DownloadUrl } from '../../../lib/zoomServer';
+import {
+  clearZoomAccessTokenCache,
+  getZoomAccessToken,
+  resolveZoomMp4DownloadUrl,
+} from '../../../lib/zoomServer';
 import { extractZoomMeetingId } from '../../../lib/zoomUtils';
 import {
   getMongoFromEnv,
@@ -107,6 +111,20 @@ function idsMatch(a, b) {
   return leftNorm === rightNorm;
 }
 
+const ZOOM_STREAM_FETCH_MS = 45_000;
+
+/** Log download URLs without query params (may contain short-lived tokens). */
+function sanitizeZoomUrlForLog(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return raw.split('?')[0];
+  }
+}
+
 /** Allow unauthenticated playback only for the published welcome free-session video. */
 async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoomByMeetingIdRoute }) {
   const systemEnabled =
@@ -199,10 +217,22 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Zoom meeting ID is required' });
     }
 
+    const streamStartedAt = Date.now();
+    let retryAttempt = 0;
+
     try {
       const stableId = extractZoomMeetingId(zoomIdentifier) || zoomIdentifier;
+      console.log('[zoom-stream] start', {
+        recordingId: stableId,
+        method: req.method,
+        hasRange: Boolean(req.headers.range),
+      });
 
       const fetchUpstream = async (forceRefresh) => {
+        if (forceRefresh) {
+          clearZoomAccessTokenCache();
+        }
+
         const downloadUrl = await resolveZoomMp4DownloadUrl(stableId, forceRefresh);
         const token = await getZoomAccessToken(forceRefresh);
         const upstreamHeaders = {
@@ -211,28 +241,73 @@ export default async function handler(req, res) {
         if (req.headers.range) {
           upstreamHeaders.Range = req.headers.range;
         }
-        const response = await fetch(downloadUrl, {
-          method: req.method,
-          headers: upstreamHeaders,
-        });
-        return { response, downloadUrl };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), ZOOM_STREAM_FETCH_MS);
+        const fetchStartedAt = Date.now();
+
+        try {
+          const response = await fetch(downloadUrl, {
+            method: req.method,
+            headers: upstreamHeaders,
+            signal: controller.signal,
+          });
+          console.log('[zoom-stream] upstream response', {
+            recordingId: stableId,
+            forceRefresh,
+            status: response.status,
+            downloadUrl: sanitizeZoomUrlForLog(downloadUrl),
+            durationMs: Date.now() - fetchStartedAt,
+          });
+          return { response, downloadUrl };
+        } catch (error) {
+          if (error?.name === 'AbortError' || error?.code === 'ABORT_ERR') {
+            console.error('[zoom-stream] timeout', {
+              recordingId: stableId,
+              forceRefresh,
+              timeoutMs: ZOOM_STREAM_FETCH_MS,
+              downloadUrl: sanitizeZoomUrlForLog(downloadUrl),
+            });
+            const err = new Error(`Zoom stream request timed out after ${ZOOM_STREAM_FETCH_MS}ms`);
+            err.statusCode = 504;
+            err.isTimeout = true;
+            throw err;
+          }
+          throw error;
+        } finally {
+          clearTimeout(timeoutId);
+        }
       };
 
       let { response: zoomVideoResponse } = await fetchUpstream(false);
 
-      // Token or download_url expired — refresh OAuth + re-resolve fresh download_url
+      // Token or download_url expired — refresh OAuth + re-resolve fresh download_url once
       if (
         zoomVideoResponse.status === 401 ||
         zoomVideoResponse.status === 403
       ) {
+        retryAttempt = 1;
+        console.log('[zoom-stream] retry after auth/download expiry', {
+          recordingId: stableId,
+          upstreamStatus: zoomVideoResponse.status,
+          retryAttempt,
+        });
+        clearZoomAccessTokenCache();
         ({ response: zoomVideoResponse } = await fetchUpstream(true));
       }
 
       if (!zoomVideoResponse.ok) {
+        console.error('[zoom-stream] upstream failure', {
+          recordingId: stableId,
+          status: zoomVideoResponse.status,
+          retryAttempt,
+          durationMs: Date.now() - streamStartedAt,
+        });
         if (zoomVideoResponse.status === 404) {
           return res.status(404).json({ error: 'No recording found for this meeting' });
         }
         if (zoomVideoResponse.status === 401) {
+          clearZoomAccessTokenCache();
           return res.status(401).json({ error: 'Zoom token expired' });
         }
         return res.status(502).json({ error: 'Zoom video streaming failed' });
@@ -258,6 +333,11 @@ export default async function handler(req, res) {
       res.statusCode = zoomVideoResponse.status;
 
       if (req.method === 'HEAD') {
+        console.log('[zoom-stream] head completed', {
+          recordingId: stableId,
+          retryAttempt,
+          durationMs: Date.now() - streamStartedAt,
+        });
         return res.end();
       }
 
@@ -274,9 +354,22 @@ export default async function handler(req, res) {
 
       req.on('close', cleanup);
       req.on('aborted', cleanup);
-      stream.on('end', cleanup);
+      stream.on('end', () => {
+        console.log('[zoom-stream] completed', {
+          recordingId: stableId,
+          retryAttempt,
+          durationMs: Date.now() - streamStartedAt,
+        });
+        cleanup();
+      });
       stream.on('close', cleanup);
-      stream.on('error', () => {
+      stream.on('error', (streamError) => {
+        console.error('[zoom-stream] pipe error', {
+          recordingId: stableId,
+          retryAttempt,
+          message: streamError?.message || 'unknown',
+          durationMs: Date.now() - streamStartedAt,
+        });
         cleanup();
         if (!res.headersSent) {
           res.status(502).end();
@@ -288,10 +381,20 @@ export default async function handler(req, res) {
       return;
     } catch (error) {
       const statusCode = error?.statusCode || 500;
+      console.error('[zoom-stream] error', {
+        recordingId: extractZoomMeetingId(zoomIdentifier) || zoomIdentifier,
+        httpStatus: statusCode,
+        zoomCode: error?.zoomCode ?? error?.details?.code ?? null,
+        zoomMessage: error?.zoomMessage || error?.details?.message || error?.message || 'unknown',
+        retryAttempt,
+        isTimeout: Boolean(error?.isTimeout),
+        durationMs: Date.now() - streamStartedAt,
+      });
       if (statusCode === 404) {
         return res.status(404).json({ error: 'No recording found for this meeting' });
       }
       if (statusCode === 401) {
+        clearZoomAccessTokenCache();
         return res.status(401).json({ error: 'Zoom token expired' });
       }
       if (statusCode === 400) {
@@ -299,6 +402,12 @@ export default async function handler(req, res) {
       }
       if (statusCode === 409) {
         return res.status(409).json({ error: error.message || 'Ambiguous meeting ID' });
+      }
+      if (statusCode === 504 || error?.isTimeout) {
+        return res.status(504).json({
+          error: 'Zoom stream timed out',
+          details: error?.message || 'Upstream Zoom download stalled',
+        });
       }
       return res.status(502).json({
         error: 'Zoom API failure',

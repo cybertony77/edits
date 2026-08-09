@@ -14,6 +14,7 @@ import YoutubeEmbedWithProgress from '../../components/YoutubeEmbedWithProgress'
 import ZoomVideoPlayer from '../../components/ZoomVideoPlayer';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
+import { getStudentLesson } from '../../lib/studentLessons';
 
 // Input with Button Component (matching manage online system style)
 function InputWithButton(props) {
@@ -163,14 +164,14 @@ export default function HomeworksVideos() {
   // Helper function to check if student attended a specific lesson
   const checkLessonAttendance = (lessonName) => {
     if (!studentData || !studentData.lessons || !lessonName) return false;
-    const lessonData = studentData.lessons[lessonName];
+    const lessonData = getStudentLesson(studentData.lessons, lessonName);
     return lessonData && lessonData.attended === true;
   };
 
   /** Unlock when lessons[lessonName].hwDone exists and is not false (needs VHC otherwise). */
   const checkLessonHomeworkDoneForVideo = (lessonName) => {
     if (!studentData?.lessons || !lessonName) return false;
-    const lessonData = studentData.lessons[lessonName];
+    const lessonData = getStudentLesson(studentData.lessons, lessonName);
     if (!lessonData || typeof lessonData !== 'object') return false;
     if (!Object.prototype.hasOwnProperty.call(lessonData, 'hwDone')) return false;
     if (lessonData.hwDone === false) return false;

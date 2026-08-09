@@ -78,12 +78,14 @@ function DevToolsProtection({ userRole, devtoolsBlockEnabled }) {
     '/contact_developer',
     '/contact_assistants',
     '/welcome',
+    '/leave-a-review',
     '/forgot_password',
     '/404',
     '/student_not_found',
     '/student_info'
   ];
-  const isPublicPage = publicPagesList.includes(currentPath);
+  const isPublicPage =
+    publicPagesList.includes(currentPath) || currentPath.startsWith('/leave-a-review');
 
   // Check if user is developer
   const isDeveloper = userRole === 'developer';
@@ -296,11 +298,13 @@ function DevToolsProtection({ userRole, devtoolsBlockEnabled }) {
       '/contact_developer',
       '/contact_assistants',
       '/welcome',
+      '/leave-a-review',
       '/forgot_password',
       '/404',
       '/student_not_found'
     ];
-    const isPublicPage = publicPagesList.includes(currentPath);
+    const isPublicPage =
+      publicPagesList.includes(currentPath) || currentPath.startsWith('/leave-a-review');
     
     // On public pages (without token), show message but don't redirect
     if (isPublicPage && devToolsDetected) {
@@ -472,11 +476,13 @@ function DevToolsProtection({ userRole, devtoolsBlockEnabled }) {
       '/contact_developer',
       '/contact_assistants',
       '/welcome',
+      '/leave-a-review',
       '/forgot_password',
       '/404',
       '/student_not_found'
     ];
-    const isPublicPage = publicPagesList.includes(currentPath);
+    const isPublicPage =
+      publicPagesList.includes(currentPath) || currentPath.startsWith('/leave-a-review');
     
     return (
       <>
@@ -941,10 +947,10 @@ export default function App({ Component, pageProps, systemBackground }) {
   const [isSubscriptionEnabled, setIsSubscriptionEnabled] = useState(true); // Default to true
 
   // Define public pages using useMemo to prevent recreation on every render
-  const publicPages = useMemo(() => ["/", "/sign-up", "/contact_developer", "/contact_assistants", "/welcome", "/404", "/forgot_password", "/student_not_found", "/dashboard/student_info"], []);
+  const publicPages = useMemo(() => ["/", "/sign-up", "/contact_developer", "/contact_assistants", "/welcome", "/leave-a-review", "/404", "/forgot_password", "/student_not_found", "/dashboard/student_info"], []);
   
   // Define pages that should never show header/footer (even if authenticated)
-  const noHeaderFooterPages = useMemo(() => ["/", "/sign-up", "/student_dashboard/my_homeworks/start", "/student_dashboard/my_quizzes/start"], []);
+  const noHeaderFooterPages = useMemo(() => ["/", "/sign-up", "/leave-a-review", "/student_dashboard/my_homeworks/start", "/student_dashboard/my_quizzes/start"], []);
   
   // Define admin-only pages
   const adminPages = useMemo(() => [
@@ -1559,7 +1565,7 @@ export default function App({ Component, pageProps, systemBackground }) {
                   <Component {...pageProps} />
                 </div>
               </div>
-            ) : router.pathname === "/welcome" ? (
+            ) : router.pathname === "/welcome" || router.pathname === "/leave-a-review" ? (
               <div
                 style={{
                   display: "flex",
@@ -1568,7 +1574,7 @@ export default function App({ Component, pageProps, systemBackground }) {
                 }}
               >
                 <Component {...pageProps} />
-                <Footer />
+                {router.pathname === "/welcome" ? <Footer /> : null}
               </div>
             ) : (
               <Component {...pageProps} />

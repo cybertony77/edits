@@ -2,6 +2,7 @@ import { MongoClient } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../lib/authMiddleware';
+import { getStudentLesson } from '../../../lib/studentLessons';
 
 function loadEnvConfig() {
   try {
@@ -109,12 +110,12 @@ export default async function handler(req, res) {
       // For 'free_if_homework_done', unlock only if lessons[lesson].hwDone is present and not false
       const sessionsWithAttendance = filteredSessions.map((session) => {
         if (session.payment_state === 'free_if_attended' && session.lesson) {
-          const lessonData = studentLessons[session.lesson];
+          const lessonData = getStudentLesson(studentLessons, session.lesson);
           const attended = lessonData && lessonData.attended === true;
           return { ...session, _isFreeIfAttended: true, _attended: attended };
         }
         if (session.payment_state === 'free_if_homework_done' && session.lesson) {
-          const lessonData = studentLessons[session.lesson];
+          const lessonData = getStudentLesson(studentLessons, session.lesson);
           let hwDoneUnlocks = false;
           if (
             lessonData &&

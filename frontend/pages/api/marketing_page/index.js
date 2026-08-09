@@ -171,6 +171,38 @@ export default async function handler(req, res) {
             .filter((p) => p.name && p.phone)
         : [];
 
+      const rawShow = doc.testimonials_to_show;
+      const testimonials_to_show =
+        rawShow === null || rawShow === undefined || rawShow === ''
+          ? null
+          : Math.max(0, Math.floor(Number(rawShow)) || 0);
+
+      const activatedDocs = await db
+        .collection('testimonials')
+        .find({ state: 'Activated' })
+        .project({ name: 1, course: 1, text: 1, score: 1, rating: 1, id: 1 })
+        .toArray();
+
+      const activated_testimonials = activatedDocs
+        .map((t) => {
+          const ratingNum = Number(t.rating);
+          return {
+            id: t.id ?? null,
+            name: String(t.name || '').trim(),
+            course: String(t.course || '').trim(),
+            text: String(t.text || '').trim(),
+            score:
+              t.score === undefined || t.score === null || t.score === ''
+                ? null
+                : t.score,
+            rating:
+              Number.isFinite(ratingNum) && ratingNum > 0
+                ? Math.min(5, Math.max(1, Math.round(ratingNum)))
+                : null,
+          };
+        })
+        .filter((t) => t.name && t.course && t.text);
+
       const payload = {
         page_state: pageLive,
         teacher_picture: doc.teacher_picture ?? null,
@@ -187,6 +219,8 @@ export default async function handler(req, res) {
         contact_people,
         links: doc.links ?? null,
         students_testimonials: doc.students_testimonials ?? null,
+        testimonials_to_show,
+        activated_testimonials,
         outro_text: doc.outro_text ?? null,
         note: doc.note ?? null,
         centers: centers.map((c) => ({
@@ -343,6 +377,18 @@ export default async function handler(req, res) {
           if (updates.students_testimonials.length === 0) {
             updates.students_testimonials = null;
           }
+        }
+      }
+      if ('testimonials_to_show' in body) {
+        const v = body.testimonials_to_show;
+        if (v === null || v === '' || v === undefined) {
+          updates.testimonials_to_show = null;
+        } else {
+          const n = Number(v);
+          if (!Number.isFinite(n) || n < 0) {
+            return res.status(400).json({ error: 'Invalid testimonials_to_show' });
+          }
+          updates.testimonials_to_show = Math.floor(n);
         }
       }
       if ('outro_text' in body) {

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import { useVideoSeekGestures, VideoSeekFeedback, VideoPlayerChromeStyles } from "./videoSeekGestures";
 
 function buildVideoApiPath(r2Key) {
   if (!r2Key) return null;
@@ -33,6 +34,12 @@ export default function R2VideoPlayer({
     const path = buildVideoApiPath(r2Key);
     return path ? decodeURIComponent(path) : null;
   }, [r2Key]);
+
+  const { feedback, containerProps: seekContainerProps, isFullscreen } = useVideoSeekGestures(videoRef, {
+    enabled: Boolean(presignedUrl) && !error,
+    attachKey: presignedUrl,
+    containerRef: playerContainerRef,
+  });
 
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current) {
@@ -326,14 +333,16 @@ export default function R2VideoPlayer({
   return (
     <div
       ref={playerContainerRef}
+      {...seekContainerProps}
       style={{
         position: "relative",
         width: "100%",
         height: "auto",
-        maxHeight: "100vh",
+        maxHeight: "min(100vh, 100%)",
         aspectRatio: "16 / 9",
         overflow: "hidden",
         backgroundColor: "#000",
+        outline: "none",
       }}
     >
       <video
@@ -348,13 +357,17 @@ export default function R2VideoPlayer({
         style={{
           width: "100%",
           height: "100%",
-          maxHeight: "100vh",
+          maxHeight: "100%",
           aspectRatio: "16 / 9",
           backgroundColor: "#000",
           outline: "none",
           display: "block",
+          objectFit: "contain",
         }}
       />
+
+      <VideoPlayerChromeStyles />
+      <VideoSeekFeedback feedback={feedback} isFullscreen={isFullscreen} />
 
       {!hideWatermark ? (
         <div
