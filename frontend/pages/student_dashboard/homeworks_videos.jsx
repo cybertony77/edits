@@ -12,6 +12,7 @@ import NeedHelp from '../../components/NeedHelp';
 import R2VideoPlayer from '../../components/R2VideoPlayer';
 import YoutubeEmbedWithProgress from '../../components/YoutubeEmbedWithProgress';
 import ZoomVideoPlayer from '../../components/ZoomVideoPlayer';
+import GoogleMeetVideoPlayer from '../../components/GoogleMeetVideoPlayer';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
 import { getStudentLesson } from '../../lib/studentLessons';
@@ -1070,6 +1071,14 @@ export default function HomeworksVideos() {
                 ) : selectedVideo.video_type === 'zoom' ? (
                   <ZoomVideoPlayer
                     meetingId={selectedVideo.video_ID || selectedVideo.video_ID_1 || ''}
+                    videoId={selectedVideo._id}
+                    watermarkText={`${profile?.id || 'unknown'}`}
+                    onComplete={handleR2VideoCompleteHomework}
+                    onMilestonePercent={handleWatchTenPercentHomework}
+                  />
+                ) : selectedVideo.video_type === 'google_meet' ? (
+                  <GoogleMeetVideoPlayer
+                    secureId={selectedVideo.video_ID || selectedVideo.video_ID_1 || ''}
                     videoId={selectedVideo._id}
                     watermarkText={`${profile?.id || 'unknown'}`}
                     onComplete={handleR2VideoCompleteHomework}

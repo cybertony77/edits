@@ -29,6 +29,7 @@ import MarketingMultiSelect from '../components/MarketingMultiSelect';
 import VideoInput from '../components/VideoInput';
 import R2VideoPlayer from '../components/R2VideoPlayer';
 import ZoomVideoPlayer from '../components/ZoomVideoPlayer';
+import GoogleMeetVideoPlayer from '../components/GoogleMeetVideoPlayer';
 import YoutubeEmbedWithProgress from '../components/YoutubeEmbedWithProgress';
 import { useProfile } from '../lib/api/auth';
 import { useSystemConfig } from '../lib/api/system';
@@ -70,6 +71,7 @@ function emptySessionVideo() {
     video_source: 'youtube',
     r2_key: '',
     zoom_meeting_id: '',
+    google_meet_id: '',
     upload_file_name: '',
     upload_progress: 0,
     upload_status: 'idle',
@@ -93,6 +95,9 @@ function sessionVideoFromServer(json) {
   if (type === 'zoom' && id) {
     return { ...base, video_source: 'zoom', zoom_meeting_id: id };
   }
+  if (type === 'google_meet' && id) {
+    return { ...base, video_source: 'google_meet', google_meet_id: id };
+  }
   if (type === 'youtube' && id) {
     const ytId = extractYouTubeId(id) || id;
     return {
@@ -114,13 +119,16 @@ function sessionVideoFromServer(json) {
 function resolveSessionPlayback(videoOrData) {
   if (!videoOrData) return null;
 
-  if (videoOrData.video_source || videoOrData.youtube_url || videoOrData.r2_key || videoOrData.zoom_meeting_id) {
+  if (videoOrData.video_source || videoOrData.youtube_url || videoOrData.r2_key || videoOrData.zoom_meeting_id || videoOrData.google_meet_id) {
     if (videoOrData.r2_key && String(videoOrData.r2_key).trim()) {
       return { type: 'r2', id: String(videoOrData.r2_key).trim() };
     }
     if (videoOrData.zoom_meeting_id && String(videoOrData.zoom_meeting_id).trim()) {
       const meetingId = extractZoomMeetingId(videoOrData.zoom_meeting_id);
       if (meetingId) return { type: 'zoom', id: meetingId };
+    }
+    if (videoOrData.google_meet_id && String(videoOrData.google_meet_id).trim()) {
+      return { type: 'google_meet', id: String(videoOrData.google_meet_id).trim() };
     }
     if (videoOrData.youtube_url && String(videoOrData.youtube_url).trim()) {
       const ytId = extractYouTubeId(videoOrData.youtube_url);
@@ -136,7 +144,7 @@ function resolveSessionPlayback(videoOrData) {
 
   const type = (videoOrData.session_video_type || '').toLowerCase();
   const id = String(videoOrData.session_video_id || '').trim();
-  if (type && id && ['youtube', 'r2', 'zoom'].includes(type)) {
+  if (type && id && ['youtube', 'r2', 'zoom', 'google_meet'].includes(type)) {
     if (type === 'youtube') {
       const ytId = extractYouTubeId(id) || id;
       return { type: 'youtube', id: ytId };
@@ -939,7 +947,7 @@ export default function MarketingPage() {
   }, [updateSessionVideo]);
 
   const handleSessionYouTubeUrlChange = useCallback((_index, url) => {
-    updateSessionVideo({ youtube_url: url, video_source: 'youtube', r2_key: '', zoom_meeting_id: '' });
+    updateSessionVideo({ youtube_url: url, video_source: 'youtube', r2_key: '', zoom_meeting_id: '', google_meet_id: '' });
     setSessionVideoErrors((prev) => {
       const next = { ...prev };
       delete next.video_0_youtube_url;
@@ -957,6 +965,7 @@ export default function MarketingPage() {
       video_source: 'zoom',
       youtube_url: '',
       r2_key: '',
+      google_meet_id: '',
     });
     setSessionVideoErrors((prev) => {
       const next = { ...prev };
@@ -969,12 +978,32 @@ export default function MarketingPage() {
     updateSessionVideo({ zoom_meeting_id: '' });
   }, [updateSessionVideo]);
 
+  const handleSessionGoogleMeetIdChange = useCallback((_index, meetId) => {
+    updateSessionVideo({
+      google_meet_id: meetId,
+      video_source: 'google_meet',
+      youtube_url: '',
+      r2_key: '',
+      zoom_meeting_id: '',
+    });
+    setSessionVideoErrors((prev) => {
+      const next = { ...prev };
+      delete next.video_0_google_meet_id;
+      return next;
+    });
+  }, [updateSessionVideo]);
+
+  const handleSessionClearGoogleMeetId = useCallback(() => {
+    updateSessionVideo({ google_meet_id: '' });
+  }, [updateSessionVideo]);
+
   const handleSessionR2Upload = useCallback((_index, r2Key, fileName) => {
     updateSessionVideo({
       r2_key: r2Key,
       video_source: r2Key ? 'r2' : 'youtube',
       youtube_url: '',
       zoom_meeting_id: '',
+      google_meet_id: '',
       upload_file_name: fileName || '',
       upload_status: r2Key ? 'done' : 'idle',
       upload_progress: r2Key ? 100 : 0,
@@ -1716,7 +1745,7 @@ export default function MarketingPage() {
                     Students testimonials
                   </Title>
                   <p className={mp.testimonialsEditLead}>
-                    Choose how many activated reviews appear on the welcome page.
+                  Only activated testimonials will show.
                   </p>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Number of testimonials to show</label>
@@ -1730,9 +1759,6 @@ export default function MarketingPage() {
                       onChange={(e) => setTestimonialsToShow(e.target.value)}
                       placeholder="e.g. 5"
                     />
-                    <p className={mp.fieldHint}>
-                      Only activated testimonials will show
-                    </p>
                   </div>
                 </div>
               )}
@@ -1875,6 +1901,8 @@ export default function MarketingPage() {
                   onZoomMeetingIdChange={handleSessionZoomMeetingIdChange}
                   onClearYouTubeUrl={handleSessionClearYouTubeUrl}
                   onClearZoomMeetingId={handleSessionClearZoomMeetingId}
+                  onGoogleMeetIdChange={handleSessionGoogleMeetIdChange}
+                  onClearGoogleMeetId={handleSessionClearGoogleMeetId}
                   onR2Upload={handleSessionR2Upload}
                   onClearR2Upload={handleSessionClearR2Upload}
                   onVideoSourceChange={handleSessionVideoSourceChange}
@@ -1893,6 +1921,8 @@ export default function MarketingPage() {
                   <R2VideoPlayer r2Key={sessionPlayback.id} hideWatermark />
                 ) : sessionPlayback.type === 'zoom' ? (
                   <ZoomVideoPlayer meetingId={sessionPlayback.id} hideWatermark />
+                ) : sessionPlayback.type === 'google_meet' ? (
+                  <GoogleMeetVideoPlayer secureId={sessionPlayback.id} hideWatermark />
                 ) : (
                   <YoutubeEmbedWithProgress youtubeVideoId={sessionPlayback.id} hideWatermark />
                 )}

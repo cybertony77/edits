@@ -1,0 +1,487 @@
+import { google } from 'googleapis';
+import { MongoClient } from 'mongodb';
+import fs from 'fs';
+import path from 'path';
+import {
+  decodeGoogleMeetSecureId,
+  decryptSecret,
+  encodeGoogleMeetSecureId,
+  encryptSecret,
+} from './googleVideoIds';
+
+const MEET_SCOPE = 'https://www.googleapis.com/auth/drive.meet.readonly';
+const TOKEN_SKEW_MS = 60_000;
+
+function loadEnvConfig() {
+  try {
+    const envPath = path.join(process.cwd(), '..', 'env.config');
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const envVars = {};
+    envContent.split('\n').forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const index = trimmed.indexOf('=');
+      if (index === -1) return;
+      const key = trimmed.substring(0, index).trim();
+      let value = trimmed.substring(index + 1).trim();
+      value = value.replace(/^"|"$/g, '');
+      envVars[key] = value;
+    });
+    return envVars;
+  } catch {
+    return {};
+  }
+}
+
+const envConfig = loadEnvConfig();
+
+export function getGoogleOAuthConfig() {
+  const clientId = envConfig.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
+  const clientSecret =
+    envConfig.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || '';
+  const redirectUri =
+    envConfig.GOOGLE_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || '';
+  return { clientId, clientSecret, redirectUri };
+}
+
+export function isGoogleMeetConfigured() {
+  const { clientId, clientSecret, redirectUri } = getGoogleOAuthConfig();
+  return Boolean(clientId && clientSecret && redirectUri);
+}
+
+function getMongo() {
+  const MONGO_URI =
+    envConfig.MONGO_URI ||
+    process.env.MONGO_URI ||
+    'mongodb://localhost:27017/demo-attendance-system';
+  const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'demo-attendance-system';
+  return { MONGO_URI, DB_NAME };
+}
+
+function createOAuthClient() {
+  const { clientId, clientSecret, redirectUri } = getGoogleOAuthConfig();
+  if (!clientId || !clientSecret || !redirectUri) {
+    const err = new Error('Google Meet OAuth is not configured');
+    err.statusCode = 500;
+    throw err;
+  }
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+/** In-memory access-token cache keyed by staff user id. */
+const accessTokenCache = new Map();
+
+export function clearGoogleAccessTokenCache(ownerUserId) {
+  if (ownerUserId == null || ownerUserId === '') {
+    accessTokenCache.clear();
+    return;
+  }
+  accessTokenCache.delete(String(ownerUserId));
+}
+
+export function getGoogleAuthUrl(state) {
+  const client = createOAuthClient();
+  return client.generateAuthUrl({
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: true,
+    scope: [MEET_SCOPE],
+    state: String(state || ''),
+  });
+}
+
+export async function exchangeGoogleAuthCode(code) {
+  const client = createOAuthClient();
+  const { tokens } = await client.getToken(String(code || ''));
+  return tokens;
+}
+
+async function withUsersCollection(fn) {
+  const { MONGO_URI, DB_NAME } = getMongo();
+  let client;
+  try {
+    client = await MongoClient.connect(MONGO_URI);
+    const db = client.db(DB_NAME);
+    return await fn(db.collection('users'), db);
+  } finally {
+    if (client) await client.close();
+  }
+}
+
+export async function getGoogleMeetIntegration(ownerUserId) {
+  const id = ownerUserId;
+  if (id == null || id === '') return null;
+  return withUsersCollection(async (users) => {
+    const user =
+      (await users.findOne({ id: id })) ||
+      (await users.findOne({ id: Number(id) })) ||
+      (await users.findOne({ id: String(id) }));
+    const integration = user?.google_meet;
+    if (!integration || !integration.connected) return null;
+    return {
+      userId: user.id,
+      email: integration.email || '',
+      connectedAt: integration.connected_at || null,
+      refreshTokenEnc: integration.refresh_token || '',
+    };
+  });
+}
+
+export async function saveGoogleMeetIntegration(ownerUserId, { email, refreshToken }) {
+  const id = ownerUserId;
+  if (id == null || id === '') {
+    throw new Error('Missing user id for Google Meet integration');
+  }
+  const refresh = String(refreshToken || '').trim();
+  if (!refresh) {
+    throw new Error('Google did not return a refresh token. Reconnect and grant consent.');
+  }
+
+  return withUsersCollection(async (users) => {
+    const filter = {
+      $or: [{ id }, { id: Number(id) }, { id: String(id) }],
+    };
+    const result = await users.updateOne(filter, {
+      $set: {
+        google_meet: {
+          connected: true,
+          email: String(email || '').trim(),
+          refresh_token: encryptSecret(refresh),
+          connected_at: new Date().toISOString(),
+        },
+      },
+    });
+    if (!result.matchedCount) {
+      throw new Error('User not found while saving Google Meet integration');
+    }
+    clearGoogleAccessTokenCache(id);
+    return true;
+  });
+}
+
+export async function disconnectGoogleMeetIntegration(ownerUserId) {
+  const id = ownerUserId;
+  if (id == null || id === '') return false;
+  return withUsersCollection(async (users) => {
+    await users.updateOne(
+      { $or: [{ id }, { id: Number(id) }, { id: String(id) }] },
+      {
+        $set: {
+          'google_meet.connected': false,
+          'google_meet.email': '',
+          'google_meet.refresh_token': '',
+          'google_meet.disconnected_at': new Date().toISOString(),
+        },
+      }
+    );
+    clearGoogleAccessTokenCache(id);
+    return true;
+  });
+}
+
+export async function markGoogleMeetDisconnected(ownerUserId) {
+  return disconnectGoogleMeetIntegration(ownerUserId);
+}
+
+async function fetchGoogleUserEmail(accessToken) {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return String(data?.email || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+export async function completeGoogleOAuthForUser(ownerUserId, code) {
+  const tokens = await exchangeGoogleAuthCode(code);
+  const refreshToken = tokens.refresh_token;
+  const accessToken = tokens.access_token;
+  let email = '';
+  if (accessToken) {
+    email = await fetchGoogleUserEmail(accessToken);
+  }
+  // If Google did not return a new refresh token, keep the previous one when reconnecting
+  if (!refreshToken) {
+    const existing = await getGoogleMeetIntegration(ownerUserId);
+    if (existing?.refreshTokenEnc) {
+      const prev = decryptSecret(existing.refreshTokenEnc);
+      if (prev) {
+        await saveGoogleMeetIntegration(ownerUserId, { email: email || existing.email, refreshToken: prev });
+        if (accessToken) {
+          accessTokenCache.set(String(ownerUserId), {
+            token: accessToken,
+            expiresAt: Date.now() + Math.max(0, (tokens.expiry_date || Date.now() + 3500_000) - Date.now()),
+          });
+        }
+        return { email: email || existing.email };
+      }
+    }
+    const err = new Error(
+      'Google did not return a refresh token. Disconnect Google, then connect again and approve access.'
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  await saveGoogleMeetIntegration(ownerUserId, { email, refreshToken });
+  if (accessToken) {
+    accessTokenCache.set(String(ownerUserId), {
+      token: accessToken,
+      expiresAt: tokens.expiry_date || Date.now() + 3500_000,
+    });
+  }
+  return { email };
+}
+
+/**
+ * Returns a valid access token for the staff user who connected Google.
+ * On invalid_grant, marks integration disconnected and throws.
+ */
+export async function getGoogleAccessTokenForUser(ownerUserId, forceRefresh = false) {
+  const ownerKey = String(ownerUserId ?? '').trim();
+  if (!ownerKey) {
+    const err = new Error('Google account connection required.');
+    err.statusCode = 403;
+    err.code = 'GOOGLE_NOT_CONNECTED';
+    throw err;
+  }
+
+  const cached = accessTokenCache.get(ownerKey);
+  if (
+    !forceRefresh &&
+    cached?.token &&
+    cached.expiresAt &&
+    cached.expiresAt - TOKEN_SKEW_MS > Date.now()
+  ) {
+    return cached.token;
+  }
+
+  const integration = await getGoogleMeetIntegration(ownerUserId);
+  if (!integration?.refreshTokenEnc) {
+    const err = new Error('Google account connection required.');
+    err.statusCode = 403;
+    err.code = 'GOOGLE_NOT_CONNECTED';
+    throw err;
+  }
+
+  const refreshToken = decryptSecret(integration.refreshTokenEnc);
+  if (!refreshToken) {
+    await markGoogleMeetDisconnected(ownerUserId);
+    const err = new Error('Google account connection required.');
+    err.statusCode = 403;
+    err.code = 'GOOGLE_NOT_CONNECTED';
+    throw err;
+  }
+
+  const client = createOAuthClient();
+  client.setCredentials({ refresh_token: refreshToken });
+
+  try {
+    const { credentials } = await client.refreshAccessToken();
+    const token = credentials.access_token;
+    if (!token) {
+      throw new Error('Failed to refresh Google access token');
+    }
+    accessTokenCache.set(ownerKey, {
+      token,
+      expiresAt: credentials.expiry_date || Date.now() + 3500_000,
+    });
+    return token;
+  } catch (error) {
+    const msg = String(error?.message || error?.response?.data?.error || '');
+    const dataError = error?.response?.data?.error;
+    if (
+      dataError === 'invalid_grant' ||
+      msg.includes('invalid_grant') ||
+      msg.includes('Token has been expired or revoked')
+    ) {
+      await markGoogleMeetDisconnected(ownerUserId);
+      const err = new Error('Google account connection required.');
+      err.statusCode = 403;
+      err.code = 'GOOGLE_NOT_CONNECTED';
+      throw err;
+    }
+    throw error;
+  }
+}
+
+function formatDateTime(dateString) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Cairo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).formatToParts(date);
+    const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
+    return `${getPart('day')}/${getPart('month')}/${getPart('year')} at ${getPart('hour')}:${getPart('minute')} ${(getPart('dayPeriod') || '').toUpperCase()}`;
+  } catch {
+    return date.toISOString();
+  }
+}
+
+function formatDurationMs(durationMs) {
+  const totalSec = Math.max(0, Math.floor(Number(durationMs || 0) / 1000));
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  return `${String(hours).padStart(2, '0')}h:${String(mins).padStart(2, '0')}m`;
+}
+
+export async function listGoogleMeetRecordings(ownerUserId, pageToken = '') {
+  const accessToken = await getGoogleAccessTokenForUser(ownerUserId);
+  const client = createOAuthClient();
+  client.setCredentials({ access_token: accessToken });
+  const drive = google.drive({ version: 'v3', auth: client });
+
+  let response;
+  try {
+    response = await drive.files.list({
+      q: "mimeType contains 'video/' and trashed = false",
+      pageSize: 50,
+      pageToken: pageToken || undefined,
+      orderBy: 'createdTime desc',
+      fields:
+        'nextPageToken, files(id, name, createdTime, modifiedTime, mimeType, size, videoMediaMetadata, webViewLink)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+  } catch (error) {
+    const status = error?.response?.status;
+    if (status === 401) {
+      clearGoogleAccessTokenCache(ownerUserId);
+      const retryToken = await getGoogleAccessTokenForUser(ownerUserId, true);
+      client.setCredentials({ access_token: retryToken });
+      response = await drive.files.list({
+        q: "mimeType contains 'video/' and trashed = false",
+        pageSize: 50,
+        pageToken: pageToken || undefined,
+        orderBy: 'createdTime desc',
+        fields:
+          'nextPageToken, files(id, name, createdTime, modifiedTime, mimeType, size, videoMediaMetadata)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+    } else {
+      throw error;
+    }
+  }
+
+  const files = Array.isArray(response?.data?.files) ? response.data.files : [];
+  const recordings = files.map((file) => {
+    const fileId = String(file.id || '').trim();
+    const secureId = encodeGoogleMeetSecureId({
+      fileId,
+      ownerUserId,
+    });
+    const durationMs = Number(file?.videoMediaMetadata?.durationMillis || 0);
+    return {
+      id: secureId,
+      title: file.name || 'Untitled recording',
+      name: file.name || 'Untitled recording',
+      createdAt: file.createdTime || null,
+      modifiedAt: file.modifiedTime || null,
+      mimeType: file.mimeType || '',
+      size: file.size != null ? Number(file.size) : null,
+      durationMs: durationMs || null,
+      created_at_formated: formatDateTime(file.createdTime),
+      duration_furmated: durationMs ? formatDurationMs(durationMs) : '-',
+    };
+  });
+
+  return {
+    recordings,
+    next_page_token: response?.data?.nextPageToken || '',
+  };
+}
+
+/**
+ * Stream a private Drive file. Forwards Range when provided.
+ * Does not buffer the whole file in memory.
+ */
+export async function fetchGoogleDriveFileStream({
+  ownerUserId,
+  fileId,
+  rangeHeader,
+  method = 'GET',
+  forceRefresh = false,
+}) {
+  const accessToken = await getGoogleAccessTokenForUser(ownerUserId, forceRefresh);
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`;
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+  };
+  if (rangeHeader) {
+    headers.Range = rangeHeader;
+  }
+
+  const response = await fetch(url, { method, headers });
+
+  if (response.status === 401 || response.status === 403) {
+    clearGoogleAccessTokenCache(ownerUserId);
+    const retryToken = await getGoogleAccessTokenForUser(ownerUserId, true);
+    headers.Authorization = `Bearer ${retryToken}`;
+    return fetch(url, { method, headers });
+  }
+
+  return response;
+}
+
+/**
+ * Confirm the Drive file id is assigned to at least one lesson/video in our DB.
+ */
+export async function assertGoogleMeetFileAssigned(fileId) {
+  const id = String(fileId || '').trim();
+  if (!id) return false;
+  const { MONGO_URI, DB_NAME } = getMongo();
+  let client;
+  try {
+    client = await MongoClient.connect(MONGO_URI);
+    const db = client.db(DB_NAME);
+
+    const orClauses = [
+      { session_video_type: 'google_meet', session_video_id: id },
+    ];
+    for (let i = 1; i <= 30; i += 1) {
+      orClauses.push({
+        [`video_type_${i}`]: 'google_meet',
+        [`video_ID_${i}`]: id,
+      });
+    }
+
+    for (const name of ['online_sessions', 'homeworks_videos', 'marketing_page']) {
+      const hit = await db.collection(name).findOne({ $or: orClauses }, { projection: { _id: 1 } });
+      if (hit) return true;
+    }
+    return false;
+  } finally {
+    if (client) await client.close();
+  }
+}
+
+/**
+ * Resolve google_meet video_id from client (secure id) into DB fields.
+ */
+export function resolveGoogleMeetVideoForSave(videoId, fallbackOwnerUserId) {
+  const raw = String(videoId || '').trim();
+  if (!raw) return null;
+
+  const decoded = decodeGoogleMeetSecureId(raw);
+  if (decoded?.fileId) {
+    return {
+      fileId: decoded.fileId,
+      ownerUserId: decoded.ownerUserId || String(fallbackOwnerUserId || ''),
+    };
+  }
+
+  // Reject raw Drive file ids from the client — only opaque secure ids are accepted.
+  return null;
+}

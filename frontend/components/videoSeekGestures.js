@@ -41,13 +41,51 @@ async function exitFullscreenDoc() {
   if (document.msExitFullscreen) return document.msExitFullscreen();
 }
 
+const STUCK_FS_STYLE_PROPS = [
+  'width', 'height', 'max-width', 'max-height', 'aspect-ratio', 'position',
+  'inset', 'top', 'right', 'bottom', 'left', 'object-fit', 'display',
+  'overflow', 'margin', 'padding', 'border', 'border-radius', 'background',
+  'background-color',
+];
+
+/** Strip only legacy imperative fullscreen overrides (!important / 100vh). */
+function clearStuckFullscreenStyles(container, video) {
+  [container, video].forEach((el) => {
+    if (!el?.style) return;
+    STUCK_FS_STYLE_PROPS.forEach((prop) => {
+      if (el.style.getPropertyPriority?.(prop) === 'important') {
+        el.style.removeProperty(prop);
+      }
+    });
+  });
+  if (container?.style?.height === '100vh') {
+    container.style.removeProperty('height');
+    container.style.removeProperty('width');
+  }
+}
+
+function isOurFullscreen(fs, container, video) {
+  if (!fs) return false;
+  if (container && (fs === container || container.contains(fs))) return true;
+  if (video && fs === video) return true;
+  return false;
+}
+
 /**
  * Fullscreen the player container so seek UI stays visible.
  * Do NOT mutate inline styles — :fullscreen CSS handles fill layout.
+ * Never exit+re-enter in the same gesture (browsers drop user activation).
  */
 export async function togglePlayerFullscreen(container, video) {
   const current = getFullscreenElement();
   try {
+    if (isOurFullscreen(current, container, video)) {
+      await exitFullscreenDoc();
+      clearStuckFullscreenStyles(container, video);
+      return false;
+    }
+
+    // Another element is fullscreen — exit only; do not chain-enter here.
     if (current) {
       await exitFullscreenDoc();
       return false;
@@ -64,16 +102,18 @@ export async function togglePlayerFullscreen(container, video) {
       await target.webkitRequestFullscreen();
       return true;
     }
-    if (video && typeof video.webkitEnterFullscreen === 'function') {
-      video.webkitEnterFullscreen();
-      return true;
-    }
     if (typeof target.msRequestFullscreen === 'function') {
       await target.msRequestFullscreen();
       return true;
     }
+    // iOS Safari: only the video element can go fullscreen.
+    if (video && typeof video.webkitEnterFullscreen === 'function') {
+      video.webkitEnterFullscreen();
+      return true;
+    }
     return false;
   } catch {
+    clearStuckFullscreenStyles(container, video);
     return Boolean(getFullscreenElement());
   }
 }
@@ -90,7 +130,6 @@ export function useVideoSeekGestures(
   const hideTimerRef = useRef(null);
   const isHoveredRef = useRef(false);
   const lastTapRef = useRef({ at: 0, side: null });
-  const upgradingFsRef = useRef(false);
 
   const clearFeedbackTimer = useCallback(() => {
     if (hideTimerRef.current) {
@@ -121,6 +160,10 @@ export function useVideoSeekGestures(
     [videoRef, showFeedback]
   );
 
+  const toggleFullscreen = useCallback(() => {
+    return togglePlayerFullscreen(containerRef?.current, videoRef.current);
+  }, [containerRef, videoRef]);
+
   const isPlayerContextActive = useCallback(() => {
     const video = videoRef.current;
     const container = containerRef?.current;
@@ -128,7 +171,7 @@ export function useVideoSeekGestures(
     const fs = getFullscreenElement();
 
     if (isHoveredRef.current) return true;
-    if (fs && (fs === container || fs === video || (container && container.contains(fs)))) return true;
+    if (isOurFullscreen(fs, container, video)) return true;
     if (video && (active === video || video.contains?.(active))) return true;
     if (container && active && container.contains(active)) return true;
     return false;
@@ -136,7 +179,7 @@ export function useVideoSeekGestures(
 
   useEffect(() => () => clearFeedbackTimer(), [clearFeedbackTimer]);
 
-  // Clear leftover imperative fullscreen styles from older builds only.
+  // Clear leftover imperative fullscreen styles from older builds / failed exits.
   useEffect(() => {
     if (getFullscreenElement()) return;
     const container = containerRef?.current;
@@ -146,64 +189,47 @@ export function useVideoSeekGestures(
       container?.style?.getPropertyPriority?.('height') === 'important' ||
       container?.style?.height === '100vh' ||
       video?.style?.getPropertyPriority?.('position') === 'important' ||
-      video?.style?.position === 'absolute';
+      video?.style?.getPropertyPriority?.('inset') === 'important';
 
     if (!looksLikeStuckFs) return;
-
-    const props = [
-      'width', 'height', 'max-width', 'max-height', 'aspect-ratio', 'position',
-      'inset', 'top', 'right', 'bottom', 'left', 'object-fit', 'display',
-      'overflow', 'margin', 'padding', 'border', 'border-radius', 'background',
-      'background-color',
-    ];
-    props.forEach((prop) => {
-      container?.style?.removeProperty(prop);
-      video?.style?.removeProperty(prop);
-    });
+    clearStuckFullscreenStyles(container, video);
   }, [containerRef, videoRef, attachKey]);
 
-  // Sync fullscreen flag. If native button fullscreens <video> alone, upgrade to container.
+  // Sync fullscreen flag only — never exit+re-enter (that drops user activation).
   useEffect(() => {
     if (!enabled) return undefined;
 
-    const syncFullscreen = async () => {
+    const syncFullscreen = () => {
       const fs = getFullscreenElement();
       const video = videoRef.current;
       const container = containerRef?.current;
-
-      if (fs && video && container && fs === video && !upgradingFsRef.current) {
-        upgradingFsRef.current = true;
-        try {
-          await exitFullscreenDoc();
-          if (typeof container.requestFullscreen === 'function') {
-            await container.requestFullscreen();
-          } else if (typeof container.webkitRequestFullscreen === 'function') {
-            await container.webkitRequestFullscreen();
-          }
-        } catch {
-          // ignore — fall through to state sync
-        } finally {
-          upgradingFsRef.current = false;
-        }
-        setIsFullscreen(Boolean(getFullscreenElement()));
-        return;
-      }
-
-      const active =
-        Boolean(fs) &&
-        (fs === container || fs === video || (container && container.contains(fs)));
+      const active = isOurFullscreen(fs, container, video);
       setIsFullscreen(active);
+      if (!active) {
+        clearStuckFullscreenStyles(container, video);
+      }
+    };
+
+    const onWebkitBegin = () => setIsFullscreen(true);
+    const onWebkitEnd = () => {
+      setIsFullscreen(false);
+      clearStuckFullscreenStyles(containerRef?.current, videoRef.current);
     };
 
     document.addEventListener('fullscreenchange', syncFullscreen);
     document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    const video = videoRef.current;
+    video?.addEventListener?.('webkitbeginfullscreen', onWebkitBegin);
+    video?.addEventListener?.('webkitendfullscreen', onWebkitEnd);
     syncFullscreen();
 
     return () => {
       document.removeEventListener('fullscreenchange', syncFullscreen);
       document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+      video?.removeEventListener?.('webkitbeginfullscreen', onWebkitBegin);
+      video?.removeEventListener?.('webkitendfullscreen', onWebkitEnd);
     };
-  }, [enabled, containerRef, videoRef]);
+  }, [enabled, containerRef, videoRef, attachKey]);
 
   // Capture-phase keyboard: arrows seek 10s; F toggles container fullscreen.
   useEffect(() => {
@@ -241,7 +267,7 @@ export function useVideoSeekGestures(
       }
 
       if (isF) {
-        togglePlayerFullscreen(container, video);
+        toggleFullscreen();
         return;
       }
 
@@ -250,7 +276,7 @@ export function useVideoSeekGestures(
 
     document.addEventListener('keydown', onKeyDownCapture, true);
     return () => document.removeEventListener('keydown', onKeyDownCapture, true);
-  }, [enabled, seekBySide, isPlayerContextActive, videoRef, containerRef]);
+  }, [enabled, seekBySide, isPlayerContextActive, toggleFullscreen, videoRef, containerRef]);
 
   // Double-click + double-tap (mobile) on the video element
   useEffect(() => {
@@ -329,6 +355,7 @@ export function useVideoSeekGestures(
     containerProps,
     seekBySide,
     isFullscreen,
+    toggleFullscreen,
   };
 }
 
@@ -371,6 +398,12 @@ export function VideoPlayerChromeStyles() {
         object-fit: contain !important;
         background: #000 !important;
         box-sizing: border-box !important;
+      }
+      .video-player-root > video:fullscreen,
+      .video-player-root > video:-webkit-full-screen,
+      .video-player-root > video:-moz-full-screen {
+        object-fit: contain !important;
+        background: #000 !important;
       }
       .video-player-root:fullscreen .video-seek-feedback-root,
       .video-player-root:-webkit-full-screen .video-seek-feedback-root {

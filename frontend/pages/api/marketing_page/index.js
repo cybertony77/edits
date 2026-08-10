@@ -8,6 +8,10 @@ import {
   MARKETING_DOC_ID,
   defaultMarketingDoc,
 } from '../../../lib/marketingPageMongo';
+import { resolveGoogleMeetVideoForSave } from '../../../lib/googleServer';
+import {
+  encodeGoogleMeetSecureId,
+} from '../../../lib/googleVideoIds';
 
 function tryDecodeJwt(req, jwtSecret) {
   const token = getCookieValue(req.headers?.cookie, 'token');
@@ -213,7 +217,13 @@ export default async function handler(req, res) {
         years_of_experience: doc.years_of_experience ?? null,
         yt_session_link: doc.yt_session_link ?? null,
         session_video_type,
-        session_video_id,
+        session_video_id:
+          String(session_video_type || '').toLowerCase() === 'google_meet' && session_video_id
+            ? encodeGoogleMeetSecureId({
+                fileId: session_video_id,
+                ownerUserId: doc.session_video_google_owner || '',
+              })
+            : session_video_id,
         dates_of_session_ids: centerIds.map((id) => id.toString()),
         contact_assistant_ids: assistantIds.map((id) => id.toString()),
         contact_people,
@@ -316,12 +326,28 @@ export default async function handler(req, res) {
         if (!type || !id) {
           updates.session_video_type = null;
           updates.session_video_id = null;
+          updates.session_video_google_owner = null;
           updates.yt_session_link = null;
-        } else if (!['youtube', 'r2', 'zoom'].includes(type)) {
+        } else if (!['youtube', 'r2', 'zoom', 'google_meet'].includes(type)) {
           return res.status(400).json({ error: 'Invalid session_video_type' });
+        } else if (type === 'google_meet') {
+          const resolved = resolveGoogleMeetVideoForSave(
+            id,
+            user.assistant_id ?? user.id
+          );
+          if (!resolved?.fileId) {
+            return res.status(400).json({
+              error: 'Invalid Google Meet recording. Re-select the recording.',
+            });
+          }
+          updates.session_video_type = 'google_meet';
+          updates.session_video_id = resolved.fileId;
+          updates.session_video_google_owner = resolved.ownerUserId;
+          updates.yt_session_link = null;
         } else {
           updates.session_video_type = type;
           updates.session_video_id = id;
+          updates.session_video_google_owner = null;
           updates.yt_session_link =
             type === 'youtube' ? `https://www.youtube.com/watch?v=${id}` : null;
         }

@@ -13,6 +13,11 @@ import {
 } from '../../../lib/zoomServer';
 import { extractZoomMeetingId } from '../../../lib/zoomUtils';
 import {
+  assertGoogleMeetFileAssigned,
+  fetchGoogleDriveFileStream,
+} from '../../../lib/googleServer';
+import { decodeGoogleMeetSecureId } from '../../../lib/googleVideoIds';
+import {
   getMongoFromEnv,
   MARKETING_DOC_ID,
 } from '../../../lib/marketingPageMongo';
@@ -126,7 +131,7 @@ function sanitizeZoomUrlForLog(url) {
 }
 
 /** Allow unauthenticated playback only for the published welcome free-session video. */
-async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoomByMeetingIdRoute }) {
+async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoomByMeetingIdRoute, isGoogleByPrefix }) {
   const systemEnabled =
     (loadEnvConfig().SYSTEM_MARKETING_PAGE === 'true') ||
     process.env.SYSTEM_MARKETING_PAGE === 'true';
@@ -139,7 +144,14 @@ async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoo
     const db = client.db(DB_NAME);
     const doc = await db.collection('marketing_page').findOne(
       { _id: MARKETING_DOC_ID },
-      { projection: { page_state: 1, session_video_type: 1, session_video_id: 1 } }
+      {
+        projection: {
+          page_state: 1,
+          session_video_type: 1,
+          session_video_id: 1,
+          session_video_google_owner: 1,
+        },
+      }
     );
     if (!doc || doc.page_state === false) return false;
 
@@ -154,7 +166,14 @@ async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoo
       return idsMatch(zoomIdentifier, savedId);
     }
 
-    if (type === 'r2' && !isZoomByPrefix && !isZoomByMeetingIdRoute) {
+    if (type === 'google_meet' && isGoogleByPrefix) {
+      const secureId = decodeURIComponent(String(routeParts.slice(1).join('/') || '').trim());
+      const decoded = decodeGoogleMeetSecureId(secureId);
+      if (!decoded?.fileId) return false;
+      return idsMatch(decoded.fileId, savedId);
+    }
+
+    if (type === 'r2' && !isZoomByPrefix && !isZoomByMeetingIdRoute && !isGoogleByPrefix) {
       const objectKey = routeParts.join('/');
       return idsMatch(objectKey, savedId) || idsMatch(decodeURIComponent(objectKey), savedId);
     }
@@ -184,9 +203,10 @@ export default async function handler(req, res) {
   const routeParts = Array.isArray(key) ? key : [key];
 
   const isZoomByPrefix = routeParts[0] === 'zoom';
+  const isGoogleByPrefix = routeParts[0] === 'google';
   const isZoomByMeetingIdRoute = routeParts.length === 1 && /^[0-9]+$/.test(String(routeParts[0]));
 
-  // ── Auth check (allow public welcome free-session Zoom/R2 video) ───────────
+  // ── Auth check (allow public welcome free-session Zoom/R2/Google video) ───────────
   let isAuthenticated = false;
   try {
     await authMiddleware(req);
@@ -199,6 +219,7 @@ export default async function handler(req, res) {
     const allowedPublic = await isPublicMarketingSessionVideo(routeParts, {
       isZoomByPrefix,
       isZoomByMeetingIdRoute,
+      isGoogleByPrefix,
     });
     if (!allowedPublic) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -412,6 +433,123 @@ export default async function handler(req, res) {
       return res.status(502).json({
         error: 'Zoom API failure',
         details: error?.message || 'Failed to stream Zoom recording',
+      });
+    }
+  }
+
+  // Google Meet routes: /api/videos/google/{secureId}
+  if (isGoogleByPrefix) {
+    const secureId = decodeURIComponent(String(routeParts.slice(1).join('/') || '').trim());
+    if (!secureId) {
+      return res.status(400).json({ error: 'Google Meet video id is required' });
+    }
+
+    const decoded = decodeGoogleMeetSecureId(secureId);
+    if (!decoded?.fileId) {
+      return res.status(400).json({ error: 'Invalid secure video id' });
+    }
+
+    const assigned = await assertGoogleMeetFileAssigned(decoded.fileId);
+    if (!assigned) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (!decoded.ownerUserId) {
+      return res.status(403).json({ error: 'Google account connection required.' });
+    }
+
+    try {
+      let driveResponse = await fetchGoogleDriveFileStream({
+        ownerUserId: decoded.ownerUserId,
+        fileId: decoded.fileId,
+        rangeHeader: req.headers.range,
+        method: req.method,
+      });
+
+      if (driveResponse.status === 401 || driveResponse.status === 403) {
+        driveResponse = await fetchGoogleDriveFileStream({
+          ownerUserId: decoded.ownerUserId,
+          fileId: decoded.fileId,
+          rangeHeader: req.headers.range,
+          method: req.method,
+          forceRefresh: true,
+        });
+      }
+
+      if (driveResponse.status === 404) {
+        return res.status(404).json({ error: 'Recording not found' });
+      }
+
+      if (!driveResponse.ok) {
+        if (driveResponse.status === 403) {
+          return res.status(403).json({ error: 'Google account connection required.' });
+        }
+        return res.status(502).json({ error: 'Google Meet video streaming failed' });
+      }
+
+      const headersToForward = [
+        'content-range',
+        'accept-ranges',
+        'content-length',
+        'last-modified',
+        'etag',
+        'content-type',
+      ];
+      headersToForward.forEach((header) => {
+        const value = driveResponse.headers.get(header);
+        if (value) res.setHeader(header, value);
+      });
+
+      if (!res.getHeader('Content-Type')) {
+        res.setHeader('Content-Type', 'video/mp4');
+      }
+      if (!res.getHeader('Accept-Ranges')) {
+        res.setHeader('Accept-Ranges', 'bytes');
+      }
+      res.setHeader('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Vary', 'Cookie, Range');
+      res.statusCode = driveResponse.status;
+
+      if (req.method === 'HEAD') {
+        return res.end();
+      }
+
+      if (!driveResponse.body) {
+        return res.status(502).json({ error: 'Google Drive returned empty stream' });
+      }
+
+      const stream = Readable.fromWeb(driveResponse.body);
+      const cleanup = () => {
+        try {
+          if (stream && typeof stream.destroy === 'function') stream.destroy();
+        } catch (_) {}
+      };
+
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
+      stream.on('end', cleanup);
+      stream.on('close', cleanup);
+      stream.on('error', () => {
+        cleanup();
+        if (!res.headersSent) {
+          res.status(502).end();
+        } else {
+          res.end();
+        }
+      });
+      stream.pipe(res);
+      return;
+    } catch (error) {
+      const statusCode = error?.statusCode || 500;
+      const code = error?.code || '';
+      if (code === 'GOOGLE_NOT_CONNECTED' || statusCode === 403) {
+        return res.status(403).json({ error: 'Google account connection required.' });
+      }
+      console.error('[google-stream] error', error?.message || error);
+      return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 502).json({
+        error: 'Google Meet video streaming failed',
       });
     }
   }

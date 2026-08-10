@@ -58,6 +58,7 @@ export function serializeOnlineQuestionForDb(q, normalizeQuestionPictures) {
     question_text: q.question_text || '',
     ...normalizeQuestionPictures(q),
     question_explanation: q.question_explanation || '',
+    use_desmos: q.use_desmos === true || q.use_desmos === 'true',
   };
 
   if (type === QUESTION_TYPE_ESSAY) {
@@ -104,6 +105,7 @@ export function sanitizeQuestionForStudent(q) {
       question_type: QUESTION_TYPE_ESSAY,
       question_text: q.question_text || '',
       ...pics,
+      use_desmos: q.use_desmos === true || q.use_desmos === 'true',
     };
   }
   return {
@@ -112,6 +114,7 @@ export function sanitizeQuestionForStudent(q) {
     ...pics,
     answers: q.answers || [],
     answer_texts: q.answer_texts || [],
+    use_desmos: q.use_desmos === true || q.use_desmos === 'true',
   };
 }
 

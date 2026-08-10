@@ -21,6 +21,7 @@ export function createEmptyMcqQuestion(overrides = {}) {
     answer_texts: ['', '', '', ''],
     correct_answer: '',
     question_explanation: '',
+    use_desmos: false,
     valid_correct_answers: [],
     ...overrides,
   };
@@ -36,6 +37,7 @@ export function createEmptyEssayQuestion(overrides = {}) {
     answer_texts: [],
     correct_answer: '',
     question_explanation: '',
+    use_desmos: false,
     valid_correct_answers: [],
     ...overrides,
   };
@@ -57,6 +59,7 @@ export function normalizeLoadedQuestion(q = {}) {
       correct_answer: '',
       valid_correct_answers: valid,
       question_explanation: q.question_explanation || '',
+      use_desmos: q.use_desmos === true || q.use_desmos === 'true',
     };
   }
   const answers =
@@ -76,6 +79,7 @@ export function normalizeLoadedQuestion(q = {}) {
     correct_answer: q.correct_answer || '',
     valid_correct_answers: [],
     question_explanation: q.question_explanation || '',
+    use_desmos: q.use_desmos === true || q.use_desmos === 'true',
   };
 }
 

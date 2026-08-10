@@ -34,6 +34,7 @@ import QuestionTypeTabs from '../../../../components/online/QuestionTypeTabs';
 import EssayValidAnswersEditor from '../../../../components/online/EssayValidAnswersEditor';
 import DeadlineTimeRow from '../../../../components/DeadlineTimeRow';
 import AllowDownloadingRadio from '../../../../components/AllowDownloadingRadio';
+import UseDesmosInQuestionRadio from '../../../../components/online/UseDesmosInQuestionRadio';
 import {
   isDeadlineStrictlyInFutureEgypt,
   normalizeDeadlineTimeField,
@@ -942,6 +943,7 @@ export default function EditHomework() {
             question_text: q.question_text || '',
             ...buildQuestionPicturesPayload(getQuestionPictures(q)),
             question_explanation: q.question_explanation || '',
+            use_desmos: q.use_desmos === true || q.use_desmos === 'true',
           };
           if (type === QUESTION_TYPE_ESSAY) {
             return {
@@ -2146,6 +2148,12 @@ export default function EditHomework() {
                 </div>
                 </>
                 )}
+
+                <UseDesmosInQuestionRadio
+                  name={`use_desmos_${qIdx}`}
+                  value={question.use_desmos === true || question.use_desmos === 'true'}
+                  onChange={(next) => handleQuestionChange(qIdx, 'use_desmos', next)}
+                />
 
                 {/* Question Explanation */}
                 <div style={{ marginBottom: '16px' }}>

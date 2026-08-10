@@ -9,6 +9,7 @@ import OnlineSessionPaymentStateSelect from '../../../../components/OnlineSessio
 import AccountStateSelect from '../../../../components/AccountStateSelect';
 import R2VideoPlayer from '../../../../components/R2VideoPlayer';
 import ZoomVideoPlayer from '../../../../components/ZoomVideoPlayer';
+import GoogleMeetVideoPlayer from '../../../../components/GoogleMeetVideoPlayer';
 import YoutubeEmbedWithProgress from '../../../../components/YoutubeEmbedWithProgress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
@@ -1034,6 +1035,11 @@ export default function OnlineSessions() {
               ) : selectedVideo.video_type === 'zoom' ? (
                 <ZoomVideoPlayer
                   meetingId={selectedVideo.video_ID || selectedVideo.video_ID_1 || ''}
+                  watermarkText={`${profile?.id || 'unknown'}`}
+                />
+              ) : selectedVideo.video_type === 'google_meet' ? (
+                <GoogleMeetVideoPlayer
+                  secureId={selectedVideo.video_ID || selectedVideo.video_ID_1 || ''}
                   watermarkText={`${profile?.id || 'unknown'}`}
                 />
               ) : (

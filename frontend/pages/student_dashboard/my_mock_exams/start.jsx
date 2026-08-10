@@ -4,6 +4,7 @@ import Image from 'next/image';
 import apiClient from '../../../lib/axios';
 import { useProfile } from '../../../lib/api/auth';
 import QuestionImagesCarousel from '../../../components/student/QuestionImagesCarousel';
+import DesmosQuestionAssist from '../../../components/student/DesmosQuestionAssist';
 import { listQuestionPicturePublicIds } from '../../../lib/questionPictures';
 import { isEssayQuestion, isEssayAnswerCorrect } from '../../../lib/onlineQuestionTypes';
 
@@ -973,10 +974,15 @@ export default function MockExamStart() {
           justifyContent: "flex-start",
           padding: "20px 0",
           overflow: "auto",
-          maxWidth: "900px",
+          maxWidth: "min(1400px, 100%)",
           width: "100%",
           margin: "0 auto"
         }}>
+          <DesmosQuestionAssist
+            useDesmos={currentQuestion?.use_desmos}
+            instanceKey={`mock-${id}-q-${currentQuestionIndex}`}
+          >
+          {({ calculatorButton }) => (
           <div className="question-card" style={{
             background: "linear-gradient(135deg,rgb(63, 58, 58) 0%,rgb(87, 81, 81) 100%)",
             borderRadius: "20px",
@@ -993,7 +999,10 @@ export default function MockExamStart() {
             alignItems: "center",
             justifyContent: "center",
             gap: "8px",
-            marginBottom: "20px"
+            marginBottom: "20px",
+            position: "relative",
+            minHeight: "36px",
+            width: "100%"
           }}>
             <span style={{
               background: "linear-gradient(135deg, #1FA8DC 0%, #0d5a7a 100%)",
@@ -1006,6 +1015,17 @@ export default function MockExamStart() {
             }}>
               Question {questionNumber} of {totalQuestions}
             </span>
+            {calculatorButton ? (
+              <div style={{
+                position: "absolute",
+                right: 0,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 2
+              }}>
+                {calculatorButton}
+              </div>
+            ) : null}
           </div>
           
           <QuestionImagesCarousel
@@ -1038,6 +1058,7 @@ export default function MockExamStart() {
             {currentIsEssay ? (
               <input
                 type="text"
+                className="essay-answer-input"
                 value={typeof currentSelectedAnswer === 'string' ? currentSelectedAnswer : ''}
                 onChange={(e) => handleEssayAnswerChange(currentQuestionIndex, e.target.value)}
                 placeholder="Type your answer"
@@ -1129,6 +1150,8 @@ export default function MockExamStart() {
             })}
           </div>
         </div>
+          )}
+          </DesmosQuestionAssist>
       </div>
 
       {/* Navigation Buttons */}

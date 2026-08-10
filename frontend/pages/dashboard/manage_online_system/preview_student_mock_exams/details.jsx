@@ -10,6 +10,8 @@ import { isEssayQuestion, isEssayAnswerCorrect } from '../../../../lib/onlineQue
 import { reconstructShuffledQuestions } from '../../../../lib/reconstructShuffledQuestions';
 import EssayDetailsAnswerBlock from '../../../../components/online/EssayDetailsAnswerBlock';
 import AnswerStatusBubble from '../../../../components/online/AnswerStatusBubble';
+import DesmosAssistGroup from '../../../../components/student/DesmosAssistGroup';
+import DesmosQuestionAssist from '../../../../components/student/DesmosQuestionAssist';
 
 export default function PreviewMockExamDetails() {
   const router = useRouter();
@@ -285,7 +287,8 @@ export default function PreviewMockExamDetails() {
       minHeight: "100vh", 
       padding: "20px 5px 20px 5px" 
     }}>
-      <div className="page-content" style={{ maxWidth: 800, margin: "40px auto", padding: "12px" }}>
+      <DesmosAssistGroup>
+      <div className="page-content desmos-details-page" style={{ maxWidth: 800, margin: "40px auto", padding: "12px" }}>
         <Title backText="Back" href={`/dashboard/manage_online_system/preview_student_mock_exams?student_id=${student_id}`}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Image src="/details.svg" alt="Mock Exam Details" width={32} height={32} />
@@ -293,7 +296,7 @@ export default function PreviewMockExamDetails() {
           </div>
         </Title>
 
-        <div className="details-container" style={{
+        <div className="details-container desmos-details-container" style={{
           background: 'white',
           borderRadius: '16px',
           padding: '15px',
@@ -394,8 +397,13 @@ export default function PreviewMockExamDetails() {
               }
 
               return (
-                <div
+                <DesmosQuestionAssist
                   key={idx}
+                  useDesmos={question?.use_desmos}
+                  instanceKey={`preview-mock-${mock_exam_id}-q-${idx}`}
+                >
+                {({ calculatorButton }) => (
+                <div
                   style={{
                     borderTop: '2px solid #e9ecef',
                     padding: '15px 0px',
@@ -407,9 +415,25 @@ export default function PreviewMockExamDetails() {
                       fontSize: '1.1rem',
                       fontWeight: '600',
                       marginBottom: '12px',
-                      color: '#212529'
+                      color: '#212529',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      minHeight: '36px',
+                      width: '100%'
                     }}>
-                      Question {idx + 1}
+                      <span>Question {idx + 1}</span>
+                      {calculatorButton ? (
+                        <div style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          zIndex: 2
+                        }}>
+                          {calculatorButton}
+                        </div>
+                      ) : null}
                     </div>
                     
                     {/* Question Image */}
@@ -566,6 +590,8 @@ export default function PreviewMockExamDetails() {
                     </div>
                   )}
                 </div>
+                )}
+                </DesmosQuestionAssist>
               );
             })}
           </div>
@@ -574,6 +600,7 @@ export default function PreviewMockExamDetails() {
           <NeedHelp style={{ padding: "20px", borderTop: "1px solid #e9ecef" }} />
         </div>
       </div>
+      </DesmosAssistGroup>
 
       <style jsx>{`
         @media (max-width: 768px) {

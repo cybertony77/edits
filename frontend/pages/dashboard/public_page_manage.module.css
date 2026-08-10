@@ -152,8 +152,8 @@
 }
 
 .manageBtn {
-  background: linear-gradient(135deg, #a52a2a 0%, #6b1a1a 100%);
-  box-shadow: 0 8px 20px rgba(165, 42, 42, 0.35);
+  background: linear-gradient(135deg, #c33030 0%, #ad2525 100%);
+  box-shadow: 0 8px 20px rgba(195, 48, 48, 0.35);
 }
 
 .pendingBtn {
