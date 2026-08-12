@@ -45,7 +45,12 @@ export default async function handler(req, res) {
 
     const ownerUserId = user.assistant_id ?? user.id;
     const state = jwt.sign(
-      { purpose: 'google_meet_oauth', assistant_id: ownerUserId, role: user.role },
+      {
+        purpose: 'google_meet_oauth',
+        assistant_id: ownerUserId,
+        role: user.role,
+        connected_by: user.email || user.username || String(ownerUserId),
+      },
       JWT_SECRET,
       { expiresIn: '15m' }
     );

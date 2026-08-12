@@ -7,6 +7,7 @@ import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import CenterSelect from '../../../../components/CenterSelect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
+import { useSystemConfig } from '../../../../lib/api/system';
 import Image from 'next/image';
 import ZoomableImage from '../../../../components/ZoomableImage';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
@@ -42,9 +43,19 @@ import {
 } from '../../../../lib/deadlineTimeEgypt';
 import { isMockExamFormReady } from '../../../../lib/onlineItemFormReady';
 
+function createDefaultMcqQuestion(desmosEnabled) {
+  return {
+    ...createEmptyMcqQuestion(),
+    use_desmos: desmosEnabled ? true : false,
+  };
+}
+
 export default function EditMockExam() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: systemConfig } = useSystemConfig();
+  const desmosEnabled =
+    systemConfig?.desmos_integrations === true || systemConfig?.desmos_integrations === 'true';
   const { id } = router.query;
   const [formData, setFormData] = useState({
     lesson_name: '',
@@ -60,7 +71,7 @@ export default function EditMockExam() {
     pdf_file_name: '',
     pdf_url: '',
     allow_downloading: true,
-    questions: [createEmptyMcqQuestion()]
+    questions: [createDefaultMcqQuestion(desmosEnabled)]
   });
   const [activeTab, setActiveTab] = useState('questions');
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -234,7 +245,7 @@ export default function EditMockExam() {
                   .reduce((acc, key) => ({ ...acc, [key]: q[key] || null }), {}),
               })
             )
-          : [createEmptyMcqQuestion()]
+          : [createDefaultMcqQuestion(desmosEnabled)]
       });
       setDataLoaded(true);
       dataLoadedRef.current = true; // Mark as loaded in ref
@@ -713,7 +724,7 @@ export default function EditMockExam() {
   const addQuestion = () => {
     setFormData(prev => ({
       ...prev,
-      questions: [...prev.questions, createEmptyMcqQuestion()]
+      questions: [...prev.questions, createDefaultMcqQuestion(desmosEnabled)]
     }));
   };
 
@@ -1212,7 +1223,7 @@ export default function EditMockExam() {
                   style={{ padding: '12px 24px', border: 'none', borderBottom: activeTab === 'questions' ? '3px solid #1FA8DC' : '3px solid transparent', backgroundColor: 'transparent', color: activeTab === 'questions' ? '#1FA8DC' : '#6c757d', fontWeight: activeTab === 'questions' ? '600' : '500', cursor: 'pointer', fontSize: '1rem', transition: 'all 0.2s ease' }}>
                   Questions
                 </button>
-                <button type="button" onClick={() => { setActiveTab('pdf'); setFormData({ ...formData, mock_exam_type: 'pdf', questions: [{ _clientKey: newQuestionClientKey(), question_text: '', question_picture: null, answers: ['A', 'B', 'C', 'D'], answer_texts: ['', '', '', ''], correct_answer: '', question_explanation: '' }], timer_type: 'no_timer', timer: null }); }}
+                <button type="button" onClick={() => { setActiveTab('pdf'); setFormData({ ...formData, mock_exam_type: 'pdf', questions: [{ _clientKey: newQuestionClientKey(), question_text: '', question_picture: null, answers: ['A', 'B', 'C', 'D'], answer_texts: ['', '', '', ''], correct_answer: '', question_explanation: '', use_desmos: desmosEnabled ? true : false }], timer_type: 'no_timer', timer: null }); }}
                   style={{ padding: '12px 24px', border: 'none', borderBottom: activeTab === 'pdf' ? '3px solid #1FA8DC' : '3px solid transparent', backgroundColor: 'transparent', color: activeTab === 'pdf' ? '#1FA8DC' : '#6c757d', fontWeight: activeTab === 'pdf' ? '600' : '500', cursor: 'pointer', fontSize: '1rem', transition: 'all 0.2s ease' }}>
                   PDF
                 </button>

@@ -16,9 +16,8 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Forbidden: Access denied' });
     }
 
-    const ownerUserId = user.assistant_id ?? user.id;
     const nextPageToken = String(req.query.next_page_token || '');
-    const payload = await listGoogleMeetRecordings(ownerUserId, nextPageToken);
+    const payload = await listGoogleMeetRecordings(null, nextPageToken);
 
     return res.json({
       recordings: payload.recordings,

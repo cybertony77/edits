@@ -140,6 +140,10 @@
   flex-shrink: 0;
 }
 
+.headerChipIconDark {
+  filter: brightness(0);
+}
+
 .headerChipLabelFull {
   white-space: nowrap;
 }

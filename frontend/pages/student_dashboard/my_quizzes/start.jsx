@@ -5,6 +5,7 @@ import apiClient from '../../../lib/axios';
 import { useProfile } from '../../../lib/api/auth';
 import QuestionImagesCarousel from '../../../components/student/QuestionImagesCarousel';
 import DesmosQuestionAssist from '../../../components/student/DesmosQuestionAssist';
+import MathReferenceSheetAssist from '../../../components/student/MathReferenceSheetAssist';
 import { listQuestionPicturePublicIds } from '../../../lib/questionPictures';
 import { isEssayQuestion, isEssayAnswerCorrect } from '../../../lib/onlineQuestionTypes';
 
@@ -951,6 +952,8 @@ export default function QuizStart() {
           width: "100%",
           margin: "0 auto"
         }}>
+          <MathReferenceSheetAssist>
+          {({ referenceButton }) => (
           <DesmosQuestionAssist
             useDesmos={currentQuestion?.use_desmos}
             instanceKey={`quiz-${id}-q-${currentQuestionIndex}`}
@@ -988,6 +991,17 @@ export default function QuizStart() {
             }}>
               Question {questionNumber} of {totalQuestions}
             </span>
+            {referenceButton ? (
+              <div style={{
+                position: "absolute",
+                left: 0,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 2
+              }}>
+                {referenceButton}
+              </div>
+            ) : null}
             {calculatorButton ? (
               <div style={{
                 position: "absolute",
@@ -1125,6 +1139,8 @@ export default function QuizStart() {
         </div>
           )}
           </DesmosQuestionAssist>
+          )}
+          </MathReferenceSheetAssist>
       </div>
 
       {/* Navigation Buttons */}

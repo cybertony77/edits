@@ -113,6 +113,7 @@ export default function GoogleMeetRecordingSelect({ selectedValue, onSelect }) {
       await apiClient.post('/api/google/disconnect');
       await refetchStatus();
       queryClient.invalidateQueries({ queryKey: ['google-meet-recordings'] });
+      setTokenHistory(['']);
       onSelect('');
       setDisconnectOpen(false);
     } catch (err) {
@@ -330,10 +331,10 @@ export default function GoogleMeetRecordingSelect({ selectedValue, onSelect }) {
               </h3>
             </div>
             <div className={styles.modalBody}>
-              This removes the Google connection for{' '}
+              This removes the shared Google connection for{' '}
               <strong>{status?.email || 'this account'}</strong>.
               <br />
-              Existing lesson videos stay saved, but playback will need Google reconnect.
+              All staff will lose access until Google is connected again.
             </div>
             <div className={styles.modalActions}>
               <button

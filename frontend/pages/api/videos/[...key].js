@@ -15,6 +15,7 @@ import { extractZoomMeetingId } from '../../../lib/zoomUtils';
 import {
   assertGoogleMeetFileAssigned,
   fetchGoogleDriveFileStream,
+  SYSTEM_GOOGLE_OWNER_ID,
 } from '../../../lib/googleServer';
 import { decodeGoogleMeetSecureId } from '../../../lib/googleVideoIds';
 import {
@@ -454,13 +455,11 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    if (!decoded.ownerUserId) {
-      return res.status(403).json({ error: 'Google account connection required.' });
-    }
+    const ownerUserId = decoded.ownerUserId || SYSTEM_GOOGLE_OWNER_ID;
 
     try {
       let driveResponse = await fetchGoogleDriveFileStream({
-        ownerUserId: decoded.ownerUserId,
+        ownerUserId,
         fileId: decoded.fileId,
         rangeHeader: req.headers.range,
         method: req.method,
@@ -468,7 +467,7 @@ export default async function handler(req, res) {
 
       if (driveResponse.status === 401 || driveResponse.status === 403) {
         driveResponse = await fetchGoogleDriveFileStream({
-          ownerUserId: decoded.ownerUserId,
+          ownerUserId,
           fileId: decoded.fileId,
           rangeHeader: req.headers.range,
           method: req.method,

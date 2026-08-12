@@ -85,7 +85,7 @@ export default async function handler(req, res) {
       return res.status(400).send(htmlPage('Invalid session', 'OAuth state is invalid.', false));
     }
 
-    await completeGoogleOAuthForUser(payload.assistant_id, code);
+    await completeGoogleOAuthForUser(payload.assistant_id, code, payload.connected_by || null);
     return res.status(200).send(
       htmlPage('Google connected', 'Your Google account is connected for Meet recordings.', true)
     );

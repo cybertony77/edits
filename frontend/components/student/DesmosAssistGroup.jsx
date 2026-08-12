@@ -33,15 +33,25 @@ export function useDesmosAssistGroup() {
  */
 export default function DesmosAssistGroup({ children, contentClassName = '' }) {
   const isCompact = useIsCompactLayout(1024);
-  const [openKey, setOpenKey] = useState(null);
+  const [openKeys, setOpenKeys] = useState({ desmos: null, reference: null });
   const [panelWidth, setPanelWidthState] = useState(null);
 
-  const claimOpen = useCallback((key) => {
-    setOpenKey(String(key));
+  const claimOpen = useCallback((type, key) => {
+    const resolvedType = key == null ? 'desmos' : String(type || 'desmos');
+    const resolvedKey = key == null ? type : key;
+    setOpenKeys((current) => ({
+      ...current,
+      [resolvedType]: String(resolvedKey),
+    }));
   }, []);
 
-  const releaseOpen = useCallback((key) => {
-    setOpenKey((current) => (current === String(key) ? null : current));
+  const releaseOpen = useCallback((type, key) => {
+    const resolvedType = key == null ? 'desmos' : String(type || 'desmos');
+    const resolvedKey = key == null ? type : key;
+    setOpenKeys((current) => ({
+      ...current,
+      [resolvedType]: current[resolvedType] === String(resolvedKey) ? null : current[resolvedType],
+    }));
   }, []);
 
   const setPanelWidth = useCallback((width) => {
@@ -52,14 +62,16 @@ export default function DesmosAssistGroup({ children, contentClassName = '' }) {
     setPanelWidthState(Math.round(Number(width)));
   }, []);
 
-  const isBlocked = useCallback(
-    (key) => openKey != null && openKey !== String(key),
-    [openKey]
-  );
+  const isBlocked = useCallback((type, key) => {
+    const resolvedType = key == null ? 'desmos' : String(type || 'desmos');
+    const resolvedKey = key == null ? type : key;
+    const openKey = openKeys[resolvedType];
+    return openKey != null && openKey !== String(resolvedKey);
+  }, [openKeys]);
 
   useEffect(() => {
-    if (!openKey) setPanelWidthState(null);
-  }, [openKey]);
+    if (!openKeys.desmos) setPanelWidthState(null);
+  }, [openKeys.desmos]);
 
   useEffect(() => {
     if (isCompact) {
@@ -69,19 +81,20 @@ export default function DesmosAssistGroup({ children, contentClassName = '' }) {
 
   const value = useMemo(
     () => ({
-      openKey,
+      openKey: openKeys.desmos,
+      openKeys,
       claimOpen,
       releaseOpen,
       setPanelWidth,
       panelWidth,
       isBlocked,
       isCompact,
-      isOpen: Boolean(openKey),
+      isOpen: Boolean(openKeys.desmos) || Boolean(openKeys.reference),
     }),
-    [openKey, claimOpen, releaseOpen, setPanelWidth, panelWidth, isBlocked, isCompact]
+    [openKeys, claimOpen, releaseOpen, setPanelWidth, panelWidth, isBlocked, isCompact]
   );
 
-  const isOpenDesktop = Boolean(openKey) && !isCompact;
+  const isOpenDesktop = Boolean(openKeys.desmos) && !isCompact;
 
   return (
     <DesmosAssistGroupContext.Provider value={value}>
@@ -89,7 +102,7 @@ export default function DesmosAssistGroup({ children, contentClassName = '' }) {
         <div className={`${styles.layout} ${isOpenDesktop ? styles.layoutOpen : ''}`}>
           <div className={`${styles.questionSlot} ${contentClassName}`.trim()}>
             {typeof children === 'function'
-              ? children({ isOpen: Boolean(openKey), isCompact, isOpenDesktop })
+              ? children({ isOpen: Boolean(openKeys.desmos) || Boolean(openKeys.reference), isCompact, isOpenDesktop })
               : children}
           </div>
           {isOpenDesktop ? (

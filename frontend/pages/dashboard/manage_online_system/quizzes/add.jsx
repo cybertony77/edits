@@ -7,6 +7,7 @@ import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import CenterSelect from '../../../../components/CenterSelect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
+import { useSystemConfig } from '../../../../lib/api/system';
 import Image from 'next/image';
 import ZoomableImage from '../../../../components/ZoomableImage';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
@@ -43,9 +44,19 @@ import {
 } from '../../../../lib/deadlineTimeEgypt';
 import { isQuizFormReady } from '../../../../lib/onlineItemFormReady';
 
+function createDefaultMcqQuestion(desmosEnabled) {
+  return {
+    ...createEmptyMcqQuestion(),
+    use_desmos: desmosEnabled ? true : false,
+  };
+}
+
 export default function AddQuiz() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: systemConfig } = useSystemConfig();
+  const desmosEnabled =
+    systemConfig?.desmos_integrations === true || systemConfig?.desmos_integrations === 'true';
   const [formData, setFormData] = useState({
     lesson_name: '',
     comment: '',
@@ -60,7 +71,7 @@ export default function AddQuiz() {
     pdf_file_name: '',
     pdf_url: '',
     allow_downloading: true,
-    questions: [createEmptyMcqQuestion()]
+    questions: [createDefaultMcqQuestion(desmosEnabled)]
   });
   const [activeTab, setActiveTab] = useState('questions');
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -564,7 +575,7 @@ export default function AddQuiz() {
   const addQuestion = () => {
     setFormData(prev => ({
       ...prev,
-      questions: [...(prev.questions || []), createEmptyMcqQuestion()]
+      questions: [...(prev.questions || []), createDefaultMcqQuestion(desmosEnabled)]
     }));
   };
 
@@ -1061,7 +1072,8 @@ export default function AddQuiz() {
                         answers: ['A', 'B', 'C', 'D'],
                         answer_texts: ['', '', '', ''],
                         correct_answer: '',
-                        question_explanation: ''
+                        question_explanation: '',
+                        use_desmos: desmosEnabled ? true : false
                       }],
                       timer_type: 'no_timer',
                       timer: null

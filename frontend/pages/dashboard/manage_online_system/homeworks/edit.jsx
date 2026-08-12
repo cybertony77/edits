@@ -7,6 +7,7 @@ import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import CenterSelect from '../../../../components/CenterSelect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
+import { useSystemConfig } from '../../../../lib/api/system';
 import Image from 'next/image';
 import ZoomableImage from '../../../../components/ZoomableImage';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
@@ -43,9 +44,19 @@ import {
 import { isHomeworkFormReady } from '../../../../lib/onlineItemFormReady';
 
 
+function createDefaultMcqQuestion(desmosEnabled) {
+  return {
+    ...createEmptyMcqQuestion(),
+    use_desmos: desmosEnabled ? true : false,
+  };
+}
+
 export default function EditHomework() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: systemConfig } = useSystemConfig();
+  const desmosEnabled =
+    systemConfig?.desmos_integrations === true || systemConfig?.desmos_integrations === 'true';
   const { id } = router.query;
   const [formData, setFormData] = useState({
     lesson_name: '',
@@ -64,7 +75,7 @@ export default function EditHomework() {
     pdf_file_name: '',
     pdf_url: '',
     allow_downloading: true,
-    questions: [createEmptyMcqQuestion()]
+    questions: [createDefaultMcqQuestion(desmosEnabled)]
   });
   const [activeTab, setActiveTab] = useState('questions');
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -243,7 +254,7 @@ export default function EditHomework() {
                   .reduce((acc, key) => ({ ...acc, [key]: q[key] || null }), {}),
               })
             )
-          : [createEmptyMcqQuestion()]
+          : [createDefaultMcqQuestion(desmosEnabled)]
       });
       setAccountState(homeworkData.state || homeworkData.account_state || 'Activated');
       setDataLoaded(true);
@@ -726,7 +737,7 @@ export default function EditHomework() {
   const addQuestion = () => {
     setFormData((prev) => ({
       ...prev,
-      questions: [...prev.questions, createEmptyMcqQuestion()],
+      questions: [...prev.questions, createDefaultMcqQuestion(desmosEnabled)],
     }));
   };
 
@@ -1327,7 +1338,8 @@ export default function EditHomework() {
                         question_picture: null,
                         answers: ['A', 'B', 'C', 'D'],
                         answer_texts: ['', '', '', ''],
-                        correct_answer: ''
+                        correct_answer: '',
+                        use_desmos: desmosEnabled ? true : false
                       }],
                       timer_type: 'no_timer',
                       timer: null,
@@ -1363,7 +1375,8 @@ export default function EditHomework() {
                         answers: ['A', 'B', 'C', 'D'],
                         answer_texts: ['', '', '', ''],
                         correct_answer: '',
-                        question_explanation: ''
+                        question_explanation: '',
+                        use_desmos: desmosEnabled ? true : false
                       }],
                       book_name: '',
                       from_page: '',

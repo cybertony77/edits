@@ -18,14 +18,14 @@ export default async function handler(req, res) {
       return res.json({ configured: false, connected: false, email: '' });
     }
 
-    const ownerUserId = user.assistant_id ?? user.id;
-    const integration = await getGoogleMeetIntegration(ownerUserId);
+    const integration = await getGoogleMeetIntegration();
 
     return res.json({
       configured: true,
       connected: Boolean(integration?.refreshTokenEnc),
       email: integration?.email || '',
       connectedAt: integration?.connectedAt || null,
+      shared: true,
     });
   } catch (error) {
     const status = error?.statusCode || 500;

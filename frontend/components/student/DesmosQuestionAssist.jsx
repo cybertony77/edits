@@ -181,7 +181,7 @@ export default function DesmosQuestionAssist({
   const claimOpen = group?.claimOpen;
   const releaseOpen = group?.releaseOpen;
   const setGroupPanelWidth = group?.setPanelWidth;
-  const blockedByOther = Boolean(group?.isBlocked?.(instanceKey));
+  const blockedByOther = Boolean(group?.isBlocked?.('desmos', instanceKey));
   // Inside a group, the group owns the desktop push layout for the whole page
   const useExternalLayout = Boolean(group);
 
@@ -287,10 +287,10 @@ export default function DesmosQuestionAssist({
   useEffect(() => {
     if (!claimOpen || !releaseOpen) return undefined;
     if (open) {
-      claimOpen(instanceKey);
-      return () => releaseOpen(instanceKey);
+      claimOpen('desmos', instanceKey);
+      return () => releaseOpen('desmos', instanceKey);
     }
-    releaseOpen(instanceKey);
+    releaseOpen('desmos', instanceKey);
     return undefined;
   }, [claimOpen, releaseOpen, open, instanceKey]);
 

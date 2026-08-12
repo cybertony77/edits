@@ -351,13 +351,9 @@
 }
 
 @media (max-width: 480px) {
-  .tabs {
-    grid-template-columns: 1fr;
-  }
-
   .tab {
-    justify-content: flex-start;
-    padding-left: 14px;
+    justify-content: center;
+    padding-left: 8px;
   }
 
   .tabLabel {

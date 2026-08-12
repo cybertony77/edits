@@ -13,6 +13,7 @@ import EssayDetailsAnswerBlock from '../../../components/online/EssayDetailsAnsw
 import AnswerStatusBubble from '../../../components/online/AnswerStatusBubble';
 import DesmosAssistGroup from '../../../components/student/DesmosAssistGroup';
 import DesmosQuestionAssist from '../../../components/student/DesmosQuestionAssist';
+import MathReferenceSheetAssist from '../../../components/student/MathReferenceSheetAssist';
 
 export default function MockExamDetails() {
   const router = useRouter();
@@ -412,6 +413,8 @@ export default function MockExamDetails() {
                   instanceKey={`mock-details-${id}-q-${idx}`}
                 >
                 {({ calculatorButton }) => (
+                <MathReferenceSheetAssist instanceKey={`mock-details-${id}-q-${idx}-reference`} iconDark>
+                {({ referenceButton }) => (
                 <div
                   style={{
                     borderTop: '2px solid #e9ecef',
@@ -426,21 +429,25 @@ export default function MockExamDetails() {
                       fontWeight: '600',
                       marginBottom: '12px',
                       color: '#212529',
-                      position: 'relative',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
                       minHeight: '36px',
-                      width: '100%'
+                      width: '100%',
+                      flexWrap: 'wrap'
                     }}>
                       <span>Question {idx + 1}</span>
-                      {calculatorButton ? (
+                      {(referenceButton || calculatorButton) ? (
                         <div style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                          marginLeft: 'auto',
                           zIndex: 2
                         }}>
+                          {referenceButton}
                           {calculatorButton}
                         </div>
                       ) : null}
@@ -602,6 +609,8 @@ export default function MockExamDetails() {
                     </div>
                   )}
                 </div>
+                )}
+                </MathReferenceSheetAssist>
                 )}
                 </DesmosQuestionAssist>
               );

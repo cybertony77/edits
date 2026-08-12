@@ -12,8 +12,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Forbidden: Access denied' });
     }
 
-    const ownerUserId = user.assistant_id ?? user.id;
-    await disconnectGoogleMeetIntegration(ownerUserId);
+    await disconnectGoogleMeetIntegration();
     return res.json({ success: true, connected: false });
   } catch (error) {
     const status = error?.statusCode || 500;

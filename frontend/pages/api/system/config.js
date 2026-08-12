@@ -91,6 +91,9 @@ export default async function handler(req, res) {
     const desmosApiKey = desmosIntegrations
       ? (envConfig.DESMOS_API_KEY || process.env.DESMOS_API_KEY || '').trim()
       : '';
+    const mathReferenceSheet =
+      envConfig.SYSTEM_MATH_REFERENCE_SHEET === 'true' ||
+      process.env.SYSTEM_MATH_REFERENCE_SHEET === 'true';
     const paymentSystem = envConfig.SYSTEM_PAYMENT_SYSTEM === 'true' || process.env.SYSTEM_PAYMENT_SYSTEM === 'true';
     const subscription = envConfig.SYSTEM_SUBSCRIPTION === 'true' || process.env.SYSTEM_SUBSCRIPTION === 'true';
     const deviceLimitations = envConfig.SYSTEM_DEVICE_LIMITATIONS === 'true' || process.env.SYSTEM_DEVICE_LIMITATIONS === 'true';
@@ -128,6 +131,7 @@ export default async function handler(req, res) {
       google_join_meeting: googleJoinMeeting,
       desmos_integrations: desmosIntegrations,
       desmos_api_key: desmosApiKey,
+      math_reference_sheet: mathReferenceSheet,
       payment_system: paymentSystem,
       subscription: subscription,
       device_limitations: deviceLimitations,

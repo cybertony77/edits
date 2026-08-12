@@ -33,14 +33,14 @@ export default function MyDocument({ systemBackground }) {
         />
 
         {/* Theme & App Settings */}
-        <meta name="theme-color" content="#011E46" />
+        <meta name="theme-color" content="#55D4ED" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="American Diploma Academy" />
+        <meta name="apple-mobile-web-app-title" content="EducationC apsules" />
         <meta name="apple-touch-fullscreen" content="yes" />
-        <meta property="og:title" content="American Diploma Academy" />
-        <meta property="og:description" content="American Diploma Academy students" />
+        <meta property="og:title" content="Education Capsules" />
+        <meta property="og:description" content="EducationCapsules, Ms. Sylvia Nashat's students" />
         <meta property="og:image" content="/icons/apple-icon-180.png" />
         <meta property="og:type" content="website" />
         <meta property="og:locale" content="en_US" />
