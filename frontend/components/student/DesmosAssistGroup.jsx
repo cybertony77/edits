@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import styles from './DesmosQuestionAssist.module.css';
+import styles from '../../styles/DesmosQuestionAssist.module.css';
 
 const DesmosAssistGroupContext = createContext(null);
 

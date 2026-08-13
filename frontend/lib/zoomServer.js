@@ -6,6 +6,7 @@ import {
   getMp4DownloadUrlFromMeeting,
   isZoomRecordingUuid,
 } from './zoomUtils';
+import { readEnvInt } from './videoStreamLifecycle';
 
 function loadEnvConfig() {
   try {
@@ -35,12 +36,13 @@ const ZOOM_CLIENT_ID = envConfig.ZOOM_CLIENT_ID || process.env.ZOOM_CLIENT_ID;
 const ZOOM_CLIENT_SECRET = envConfig.ZOOM_CLIENT_SECRET || process.env.ZOOM_CLIENT_SECRET;
 const ZOOM_ACCOUNT_ID = envConfig.ZOOM_ACCOUNT_ID || process.env.ZOOM_ACCOUNT_ID;
 
-const OAUTH_TIMEOUT_MS = 12_000;
+const OAUTH_TIMEOUT_MS = readEnvInt(envConfig, 'ZOOM_OAUTH_TIMEOUT_MS', 12_000);
 const OAUTH_MAX_ATTEMPTS = 3;
-const TOKEN_SKEW_MS = 30_000;
+/** Refresh Zoom token this many ms before expiry (default 5 minutes). */
+const TOKEN_SKEW_MS = readEnvInt(envConfig, 'ZOOM_TOKEN_SKEW_MS', 5 * 60_000);
 /** Timeout for Zoom REST calls used while resolving a recording download URL. */
-const ZOOM_API_TIMEOUT_MS = 12_000;
-const ZOOM_LIST_FETCH_MS = 15_000;
+const ZOOM_API_TIMEOUT_MS = readEnvInt(envConfig, 'ZOOM_API_TIMEOUT_MS', 12_000);
+const ZOOM_LIST_FETCH_MS = readEnvInt(envConfig, 'ZOOM_LIST_FETCH_MS', 15_000);
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;

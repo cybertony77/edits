@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import cx from 'clsx';
 import { ScrollArea, Table, Modal } from '@mantine/core';
-import classes from './TableScrollArea.module.css';
+import classes from '../styles/TableScrollArea.module.css';
 import WhatsAppButton from './WhatsAppButton.jsx';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';

@@ -7,7 +7,7 @@ import Title from '../../components/Title';
 import apiClient from '../../lib/axios';
 import { formatEgyptDateTime } from '../../lib/egyptDateTime';
 import { useSystemConfig } from '../../lib/api/system';
-import styles from './pending_reviews.module.css';
+import styles from '../../styles/pending_reviews.module.css';
 
 const RATING_COLOR = 'rgba(242, 207, 5, 1)';
 

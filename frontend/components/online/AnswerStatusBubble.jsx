@@ -1,5 +1,5 @@
 import { IconCheck, IconX } from '@tabler/icons-react';
-import styles from './AnswerStatusBubble.module.css';
+import styles from '../../styles/AnswerStatusBubble.module.css';
 
 /**
  * Premium Correct / Wrong status pill for details answer rows.

@@ -3,7 +3,7 @@ import axios from 'axios';
 import ZoomRecordingSelect from './ZoomRecordingSelect';
 import GoogleMeetRecordingSelect from './GoogleMeetRecordingSelect';
 import { useSystemConfig } from '../lib/api/system';
-import styles from './VideoInput.module.css';
+import styles from '../styles/VideoInput.module.css';
 
 function extractYouTubeId(url) {
   const raw = String(url || '').trim();

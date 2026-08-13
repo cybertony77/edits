@@ -39,7 +39,7 @@ function InputWithButton(props) {
 
 // Build embed URL
 function buildEmbedUrl(videoId) {
-  return `https://www.youtube.com/embed/${videoId}?controls=1&rel=0&modestbranding=1&disablekb=1&fs=1`;
+  return `https://www.youtube.com/embed/${videoId}?controls=0&rel=0&modestbranding=1&disablekb=1&fs=0&iv_load_policy=3&playsinline=1`;
 }
 
 

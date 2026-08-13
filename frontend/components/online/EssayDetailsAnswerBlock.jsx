@@ -1,6 +1,6 @@
 import { IconCheck } from '@tabler/icons-react';
 import AnswerStatusBubble from './AnswerStatusBubble';
-import styles from './EssayDetailsAnswerBlock.module.css';
+import styles from '../../styles/EssayDetailsAnswerBlock.module.css';
 
 /**
  * Student essay answer + valid answers (only when incorrect).

@@ -10,7 +10,7 @@ import {
 } from '../../lib/desmosApi';
 import { isDesmosEnabledForQuestion } from '../online/UseDesmosInQuestionRadio';
 import { useDesmosAssistGroup } from './DesmosAssistGroup';
-import styles from './DesmosQuestionAssist.module.css';
+import styles from '../../styles/DesmosQuestionAssist.module.css';
 
 function isFeatureEnabled(value) {
   return value === true || value === 'true' || value === 1 || value === '1';

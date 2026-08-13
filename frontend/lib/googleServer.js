@@ -1,5 +1,4 @@
 import { google } from 'googleapis';
-import { MongoClient } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -8,9 +7,10 @@ import {
   encodeGoogleMeetSecureId,
   encryptSecret,
 } from './googleVideoIds';
+import { getSharedDb } from './mongoShared';
+import { composeAbortSignals, readEnvInt } from './videoStreamLifecycle';
 
 const MEET_SCOPE = 'https://www.googleapis.com/auth/drive.meet.readonly';
-const TOKEN_SKEW_MS = 60_000;
 const SYSTEM_INTEGRATION_ID = 'google_meet';
 export const SYSTEM_GOOGLE_OWNER_ID = 'system';
 
@@ -36,6 +36,13 @@ function loadEnvConfig() {
 }
 
 const envConfig = loadEnvConfig();
+const TOKEN_SKEW_MS = readEnvInt(envConfig, 'GOOGLE_TOKEN_SKEW_MS', 5 * 60_000);
+const GOOGLE_API_TIMEOUT_MS = readEnvInt(envConfig, 'GOOGLE_API_TIMEOUT_MS', 15_000);
+const GOOGLE_STREAM_CONNECT_TIMEOUT_MS = readEnvInt(
+  envConfig,
+  'GOOGLE_STREAM_CONNECT_TIMEOUT_MS',
+  45_000
+);
 
 export function getGoogleOAuthConfig() {
   const clientId = envConfig.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
@@ -51,15 +58,6 @@ export function isGoogleMeetConfigured() {
   return Boolean(clientId && clientSecret && redirectUri);
 }
 
-function getMongo() {
-  const MONGO_URI =
-    envConfig.MONGO_URI ||
-    process.env.MONGO_URI ||
-    'mongodb://localhost:27017/demo-attendance-system';
-  const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'demo-attendance-system';
-  return { MONGO_URI, DB_NAME };
-}
-
 function createOAuthClient() {
   const { clientId, clientSecret, redirectUri } = getGoogleOAuthConfig();
   if (!clientId || !clientSecret || !redirectUri) {
@@ -72,13 +70,18 @@ function createOAuthClient() {
 
 /** In-memory access-token cache keyed by staff user id. */
 const accessTokenCache = new Map();
+/** Single-flight refresh promises keyed by owner. */
+const accessTokenRefreshPromises = new Map();
 
 export function clearGoogleAccessTokenCache(ownerUserId) {
   if (ownerUserId == null || ownerUserId === '') {
     accessTokenCache.clear();
+    accessTokenRefreshPromises.clear();
     return;
   }
-  accessTokenCache.delete(String(ownerUserId));
+  const key = String(ownerUserId);
+  accessTokenCache.delete(key);
+  accessTokenRefreshPromises.delete(key);
 }
 
 export function getGoogleAuthUrl(state) {
@@ -99,27 +102,14 @@ export async function exchangeGoogleAuthCode(code) {
 }
 
 async function withUsersCollection(fn) {
-  const { MONGO_URI, DB_NAME } = getMongo();
-  let client;
-  try {
-    client = await MongoClient.connect(MONGO_URI);
-    const db = client.db(DB_NAME);
-    return await fn(db.collection('users'), db);
-  } finally {
-    if (client) await client.close();
-  }
+  // Shared process client — do not connect/close per Google token or OAuth call.
+  const db = await getSharedDb();
+  return fn(db.collection('users'), db);
 }
 
 async function withIntegrationsCollection(fn) {
-  const { MONGO_URI, DB_NAME } = getMongo();
-  let client;
-  try {
-    client = await MongoClient.connect(MONGO_URI);
-    const db = client.db(DB_NAME);
-    return await fn(db.collection('system_integrations'), db);
-  } finally {
-    if (client) await client.close();
-  }
+  const db = await getSharedDb();
+  return fn(db.collection('system_integrations'), db);
 }
 
 function mapSystemIntegration(doc) {
@@ -314,6 +304,7 @@ export async function completeGoogleOAuthForUser(_ownerUserId, code, connectedBy
 
 /**
  * Returns a valid access token for the staff user who connected Google.
+ * Renews BEFORE expiry (TOKEN_SKEW_MS). Concurrent callers share one refresh.
  * On invalid_grant, marks integration disconnected and throws.
  */
 export async function getGoogleAccessTokenForUser(ownerUserId, forceRefresh = false) {
@@ -327,6 +318,10 @@ export async function getGoogleAccessTokenForUser(ownerUserId, forceRefresh = fa
 
   const ownerKey = String(integration.userId ?? SYSTEM_GOOGLE_OWNER_ID);
 
+  if (forceRefresh) {
+    accessTokenCache.delete(ownerKey);
+  }
+
   const cached = accessTokenCache.get(ownerKey);
   if (
     !forceRefresh &&
@@ -337,44 +332,62 @@ export async function getGoogleAccessTokenForUser(ownerUserId, forceRefresh = fa
     return cached.token;
   }
 
-  const refreshToken = decryptSecret(integration.refreshTokenEnc);
-  if (!refreshToken) {
-    await markGoogleMeetDisconnected(ownerUserId);
-    const err = new Error('Google account connection required.');
-    err.statusCode = 403;
-    err.code = 'GOOGLE_NOT_CONNECTED';
-    throw err;
+  // Always single-flight (including forceRefresh / 401 retry) so N near-expiry
+  // callers share exactly one OAuth refresh.
+  if (accessTokenRefreshPromises.has(ownerKey)) {
+    return accessTokenRefreshPromises.get(ownerKey);
   }
 
-  const client = createOAuthClient();
-  client.setCredentials({ refresh_token: refreshToken });
-
-  try {
-    const { credentials } = await client.refreshAccessToken();
-    const token = credentials.access_token;
-    if (!token) {
-      throw new Error('Failed to refresh Google access token');
-    }
-    accessTokenCache.set(ownerKey, {
-      token,
-      expiresAt: credentials.expiry_date || Date.now() + 3500_000,
-    });
-    return token;
-  } catch (error) {
-    const msg = String(error?.message || error?.response?.data?.error || '');
-    const dataError = error?.response?.data?.error;
-    if (
-      dataError === 'invalid_grant' ||
-      msg.includes('invalid_grant') ||
-      msg.includes('Token has been expired or revoked')
-    ) {
+  const refreshPromise = (async () => {
+    const refreshToken = decryptSecret(integration.refreshTokenEnc);
+    if (!refreshToken) {
       await markGoogleMeetDisconnected(ownerUserId);
       const err = new Error('Google account connection required.');
       err.statusCode = 403;
       err.code = 'GOOGLE_NOT_CONNECTED';
       throw err;
     }
-    throw error;
+
+    const client = createOAuthClient();
+    client.setCredentials({ refresh_token: refreshToken });
+
+    try {
+      const { credentials } = await client.refreshAccessToken();
+      const token = credentials.access_token;
+      if (!token) {
+        throw new Error('Failed to refresh Google access token');
+      }
+      accessTokenCache.set(ownerKey, {
+        token,
+        expiresAt: credentials.expiry_date || Date.now() + 3500_000,
+      });
+      return token;
+    } catch (error) {
+      const msg = String(error?.message || error?.response?.data?.error || '');
+      const dataError = error?.response?.data?.error;
+      if (
+        dataError === 'invalid_grant' ||
+        msg.includes('invalid_grant') ||
+        msg.includes('Token has been expired or revoked')
+      ) {
+        await markGoogleMeetDisconnected(ownerUserId);
+        const err = new Error('Google account connection required.');
+        err.statusCode = 403;
+        err.code = 'GOOGLE_NOT_CONNECTED';
+        throw err;
+      }
+      throw error;
+    }
+  })();
+
+  accessTokenRefreshPromises.set(ownerKey, refreshPromise);
+  try {
+    return await refreshPromise;
+  } finally {
+    // Only clear if we still own the slot (avoids wiping a newer in-flight refresh).
+    if (accessTokenRefreshPromises.get(ownerKey) === refreshPromise) {
+      accessTokenRefreshPromises.delete(ownerKey);
+    }
   }
 }
 
@@ -475,6 +488,9 @@ export async function listGoogleMeetRecordings(_ownerUserId, pageToken = '') {
 /**
  * Stream a private Drive file. Forwards Range when provided.
  * Does not buffer the whole file in memory.
+ * @param {object} opts
+ * @param {AbortSignal} [opts.signal] - linked to browser request; aborts Undici body
+ * @param {number} [opts.connectTimeoutMs] - startup timeout only (cleared by caller after headers)
  */
 export async function fetchGoogleDriveFileStream({
   ownerUserId,
@@ -482,6 +498,8 @@ export async function fetchGoogleDriveFileStream({
   rangeHeader,
   method = 'GET',
   forceRefresh = false,
+  signal = null,
+  connectTimeoutMs = GOOGLE_STREAM_CONNECT_TIMEOUT_MS,
 }) {
   const accessToken = await getGoogleAccessTokenForUser(ownerUserId, forceRefresh);
   const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`;
@@ -492,13 +510,61 @@ export async function fetchGoogleDriveFileStream({
     headers.Range = rangeHeader;
   }
 
-  const response = await fetch(url, { method, headers });
+  const doFetch = async (token) => {
+    const localHeaders = { ...headers, Authorization: `Bearer ${token}` };
+    const timeoutController =
+      connectTimeoutMs > 0 ? new AbortController() : null;
+    const timeoutId =
+      timeoutController &&
+      setTimeout(() => {
+        try {
+          timeoutController.abort();
+        } catch {
+          /* ignore */
+        }
+      }, connectTimeoutMs);
+
+    const signals = [];
+    if (signal) signals.push(signal);
+    if (timeoutController) signals.push(timeoutController.signal);
+    // Always compose — never drop the connect timeout when AbortSignal.any is missing.
+    const combinedSignal = composeAbortSignals(signals);
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: localHeaders,
+        signal: combinedSignal,
+      });
+      // Headers received — stop connect timer; keep client signal for body cancel.
+      if (timeoutId) clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (error?.name === 'AbortError' || error?.code === 'ABORT_ERR') {
+        if (signal?.aborted) {
+          const err = new Error('Google Drive request aborted');
+          err.statusCode = 499;
+          err.isAbort = true;
+          throw err;
+        }
+        const err = new Error(
+          `Google Drive stream connect timed out after ${connectTimeoutMs}ms`
+        );
+        err.statusCode = 504;
+        err.isTimeout = true;
+        throw err;
+      }
+      throw error;
+    }
+  };
+
+  let response = await doFetch(accessToken);
 
   if (response.status === 401 || response.status === 403) {
     clearGoogleAccessTokenCache(ownerUserId);
     const retryToken = await getGoogleAccessTokenForUser(ownerUserId, true);
-    headers.Authorization = `Bearer ${retryToken}`;
-    return fetch(url, { method, headers });
+    response = await doFetch(retryToken);
   }
 
   return response;
@@ -510,11 +576,8 @@ export async function fetchGoogleDriveFileStream({
 export async function assertGoogleMeetFileAssigned(fileId) {
   const id = String(fileId || '').trim();
   if (!id) return false;
-  const { MONGO_URI, DB_NAME } = getMongo();
-  let client;
   try {
-    client = await MongoClient.connect(MONGO_URI);
-    const db = client.db(DB_NAME);
+    const db = await getSharedDb();
 
     const orClauses = [
       { session_video_type: 'google_meet', session_video_id: id },
@@ -531,8 +594,9 @@ export async function assertGoogleMeetFileAssigned(fileId) {
       if (hit) return true;
     }
     return false;
-  } finally {
-    if (client) await client.close();
+  } catch (error) {
+    console.error('[google] assertGoogleMeetFileAssigned failed:', error?.message || error);
+    return false;
   }
 }
 

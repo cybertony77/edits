@@ -4,7 +4,6 @@ import fs from 'fs';
 import http from 'http';
 import https from 'https';
 import path from 'path';
-import { MongoClient } from 'mongodb';
 import { authMiddleware } from '../../../lib/authMiddleware';
 import {
   clearZoomAccessTokenCache,
@@ -19,10 +18,17 @@ import {
 } from '../../../lib/googleServer';
 import { decodeGoogleMeetSecureId } from '../../../lib/googleVideoIds';
 import {
-  getMongoFromEnv,
   MARKETING_DOC_ID,
 } from '../../../lib/marketingPageMongo';
-import { Readable } from 'stream';
+import { getSharedDb } from '../../../lib/mongoShared';
+import {
+  createClientLinkedAbortController,
+  createVideoRequestId,
+  logVideoEvent,
+  pipeNodeBodyToResponse,
+  pipeWebBodyToResponse,
+  readEnvInt,
+} from '../../../lib/videoStreamLifecycle';
 
 // Disable Next.js body parsing — we stream raw bytes
 export const config = {
@@ -67,12 +73,19 @@ const bucketName = envConfig.R2_BUCKET_NAME || process.env.R2_BUCKET_NAME;
 
 const httpsAgent = new https.Agent({
   keepAlive: true,
-  maxSockets: 100,
+  keepAliveMsecs: 30_000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  // No agent idle timeout — proxy Range streams can run for hours.
+  scheduling: 'lifo',
 });
 
 const httpAgent = new http.Agent({
   keepAlive: true,
-  maxSockets: 100,
+  keepAliveMsecs: 30_000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  scheduling: 'lifo',
 });
 
 const client = new S3Client({
@@ -83,10 +96,22 @@ const client = new S3Client({
   requestHandler: new NodeHttpHandler({
     httpAgent,
     httpsAgent,
+    // CONNECT timeout only. requestTimeout:0 so multi-hour bodies are not aborted.
+    connectionTimeout: 15_000,
+    requestTimeout: 0,
   }),
 });
 
-// ─── Content-Type mapping ─────────────────────────────────────────────────────
+const ZOOM_STREAM_CONNECT_TIMEOUT_MS = readEnvInt(
+  envConfig,
+  'ZOOM_STREAM_CONNECT_TIMEOUT_MS',
+  45_000
+);
+const GOOGLE_STREAM_CONNECT_TIMEOUT_MS = readEnvInt(
+  envConfig,
+  'GOOGLE_STREAM_CONNECT_TIMEOUT_MS',
+  45_000
+);
 
 const MIME_TYPES = {
   '.mp4': 'video/mp4',
@@ -117,8 +142,6 @@ function idsMatch(a, b) {
   return leftNorm === rightNorm;
 }
 
-const ZOOM_STREAM_FETCH_MS = 45_000;
-
 /** Log download URLs without query params (may contain short-lived tokens). */
 function sanitizeZoomUrlForLog(url) {
   const raw = String(url || '').trim();
@@ -138,11 +161,8 @@ async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoo
     process.env.SYSTEM_MARKETING_PAGE === 'true';
   if (!systemEnabled) return false;
 
-  const { MONGO_URI, DB_NAME } = getMongoFromEnv();
-  let client;
   try {
-    client = await MongoClient.connect(MONGO_URI);
-    const db = client.db(DB_NAME);
+    const db = await getSharedDb();
     const doc = await db.collection('marketing_page').findOne(
       { _id: MARKETING_DOC_ID },
       {
@@ -183,8 +203,6 @@ async function isPublicMarketingSessionVideo(routeParts, { isZoomByPrefix, isZoo
   } catch (e) {
     console.error('public marketing session video check failed:', e);
     return false;
-  } finally {
-    if (client) await client.close();
   }
 }
 
@@ -232,6 +250,7 @@ export default async function handler(req, res) {
   // - /api/videos/zoom/{uuid|meetingId|downloadKey}
   // Each request resolves a FRESH download_url from Zoom (UUID architecture preserved).
   if (isZoomByPrefix || isZoomByMeetingIdRoute) {
+    const requestId = createVideoRequestId();
     const zoomIdentifier = decodeURIComponent(
       String(isZoomByPrefix ? routeParts.slice(1).join('/') : routeParts[0] || '').trim()
     );
@@ -241,13 +260,19 @@ export default async function handler(req, res) {
 
     const streamStartedAt = Date.now();
     let retryAttempt = 0;
+    const lifecycle = createClientLinkedAbortController(req, {
+      connectTimeoutMs: ZOOM_STREAM_CONNECT_TIMEOUT_MS,
+      res,
+    });
 
     try {
       const stableId = extractZoomMeetingId(zoomIdentifier) || zoomIdentifier;
-      console.log('[zoom-stream] start', {
-        recordingId: stableId,
+      logVideoEvent('start', {
+        requestId,
+        source: 'zoom',
+        id: stableId,
         method: req.method,
-        hasRange: Boolean(req.headers.range),
+        range: req.headers.range || '',
       });
 
       const fetchUpstream = async (forceRefresh) => {
@@ -256,6 +281,13 @@ export default async function handler(req, res) {
         }
 
         const downloadUrl = await resolveZoomMp4DownloadUrl(stableId, forceRefresh);
+        if (lifecycle.signal.aborted) {
+          const err = new Error('Client aborted');
+          err.statusCode = 499;
+          err.isAbort = true;
+          throw err;
+        }
+
         const token = await getZoomAccessToken(forceRefresh);
         const upstreamHeaders = {
           Authorization: `Bearer ${token}`,
@@ -264,53 +296,51 @@ export default async function handler(req, res) {
           upstreamHeaders.Range = req.headers.range;
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), ZOOM_STREAM_FETCH_MS);
         const fetchStartedAt = Date.now();
-
         try {
           const response = await fetch(downloadUrl, {
             method: req.method,
             headers: upstreamHeaders,
-            signal: controller.signal,
+            signal: lifecycle.signal,
           });
-          console.log('[zoom-stream] upstream response', {
-            recordingId: stableId,
-            forceRefresh,
+          logVideoEvent('upstream', {
+            requestId,
+            source: 'zoom',
             status: response.status,
-            downloadUrl: sanitizeZoomUrlForLog(downloadUrl),
+            forceRefresh,
             durationMs: Date.now() - fetchStartedAt,
+            downloadUrl: sanitizeZoomUrlForLog(downloadUrl),
           });
           return { response, downloadUrl };
         } catch (error) {
           if (error?.name === 'AbortError' || error?.code === 'ABORT_ERR') {
-            console.error('[zoom-stream] timeout', {
-              recordingId: stableId,
-              forceRefresh,
-              timeoutMs: ZOOM_STREAM_FETCH_MS,
-              downloadUrl: sanitizeZoomUrlForLog(downloadUrl),
-            });
-            const err = new Error(`Zoom stream request timed out after ${ZOOM_STREAM_FETCH_MS}ms`);
+            if (req.aborted || lifecycle.signal.aborted) {
+              const err = new Error('Client aborted Zoom stream');
+              err.statusCode = 499;
+              err.isAbort = true;
+              throw err;
+            }
+            const err = new Error(
+              `Zoom stream connect timed out after ${ZOOM_STREAM_CONNECT_TIMEOUT_MS}ms`
+            );
             err.statusCode = 504;
             err.isTimeout = true;
             throw err;
           }
           throw error;
-        } finally {
-          clearTimeout(timeoutId);
         }
       };
 
       let { response: zoomVideoResponse } = await fetchUpstream(false);
 
-      // Token or download_url expired — refresh OAuth + re-resolve fresh download_url once
       if (
         zoomVideoResponse.status === 401 ||
         zoomVideoResponse.status === 403
       ) {
         retryAttempt = 1;
-        console.log('[zoom-stream] retry after auth/download expiry', {
-          recordingId: stableId,
+        logVideoEvent('retry', {
+          requestId,
+          source: 'zoom',
           upstreamStatus: zoomVideoResponse.status,
           retryAttempt,
         });
@@ -319,8 +349,10 @@ export default async function handler(req, res) {
       }
 
       if (!zoomVideoResponse.ok) {
-        console.error('[zoom-stream] upstream failure', {
-          recordingId: stableId,
+        lifecycle.detach();
+        logVideoEvent('error', {
+          requestId,
+          source: 'zoom',
           status: zoomVideoResponse.status,
           retryAttempt,
           durationMs: Date.now() - streamStartedAt,
@@ -334,6 +366,9 @@ export default async function handler(req, res) {
         }
         return res.status(502).json({ error: 'Zoom video streaming failed' });
       }
+
+      // Headers received — do not kill long playback with connect timeout.
+      lifecycle.clearConnectTimeout();
 
       const headersToForward = [
         'content-range',
@@ -355,63 +390,56 @@ export default async function handler(req, res) {
       res.statusCode = zoomVideoResponse.status;
 
       if (req.method === 'HEAD') {
-        console.log('[zoom-stream] head completed', {
-          recordingId: stableId,
-          retryAttempt,
+        lifecycle.detach();
+        logVideoEvent('end', {
+          requestId,
+          source: 'zoom',
+          status: zoomVideoResponse.status,
+          method: 'HEAD',
           durationMs: Date.now() - streamStartedAt,
         });
         return res.end();
       }
 
       if (!zoomVideoResponse.body) {
+        lifecycle.detach();
         return res.status(502).json({ error: 'Zoom API returned empty stream' });
       }
 
-      const stream = Readable.fromWeb(zoomVideoResponse.body);
-      const cleanup = () => {
-        try {
-          if (stream && typeof stream.destroy === 'function') stream.destroy();
-        } catch (_) {}
-      };
-
-      req.on('close', cleanup);
-      req.on('aborted', cleanup);
-      stream.on('end', () => {
-        console.log('[zoom-stream] completed', {
-          recordingId: stableId,
-          retryAttempt,
-          durationMs: Date.now() - streamStartedAt,
-        });
-        cleanup();
+      pipeWebBodyToResponse({
+        webBody: zoomVideoResponse.body,
+        req,
+        res,
+        source: 'zoom',
+        requestId,
+        onCleanup: () => {
+          lifecycle.abort();
+          lifecycle.detach();
+        },
       });
-      stream.on('close', cleanup);
-      stream.on('error', (streamError) => {
-        console.error('[zoom-stream] pipe error', {
-          recordingId: stableId,
-          retryAttempt,
-          message: streamError?.message || 'unknown',
-          durationMs: Date.now() - streamStartedAt,
-        });
-        cleanup();
-        if (!res.headersSent) {
-          res.status(502).end();
-        } else {
-          res.end();
-        }
-      });
-      stream.pipe(res);
       return;
     } catch (error) {
+      lifecycle.abort();
+      lifecycle.detach();
       const statusCode = error?.statusCode || 500;
-      console.error('[zoom-stream] error', {
-        recordingId: extractZoomMeetingId(zoomIdentifier) || zoomIdentifier,
+      if (error?.isAbort || statusCode === 499) {
+        logVideoEvent('abort', {
+          requestId,
+          source: 'zoom',
+          durationMs: Date.now() - streamStartedAt,
+        });
+        return;
+      }
+      logVideoEvent('error', {
+        requestId,
+        source: 'zoom',
         httpStatus: statusCode,
-        zoomCode: error?.zoomCode ?? error?.details?.code ?? null,
-        zoomMessage: error?.zoomMessage || error?.details?.message || error?.message || 'unknown',
+        error: error?.message || 'unknown',
         retryAttempt,
         isTimeout: Boolean(error?.isTimeout),
         durationMs: Date.now() - streamStartedAt,
       });
+      if (res.headersSent || res.writableEnded) return;
       if (statusCode === 404) {
         return res.status(404).json({ error: 'No recording found for this meeting' });
       }
@@ -440,6 +468,7 @@ export default async function handler(req, res) {
 
   // Google Meet routes: /api/videos/google/{secureId}
   if (isGoogleByPrefix) {
+    const requestId = createVideoRequestId();
     const secureId = decodeURIComponent(String(routeParts.slice(1).join('/') || '').trim());
     if (!secureId) {
       return res.status(400).json({ error: 'Google Meet video id is required' });
@@ -456,35 +485,56 @@ export default async function handler(req, res) {
     }
 
     const ownerUserId = decoded.ownerUserId || SYSTEM_GOOGLE_OWNER_ID;
+    const streamStartedAt = Date.now();
+    const lifecycle = createClientLinkedAbortController(req, {
+      connectTimeoutMs: GOOGLE_STREAM_CONNECT_TIMEOUT_MS,
+      res,
+    });
+
+    logVideoEvent('start', {
+      requestId,
+      source: 'google',
+      method: req.method,
+      range: req.headers.range || '',
+    });
 
     try {
-      let driveResponse = await fetchGoogleDriveFileStream({
+      // fetchGoogleDriveFileStream already does one 401/403 token refresh + one retry.
+      const driveResponse = await fetchGoogleDriveFileStream({
         ownerUserId,
         fileId: decoded.fileId,
         rangeHeader: req.headers.range,
         method: req.method,
+        signal: lifecycle.signal,
+        connectTimeoutMs: GOOGLE_STREAM_CONNECT_TIMEOUT_MS,
       });
 
-      if (driveResponse.status === 401 || driveResponse.status === 403) {
-        driveResponse = await fetchGoogleDriveFileStream({
-          ownerUserId,
-          fileId: decoded.fileId,
-          rangeHeader: req.headers.range,
-          method: req.method,
-          forceRefresh: true,
-        });
-      }
-
       if (driveResponse.status === 404) {
+        lifecycle.detach();
         return res.status(404).json({ error: 'Recording not found' });
       }
 
       if (!driveResponse.ok) {
+        lifecycle.detach();
+        logVideoEvent('error', {
+          requestId,
+          source: 'google',
+          status: driveResponse.status,
+          durationMs: Date.now() - streamStartedAt,
+        });
         if (driveResponse.status === 403) {
           return res.status(403).json({ error: 'Google account connection required.' });
         }
         return res.status(502).json({ error: 'Google Meet video streaming failed' });
       }
+
+      lifecycle.clearConnectTimeout();
+      logVideoEvent('upstream', {
+        requestId,
+        source: 'google',
+        status: driveResponse.status,
+        durationMs: Date.now() - streamStartedAt,
+      });
 
       const headersToForward = [
         'content-range',
@@ -512,41 +562,55 @@ export default async function handler(req, res) {
       res.statusCode = driveResponse.status;
 
       if (req.method === 'HEAD') {
+        lifecycle.detach();
         return res.end();
       }
 
       if (!driveResponse.body) {
+        lifecycle.detach();
         return res.status(502).json({ error: 'Google Drive returned empty stream' });
       }
 
-      const stream = Readable.fromWeb(driveResponse.body);
-      const cleanup = () => {
-        try {
-          if (stream && typeof stream.destroy === 'function') stream.destroy();
-        } catch (_) {}
-      };
-
-      req.on('close', cleanup);
-      req.on('aborted', cleanup);
-      stream.on('end', cleanup);
-      stream.on('close', cleanup);
-      stream.on('error', () => {
-        cleanup();
-        if (!res.headersSent) {
-          res.status(502).end();
-        } else {
-          res.end();
-        }
+      pipeWebBodyToResponse({
+        webBody: driveResponse.body,
+        req,
+        res,
+        source: 'google',
+        requestId,
+        onCleanup: () => {
+          lifecycle.abort();
+          lifecycle.detach();
+        },
       });
-      stream.pipe(res);
       return;
     } catch (error) {
+      lifecycle.abort();
+      lifecycle.detach();
+      if (error?.isAbort || error?.statusCode === 499) {
+        logVideoEvent('abort', {
+          requestId,
+          source: 'google',
+          durationMs: Date.now() - streamStartedAt,
+        });
+        return;
+      }
       const statusCode = error?.statusCode || 500;
       const code = error?.code || '';
+      logVideoEvent('error', {
+        requestId,
+        source: 'google',
+        httpStatus: statusCode,
+        error: error?.message || 'unknown',
+        isTimeout: Boolean(error?.isTimeout),
+        durationMs: Date.now() - streamStartedAt,
+      });
+      if (res.headersSent || res.writableEnded) return;
       if (code === 'GOOGLE_NOT_CONNECTED' || statusCode === 403) {
         return res.status(403).json({ error: 'Google account connection required.' });
       }
-      console.error('[google-stream] error', error?.message || error);
+      if (statusCode === 504 || error?.isTimeout) {
+        return res.status(504).json({ error: 'Google Drive stream timed out' });
+      }
       return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 502).json({
         error: 'Google Meet video streaming failed',
       });
@@ -560,21 +624,41 @@ export default async function handler(req, res) {
 
   // R2 route: /api/videos/videos/1234_abc_file.mp4 => key = "videos/1234_abc_file.mp4"
   const objectKey = routeParts.join('/');
-  console.log('Streaming:', objectKey);
+  const requestId = createVideoRequestId();
+  const streamStartedAt = Date.now();
+  logVideoEvent('start', {
+    requestId,
+    source: 'r2',
+    id: objectKey,
+    method: req.method,
+    range: req.headers.range || '',
+  });
 
   try {
-    req.setTimeout(30000);
-    res.setTimeout(30000);
+    // Do NOT set a short req/res idle timeout — long Range streams must stay open.
+    // CONNECT/startup abort only — cleared after GetObject headers; never a max playback duration.
+    const lifecycle = createClientLinkedAbortController(req, {
+      connectTimeoutMs: 45_000,
+      res,
+    });
     const rangeHeader = req.headers.range;
 
     // ── If Range request: fetch just that range ────────────────────────────
     if (rangeHeader) {
-      // First, get object metadata to know total size
       const headCmd = new HeadObjectCommand({ Bucket: bucketName, Key: objectKey });
       let headResult;
       try {
-        headResult = await client.send(headCmd);
+        headResult = await client.send(headCmd, { abortSignal: lifecycle.signal });
       } catch (err) {
+        lifecycle.detach();
+        if (err.name === 'AbortError' || err.name === 'TimeoutError' || lifecycle.signal.aborted) {
+          logVideoEvent('abort', {
+            requestId,
+            source: 'r2',
+            durationMs: Date.now() - streamStartedAt,
+          });
+          return;
+        }
         if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
           return res.status(404).json({ error: 'Video not found' });
         }
@@ -584,9 +668,9 @@ export default async function handler(req, res) {
       const totalSize = headResult.ContentLength;
       const contentType = headResult.ContentType || getContentType(objectKey);
 
-      // Parse "bytes=START-END"
       const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
       if (!match) {
+        lifecycle.detach();
         res.setHeader('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
       }
@@ -597,84 +681,115 @@ export default async function handler(req, res) {
         end = parseInt(match[2], 10);
       } else if (match[1] !== '') {
         start = parseInt(match[1], 10);
-        // Serve a chunk: min of 5 MB or rest of file
         end = Math.min(start + 5 * 1024 * 1024 - 1, totalSize - 1);
       } else if (match[2] !== '') {
-        // bytes=-N  →  last N bytes
         const suffix = parseInt(match[2], 10);
         start = Math.max(0, totalSize - suffix);
         end = totalSize - 1;
       } else {
+        lifecycle.detach();
         res.setHeader('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
       }
 
-      // Clamp
       if (start >= totalSize || end >= totalSize) {
+        lifecycle.detach();
         res.setHeader('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
       }
 
       const chunkSize = end - start + 1;
 
-      // Fetch the range from R2
       const getCmd = new GetObjectCommand({
         Bucket: bucketName,
         Key: objectKey,
         Range: `bytes=${start}-${end}`,
       });
-      const getResult = await client.send(getCmd);
+      let getResult;
+      try {
+        getResult = await client.send(getCmd, { abortSignal: lifecycle.signal });
+      } catch (err) {
+        lifecycle.detach();
+        if (err.name === 'AbortError' || err.name === 'TimeoutError' || lifecycle.signal.aborted) {
+          logVideoEvent('abort', {
+            requestId,
+            source: 'r2',
+            durationMs: Date.now() - streamStartedAt,
+          });
+          return;
+        }
+        throw err;
+      }
+
+      // Headers received — do not enforce connect timeout for the body lifetime.
+      lifecycle.clearConnectTimeout();
 
       res.writeHead(206, {
         'Content-Type': contentType,
         'Content-Length': chunkSize,
         'Content-Range': `bytes ${start}-${end}/${totalSize}`,
         'Accept-Ranges': 'bytes',
-        // Do not cache authenticated streams — stale cached chunks break Range playback after TTL / tab backgrounding
         'Cache-Control': 'private, no-store, no-cache, must-revalidate',
         Pragma: 'no-cache',
         Expires: '0',
         Vary: 'Cookie',
       });
 
-      // Stream the body
       if (req.method === 'HEAD') {
+        lifecycle.detach();
+        logVideoEvent('end', {
+          requestId,
+          source: 'r2',
+          status: 206,
+          method: 'HEAD',
+          durationMs: Date.now() - streamStartedAt,
+        });
         return res.end();
       }
 
-      const stream = getResult.Body;
-      const cleanup = () => {
-        try {
-          if (stream && typeof stream.destroy === 'function') stream.destroy();
-        } catch (_) {}
-      };
-      req.on('close', cleanup);
-      req.on('aborted', cleanup);
-      stream.pipe(res);
-      stream.on('end', cleanup);
-      stream.on('close', cleanup);
-      stream.on('error', (err) => {
-        console.error('Stream error:', err);
-        cleanup();
-        if (!res.headersSent) {
-          res.status(500).end();
-        } else {
-          res.end();
-        }
+      logVideoEvent('upstream', {
+        requestId,
+        source: 'r2',
+        status: 206,
+        durationMs: Date.now() - streamStartedAt,
+      });
+
+      pipeNodeBodyToResponse({
+        nodeBody: getResult.Body,
+        req,
+        res,
+        source: 'r2',
+        requestId,
+        onCleanup: () => {
+          // Body.destroy() + abortSignal cancel the AWS/HTTP upstream; SDK abort is best-effort
+          // if the request already completed headers.
+          lifecycle.abort();
+          lifecycle.detach();
+        },
       });
 
     } else {
-      // ── Full request (no Range) ──────────────────────────────────────────
       const getCmd = new GetObjectCommand({ Bucket: bucketName, Key: objectKey });
       let getResult;
       try {
-        getResult = await client.send(getCmd);
+        getResult = await client.send(getCmd, { abortSignal: lifecycle.signal });
       } catch (err) {
+        lifecycle.detach();
+        if (err.name === 'AbortError' || err.name === 'TimeoutError' || lifecycle.signal.aborted) {
+          logVideoEvent('abort', {
+            requestId,
+            source: 'r2',
+            durationMs: Date.now() - streamStartedAt,
+          });
+          return;
+        }
         if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
           return res.status(404).json({ error: 'Video not found' });
         }
         throw err;
       }
+
+      lifecycle.clearConnectTimeout();
 
       const contentType = getResult.ContentType || getContentType(objectKey);
       const contentLength = getResult.ContentLength;
@@ -690,32 +805,36 @@ export default async function handler(req, res) {
       });
 
       if (req.method === 'HEAD') {
+        lifecycle.detach();
         return res.end();
       }
 
-      const stream = getResult.Body;
-      const cleanup = () => {
-        try {
-          if (stream && typeof stream.destroy === 'function') stream.destroy();
-        } catch (_) {}
-      };
-      req.on('close', cleanup);
-      req.on('aborted', cleanup);
-      stream.pipe(res);
-      stream.on('end', cleanup);
-      stream.on('close', cleanup);
-      stream.on('error', (err) => {
-        console.error('Stream error:', err);
-        cleanup();
-        if (!res.headersSent) {
-          res.status(500).end();
-        } else {
-          res.end();
-        }
+      logVideoEvent('upstream', {
+        requestId,
+        source: 'r2',
+        status: 200,
+        durationMs: Date.now() - streamStartedAt,
+      });
+
+      pipeNodeBodyToResponse({
+        nodeBody: getResult.Body,
+        req,
+        res,
+        source: 'r2',
+        requestId,
+        onCleanup: () => {
+          lifecycle.abort();
+          lifecycle.detach();
+        },
       });
     }
   } catch (error) {
-    console.error('Video streaming error:', error);
+    logVideoEvent('error', {
+      requestId,
+      source: 'r2',
+      error: error?.message || 'unknown',
+      durationMs: Date.now() - streamStartedAt,
+    });
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to stream video' });
     }

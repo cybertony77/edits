@@ -18,8 +18,8 @@ import CourseSelect from '../../components/CourseSelect';
 import apiClient from '../../lib/axios';
 import { formatEgyptDateTime } from '../../lib/egyptDateTime';
 import { useSystemConfig } from '../../lib/api/system';
-import styles from './students_reviews.module.css';
-import manageStyles from './public_page_manage.module.css';
+import styles from '../../styles/students_reviews.module.css';
+import manageStyles from '../../styles/public_page_manage.module.css';
 
 const RATING_COLOR = 'rgba(242, 207, 5, 1)';
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];

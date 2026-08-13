@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../lib/axios';
-import styles from './GoogleMeetRecordingSelect.module.css';
+import styles from '../styles/GoogleMeetRecordingSelect.module.css';
 
 const PAGE_SIZE = 50;
 

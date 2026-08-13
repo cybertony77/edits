@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { IconCheck, IconTrash } from '@tabler/icons-react';
-import styles from './EssayValidAnswersEditor.module.css';
+import styles from '../../styles/EssayValidAnswersEditor.module.css';
 
 export default function EssayValidAnswersEditor({
   values = [],

@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Group, Rating, Text } from '@mantine/core';
 import CourseSelect from '../../components/CourseSelect';
 import FullPageActionLoader from '../../components/FullPageActionLoader';
-import styles from './leave-a-review.module.css';
+import styles from '../../styles/leave-a-review.module.css';
 
 const RATING_COLOR = 'rgba(242, 207, 5, 1)';
 

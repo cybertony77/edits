@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import { useSystemConfig } from '../../lib/api/system';
-import chipStyles from './DesmosQuestionAssist.module.css';
+import chipStyles from '../../styles/DesmosQuestionAssist.module.css';
 import { useDesmosAssistGroup } from './DesmosAssistGroup';
-import styles from './MathReferenceSheetAssist.module.css';
+import styles from '../../styles/MathReferenceSheetAssist.module.css';
 
 function isFeatureEnabled(value) {
   return value === true || value === 'true' || value === 1 || value === '1';

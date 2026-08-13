@@ -1,6 +1,6 @@
 import { Tabs } from '@mantine/core';
 import { QUESTION_TYPE_ESSAY, QUESTION_TYPE_MCQ } from '../../lib/onlineQuestionTypes';
-import styles from './QuestionTypeTabs.module.css';
+import styles from '../../styles/QuestionTypeTabs.module.css';
 
 export default function QuestionTypeTabs({ value, onChange, disabled = false }) {
   const current = value === QUESTION_TYPE_ESSAY ? QUESTION_TYPE_ESSAY : QUESTION_TYPE_MCQ;
