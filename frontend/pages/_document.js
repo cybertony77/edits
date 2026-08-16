@@ -60,7 +60,7 @@ export default function MyDocument({ systemBackground, youtubeEmbed }) {
         />
 
         {/* Theme & App Settings */}
-        <meta name="theme-color" content={youtubeEmbed ? "#000000" : "#011E46"} />
+        <meta name="theme-color" content={youtubeEmbed ? "#000000" : "#55D4ED"} />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
