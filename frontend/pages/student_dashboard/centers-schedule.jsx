@@ -319,7 +319,9 @@ export default function CentersSchedule() {
                         fontSize: '0.9rem',
                         textAlign: 'center'
                       }}>
-                        {row.location && row.location.trim() !== '' && row.location !== null ? (
+                        {row.center && String(row.center).trim().toLowerCase() === 'online' ? (
+                          <Image src="/online.svg" alt="Online" width={28} height={28} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+                        ) : row.location && row.location.trim() !== '' && row.location !== null ? (
                           <span
                             onClick={() => window.open(row.location, '_blank')}
                             style={{

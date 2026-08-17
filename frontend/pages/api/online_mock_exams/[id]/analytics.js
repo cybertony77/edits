@@ -2,6 +2,7 @@ import { MongoClient, ObjectId } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../../lib/authMiddleware';
+import { buildAnalyticsStudentRow } from '../../../../lib/onlineAnalytics';
 
 function loadEnvConfig() {
   try {
@@ -76,7 +77,12 @@ export default async function handler(req, res) {
           lessThan50: 0,
           between50And100: 0,
           exactly100: 0,
-          totalStudents: 0
+          totalStudents: 0,
+          students: [],
+          notAnsweredIds: [],
+          lessThan50Ids: [],
+          between50And100Ids: [],
+          exactly100Ids: []
         }
       });
     }
@@ -117,6 +123,8 @@ export default async function handler(req, res) {
     const lessThan50Ids = [];
     const between50And100Ids = [];
     const exactly100Ids = [];
+    const students = [];
+    const questions = mockExam.questions || [];
 
     // Check each student's result for this mock exam
     studentsInCourse.forEach(student => {
@@ -129,31 +137,44 @@ export default async function handler(req, res) {
 
       let percentage = 0;
       let hasResult = false;
+      let degree = null;
+      let studentAnswers = null;
+      let shuffleMapping = null;
 
       // First, try to get result from online_mock_exams
       if (mockExamResult) {
         const percentageStr = mockExamResult.percentage?.toString().replace('%', '') || '0';
         percentage = parseInt(percentageStr, 10);
         hasResult = true;
+        degree = mockExamResult.result || null;
+        studentAnswers = mockExamResult.student_answers || null;
+        shuffleMapping = mockExamResult.shuffle_mapping || null;
       } else {
-        // If no result in online_mock_exams, check mockExams array (legacy support)
-        const mockExams = student.mockExams || [];
-        // Note: mockExams array doesn't have lesson-based lookup, so we skip this for now
-        // Students should use online_mock_exams array
+        // Legacy mockExams array has no per-exam student_answers lookup
       }
 
+      const studentRow = buildAnalyticsStudentRow({
+        student,
+        hasResult,
+        percentage,
+        degree,
+        questions,
+        studentAnswers,
+        shuffleMapping,
+      });
+      students.push(studentRow);
+
       // Categorize based on percentage
-      if (!hasResult || percentage === 0) {
-        // Student didn't answer
+      if (studentRow.category === 'notAnswered') {
         notAnswered++;
         if (studentId) notAnsweredIds.push(studentId);
-      } else if (percentage === 100) {
+      } else if (studentRow.category === 'exactly100') {
         exactly100++;
         if (studentId) exactly100Ids.push(studentId);
-      } else if (percentage >= 50 && percentage < 100) {
+      } else if (studentRow.category === 'between50And100') {
         between50And100++;
         if (studentId) between50And100Ids.push(studentId);
-      } else if (percentage > 0 && percentage < 50) {
+      } else if (studentRow.category === 'lessThan50') {
         lessThan50++;
         if (studentId) lessThan50Ids.push(studentId);
       }
@@ -167,6 +188,7 @@ export default async function handler(req, res) {
         between50And100,
         exactly100,
         totalStudents,
+        students,
         notAnsweredIds,
         lessThan50Ids,
         between50And100Ids,

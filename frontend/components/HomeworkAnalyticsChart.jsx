@@ -10,7 +10,7 @@ import {
   Cell
 } from "recharts";
 
-export default function HomeworkAnalyticsChart({ analyticsData }) {
+export default function HomeworkAnalyticsChart({ analyticsData, onBarClick, selectedCategory }) {
   const data = useMemo(() => {
     if (!analyticsData) {
       return [];
@@ -19,6 +19,7 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
     return [
       {
         name: 'Not Answered',
+        category: 'notAnswered',
         count: analyticsData.notAnswered || 0,
         color: '#a71e2a', // Dark red
         totalStudents: analyticsData.totalStudents || 0,
@@ -26,6 +27,7 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
       },
       {
         name: '< 50%',
+        category: 'lessThan50',
         count: analyticsData.lessThan50 || 0,
         color: '#dc3545', // Red
         totalStudents: analyticsData.totalStudents || 0,
@@ -33,6 +35,7 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
       },
       {
         name: '50-99%',
+        category: 'between50And100',
         count: analyticsData.between50And100 || 0,
         color: '#17a2b8', // Blue
         totalStudents: analyticsData.totalStudents || 0,
@@ -40,6 +43,7 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
       },
       {
         name: '100%',
+        category: 'exactly100',
         count: analyticsData.exactly100 || 0,
         color: '#28a745', // Green
         totalStudents: analyticsData.totalStudents || 0,
@@ -91,6 +95,7 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
               angle={-20}
               textAnchor="end"
               height={80}
+              interval={0}
             />
             <YAxis
               domain={[0, maxCount]}
@@ -182,10 +187,31 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
               dataKey="count"
               radius={[6, 6, 0, 0]}
               maxBarSize={80}
+              cursor="pointer"
+              onClick={(barData, _index, event) => {
+                event?.stopPropagation?.();
+                const category = barData?.category || barData?.payload?.category;
+                if (category && onBarClick) onBarClick(category);
+              }}
             >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
+              {data.map((entry, index) => {
+                const isDimmed = Boolean(selectedCategory) && selectedCategory !== 'totalStudents' && selectedCategory !== entry.category;
+                const isSelected = selectedCategory === entry.category;
+                return (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry.color}
+                    fillOpacity={isDimmed ? 0.35 : 1}
+                    stroke={isSelected ? '#111827' : 'none'}
+                    strokeWidth={isSelected ? 2 : 0}
+                    cursor="pointer"
+                    onClick={(cellEvent) => {
+                      cellEvent?.stopPropagation?.();
+                      onBarClick?.(entry.category);
+                    }}
+                  />
+                );
+              })}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -193,55 +219,44 @@ export default function HomeworkAnalyticsChart({ analyticsData }) {
       <style jsx global>{`
         @media (max-width: 768px) {
           .analytics-chart-container {
-            height: 350px !important;
-            margin: 0 -10px !important;
+            height: 280px !important;
+            margin: 0 !important;
           }
           .analytics-chart-container .recharts-cartesian-axis-tick text {
-            font-size: 11px !important;
+            font-size: 10px !important;
           }
           .analytics-chart-container .recharts-label {
-            font-size: 11px !important;
-          }
-          .analytics-chart-container .recharts-bar {
-            max-width: 60px !important;
+            font-size: 10px !important;
           }
         }
         
         @media (max-width: 480px) {
           .analytics-chart-container {
-            height: 300px !important;
-            margin: 0 -5px !important;
+            height: 240px !important;
           }
           .analytics-chart-container .recharts-cartesian-axis-tick text {
-            font-size: 10px !important;
+            font-size: 9px !important;
           }
           .analytics-chart-container .recharts-label {
-            font-size: 10px !important;
-          }
-          .analytics-chart-container .recharts-bar {
-            max-width: 50px !important;
+            display: none !important;
           }
           .analytics-chart-container .recharts-cartesian-axis {
-            font-size: 9px !important;
+            font-size: 8px !important;
           }
         }
         
         @media (max-width: 360px) {
           .analytics-chart-container {
-            height: 280px !important;
-            margin: 0 -5px !important;
+            height: 220px !important;
           }
           .analytics-chart-container .recharts-cartesian-axis-tick text {
-            font-size: 9px !important;
-          }
-          .analytics-chart-container .recharts-label {
-            font-size: 9px !important;
-          }
-          .analytics-chart-container .recharts-bar {
-            max-width: 40px !important;
-          }
-          .analytics-chart-container .recharts-cartesian-axis {
             font-size: 8px !important;
+          }
+        }
+
+        @media (max-height: 500px) and (orientation: landscape) {
+          .analytics-chart-container {
+            height: 180px !important;
           }
         }
       `}</style>
