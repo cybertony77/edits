@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/router";
 import Title from '../../../../components/Title';
-import MockExamPerformanceChart from '../../../../components/MockExamPerformanceChart';
+import MockExamChart from '../../../../components/MockExamChart';
 import { useStudents, useStudent } from '../../../../lib/api/students';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
-import { itemCenterMatchesStudentMainCenter } from '../../../../lib/studentCenterMatch';
 import Image from 'next/image';
 
 export default function PreviewStudentMockExams() {
@@ -38,33 +37,7 @@ export default function PreviewStudentMockExams() {
     enabled: !!searchId && !!student,
   });
 
-  // Fetch all mock exams to check state for filtering
-  const { data: allMockExamsData } = useQuery({
-    queryKey: ['all-mock-exams'],
-    queryFn: async () => {
-      const response = await apiClient.get('/api/online_mock_exams');
-      return response.data;
-    },
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    refetchOnMount: false,
-  });
-
-  const allMockExams = allMockExamsData?.mockExams || [];
-
-  const activeLessons = useMemo(() => {
-    const lessonSet = new Set();
-    const mainCenter = student?.main_center;
-    allMockExams.forEach((mockExam) => {
-      if (!itemCenterMatchesStudentMainCenter(mockExam.center, mainCenter)) return;
-      const itemState = mockExam.state || mockExam.account_state || 'Activated';
-      if (itemState === 'Activated' && mockExam.lesson) lessonSet.add(mockExam.lesson);
-    });
-    return lessonSet;
-  }, [allMockExams, student?.main_center]);
-
-  // Fetch mock exam performance chart data using API endpoint
+  // Same chart source as Student Info: performance API, unfiltered
   const { data: performanceData, isLoading: isChartLoading } = useQuery({
     queryKey: ['mock-exam-performance', searchId],
     queryFn: async () => {
@@ -85,21 +58,24 @@ export default function PreviewStudentMockExams() {
     retry: 1,
   });
 
-  const rawChartData = performanceData?.chartData || [];
-
-  // Filter chart data to only include Activated lessons
-  const chartData = useMemo(() => {
-    if (!Array.isArray(rawChartData) || rawChartData.length === 0) return [];
-    if (activeLessons.size === 0) return rawChartData; // If no active lessons, show all
-    
-    return rawChartData.filter(item => {
-      const label = (item.lesson_name || item.lesson || '').toString().toLowerCase();
-      if (!label) return false;
-      return Array.from(activeLessons).some(lesson =>
-        label.includes(String(lesson).toLowerCase())
-      );
-    });
-  }, [rawChartData, activeLessons]);
+  const mockExamChartItems = useMemo(() => {
+    const apiData = performanceData?.chartData;
+    if (!Array.isArray(apiData) || apiData.length === 0) return [];
+    return apiData
+      .map((item) => ({
+        exam: item.lesson_name || item.lesson || 'Unknown',
+        percentage: item.percentage || 0,
+        examDegree: null,
+        outOf: null,
+        result: item.result || '0 / 0',
+        date: null,
+      }))
+      .sort((a, b) => {
+        const numA = parseInt((a.exam.match(/\d+/) || [0])[0], 10) || 0;
+        const numB = parseInt((b.exam.match(/\d+/) || [0])[0], 10) || 0;
+        return numA - numB;
+      });
+  }, [performanceData]);
 
   // Reset mock exam mutation
   const resetMockExamMutation = useMutation({
@@ -653,7 +629,7 @@ export default function PreviewStudentMockExams() {
                     Loading chart data...
                   </div>
                 ) : (
-                  <MockExamPerformanceChart chartData={chartData} height={400} />
+                  <MockExamChart mockExams={mockExamChartItems} />
                 )}
               </div>
             )}

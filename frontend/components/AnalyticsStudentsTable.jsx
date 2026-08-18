@@ -179,7 +179,7 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
         }
         .analytics-table-scroll {
           overflow: auto;
-          max-height: 360px;
+          max-height: 420px;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
           touch-action: pan-x pan-y;
@@ -323,7 +323,8 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
             font-size: 0.8rem;
           }
           .analytics-table-scroll {
-            max-height: 240px;
+            max-height: min(52vh, 520px);
+            min-height: 380px;
           }
           .pagination-container {
             gap: 10px;
@@ -348,7 +349,8 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
             gap: 4px;
           }
           .analytics-table-scroll {
-            max-height: 220px;
+            max-height: min(55vh, 540px);
+            min-height: 400px;
           }
           .page-popup-content {
             min-width: 200px;
@@ -362,7 +364,8 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
         }
         @media (max-height: 500px) and (orientation: landscape) {
           .analytics-table-scroll {
-            max-height: 160px;
+            max-height: 220px;
+            min-height: 0;
           }
         }
       `}</style>

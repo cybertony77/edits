@@ -220,7 +220,7 @@ export default function AnalyticsModal({
           font-size: 0.85rem;
         }
         .analytics-chart-wrap {
-          margin-bottom: 8px;
+          margin-bottom: 0;
           min-width: 0;
         }
         .analytics-stats-grid {

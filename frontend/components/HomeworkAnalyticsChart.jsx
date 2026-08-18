@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useMediaQuery } from "@mantine/hooks";
 import {
   ResponsiveContainer,
   BarChart,
@@ -11,6 +12,13 @@ import {
 } from "recharts";
 
 export default function HomeworkAnalyticsChart({ analyticsData, onBarClick, selectedCategory }) {
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isNarrow = useMediaQuery('(max-width: 480px)');
+  const isLandscape = useMediaQuery('(max-height: 500px) and (orientation: landscape)');
+  const chartHeight = isLandscape ? 180 : isNarrow ? 230 : isMobile ? 250 : 360;
+  const chartMargin = isMobile
+    ? { top: 8, right: 8, left: 0, bottom: 4 }
+    : { top: 16, right: 24, left: 12, bottom: 12 };
   const data = useMemo(() => {
     if (!analyticsData) {
       return [];
@@ -80,28 +88,29 @@ export default function HomeworkAnalyticsChart({ analyticsData, onBarClick, sele
 
   return (
     <>
-      <div className="analytics-chart-container" style={{ width: '100%', height: 400 }}>
+      <div className="analytics-chart-container" style={{ width: '100%', height: chartHeight }}>
         <ResponsiveContainer>
           <BarChart
             data={data}
-            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+            margin={chartMargin}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e9ecef" />
             <XAxis
               dataKey="name"
               stroke="#6c757d"
-              fontSize={12}
-              tick={{ fill: '#495057', fontSize: 14 }}
-              angle={-20}
+              fontSize={isMobile ? 10 : 12}
+              tick={{ fill: '#495057', fontSize: isMobile ? 10 : 14 }}
+              angle={isMobile ? -15 : -20}
               textAnchor="end"
-              height={80}
+              height={isMobile ? 36 : 48}
               interval={0}
             />
             <YAxis
               domain={[0, maxCount]}
-              tick={{ fill: '#495057', fontSize: 14 }}
+              tick={{ fill: '#495057', fontSize: isMobile ? 10 : 14 }}
               stroke="#6c757d"
-              label={{ value: 'Number of Students', angle: -90, position: 'insideLeft', offset: -5, style: { textAnchor: 'middle' } }}
+              width={isMobile ? 28 : 40}
+              label={isMobile ? undefined : { value: 'Number of Students', angle: -90, position: 'insideLeft', offset: -5, style: { textAnchor: 'middle' } }}
             />
             <Tooltip
               contentStyle={{
@@ -217,47 +226,8 @@ export default function HomeworkAnalyticsChart({ analyticsData, onBarClick, sele
         </ResponsiveContainer>
       </div>
       <style jsx global>{`
-        @media (max-width: 768px) {
-          .analytics-chart-container {
-            height: 280px !important;
-            margin: 0 !important;
-          }
-          .analytics-chart-container .recharts-cartesian-axis-tick text {
-            font-size: 10px !important;
-          }
-          .analytics-chart-container .recharts-label {
-            font-size: 10px !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .analytics-chart-container {
-            height: 240px !important;
-          }
-          .analytics-chart-container .recharts-cartesian-axis-tick text {
-            font-size: 9px !important;
-          }
-          .analytics-chart-container .recharts-label {
-            display: none !important;
-          }
-          .analytics-chart-container .recharts-cartesian-axis {
-            font-size: 8px !important;
-          }
-        }
-        
-        @media (max-width: 360px) {
-          .analytics-chart-container {
-            height: 220px !important;
-          }
-          .analytics-chart-container .recharts-cartesian-axis-tick text {
-            font-size: 8px !important;
-          }
-        }
-
-        @media (max-height: 500px) and (orientation: landscape) {
-          .analytics-chart-container {
-            height: 180px !important;
-          }
+        .analytics-chart-container {
+          margin: 0 !important;
         }
       `}</style>
     </>
