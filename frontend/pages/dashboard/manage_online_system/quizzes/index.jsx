@@ -4,7 +4,7 @@ import Title from '../../../../components/Title';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
 import { downloadFileUrl } from '../../../../lib/downloadFileUrl';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import CourseSelect from '../../../../components/CourseSelect';
@@ -40,6 +40,8 @@ function InputWithButton(props) {
 }
 
 export default function Quizzes() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: systemConfig } = useSystemConfig();
@@ -345,7 +347,7 @@ export default function Quizzes() {
           }}>
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
-                Filter by Course
+                {courseLabels.filterByCourse}
               </label>
               <CourseSelect
                 selectedGrade={filterCourse}
@@ -364,7 +366,8 @@ export default function Quizzes() {
                 showAllOption={true}
               />
             </div>
-            <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
+            {courseLabels.showCourseType && (
+<div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Course Type
               </label>
@@ -384,6 +387,7 @@ export default function Quizzes() {
                 onClose={() => setFilterCourseTypeDropdownOpen(false)}
               />
             </div>
+)}
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Center
@@ -534,7 +538,7 @@ export default function Quizzes() {
                 >
                   <div className="item-info" style={{ flex: '1 1 260px', minWidth: 0, maxWidth: '100%' }}>
                     <div style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {[quiz.course, quiz.courseType, quiz.center, quiz.lesson, quiz.lesson_name].filter(Boolean).join(' • ')}
+                      {[quiz.course, !isNational && quiz.courseType, quiz.center, quiz.lesson, quiz.lesson_name].filter(Boolean).join(' • ')}
                     </div>
                     {quiz.quiz_type === 'pdf' ? (
                       <div style={{ padding: '12px 16px', backgroundColor: '#ffffff', border: '2px solid #e9ecef', borderRadius: '8px', fontSize: '0.95rem', color: '#495057', textAlign: 'left', display: 'inline-block', maxWidth: '100%' }}>
@@ -760,7 +764,6 @@ export default function Quizzes() {
             </div>
           </div>
         )}
-      </div>
 
       <style jsx>{`
         .analytics-modal-overlay {
@@ -1177,6 +1180,7 @@ export default function Quizzes() {
         fileName={pdfViewer.name}
         onClose={() => setPdfViewer({ isOpen: false, url: '', name: '' })}
       />
+      </div>
     </div>
   );
 }

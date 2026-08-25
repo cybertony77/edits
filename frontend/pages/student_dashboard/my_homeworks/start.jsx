@@ -760,6 +760,11 @@ export default function HomeworkStart() {
           studentId: profile.id,
           type: 'homework',
           week: weekNum,
+          source: {
+            kind: 'online_homework',
+            id: fullHomework._id.toString(),
+            label: fullHomework.lesson || fullHomework.lesson_name || fullHomework._id.toString(),
+          },
           data: { percentage, previousPercentage }
         });
         

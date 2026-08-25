@@ -1,3 +1,4 @@
+import { useNationalSystem, getCourseFieldLabels } from '../../../../lib/api/system';
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Title from '../../../../components/Title';
@@ -38,6 +39,8 @@ function extractWeekNumber(weekString) {
 }
 
 export default function AddHomeworkVideo() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
@@ -340,7 +343,7 @@ export default function AddHomeworkVideo() {
 
     // Validate course
     if (!selectedCourse || selectedCourse.trim() === '') {
-      newErrors.course = '❌ Course is required';
+      newErrors.course = `❌ ${courseLabels.course} is required`;
     }
 
     // Validate lesson
@@ -513,10 +516,10 @@ export default function AddHomeworkVideo() {
           marginTop: '24px'
         }}>
           <form onSubmit={handleSubmit}>
-            {/* Video Course */}
+            {/* Video {courseLabels.course} */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#333', fontWeight: '500' }}>
-                Video Course <span style={{ color: 'red' }}>*</span>
+                Video {courseLabels.course} <span style={{ color: 'red' }}>*</span>
               </label>
               <CourseSelect
                 selectedGrade={selectedCourse}
@@ -540,7 +543,8 @@ export default function AddHomeworkVideo() {
             </div>
 
             {/* Video Course Type */}
-            <div style={{ marginBottom: '20px' }}>
+            {courseLabels.showCourseType && (
+<div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#333', fontWeight: '500' }}>
                 Video Course Type
               </label>
@@ -562,6 +566,7 @@ export default function AddHomeworkVideo() {
                 </div>
               )}
             </div>
+)}
 
             {/* Video Lesson */}
             <div style={{ marginBottom: '20px' }}>

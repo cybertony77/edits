@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { useProfile } from '../../lib/api/auth';
 import { useStudent } from '../../lib/api/students';
-import { useSystemConfig, isFeatureEnabled } from '../../lib/api/system';
+import { useSystemConfig, isFeatureEnabled, useNationalSystem } from '../../lib/api/system';
 import apiClient from '../../lib/axios';
 import DashboardButtonsSkeleton from '../../components/DashboardButtonsSkeleton';
 
@@ -434,6 +434,7 @@ export default function StudentDashboard() {
     isError: systemConfigError,
     refetch: refetchSystemConfig,
   } = useSystemConfig();
+  const isNational = useNationalSystem();
   const isScoringEnabled = isFeatureEnabled(systemConfig, 'scoring_system');
   const isWhatsAppJoinGroupEnabled = isFeatureEnabled(systemConfig, 'whatsapp_join_group_btn');
   const isOnlineVideosEnabled = isFeatureEnabled(systemConfig, 'online_videos');
@@ -451,8 +452,12 @@ export default function StudentDashboard() {
   const studentId = profile?.id ? profile.id.toString() : null;
   const { data: studentData, isLoading: studentLoading, refetch: refetchStudent } = useStudent(studentId, { 
     enabled: !!studentId,
-    refetchInterval: 10000, // Auto-refetch every 10 seconds for live sessions/score updates
-    refetchIntervalInBackground: true, // Continue refetching even when tab is in background
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
   });
   
   // Fetch centers data
@@ -477,6 +482,29 @@ export default function StudentDashboard() {
   const firstName = studentData?.name ? getFirstName(studentData.name) : (profile?.name ? getFirstName(profile.name) : 'Student');
   const remainingSessions = studentData?.payment?.numberOfSessions || 0;
   const isLoading = profileLoading || studentLoading;
+
+  useEffect(() => {
+    if (!studentId) return undefined;
+    refetchStudent();
+
+    const refreshScore = () => {
+      if (document.visibilityState === 'visible') refetchStudent();
+    };
+    const handleRoute = (url) => {
+      if (url === '/student_dashboard' || url.startsWith('/student_dashboard?')) {
+        refetchStudent();
+      }
+    };
+
+    window.addEventListener('focus', refreshScore);
+    document.addEventListener('visibilitychange', refreshScore);
+    router.events.on('routeChangeComplete', handleRoute);
+    return () => {
+      window.removeEventListener('focus', refreshScore);
+      document.removeEventListener('visibilitychange', refreshScore);
+      router.events.off('routeChangeComplete', handleRoute);
+    };
+  }, [studentId, refetchStudent, router.events]);
 
   // WhatsApp Groups state
   const [showWhatsAppPopup, setShowWhatsAppPopup] = useState(false);
@@ -709,9 +737,10 @@ export default function StudentDashboard() {
       const courseMatch = centerCourse.toLowerCase() === 'all' || 
                          centerCourse.toLowerCase() === studentCourse.toLowerCase();
       
-      // If courseType exists in center, it must match student's courseType
+      // If courseType exists in center, it must match student's courseType (skipped when national)
       // If courseType doesn't exist in center, it matches any student
-      const courseTypeMatch = !centerCourseType || 
+      const courseTypeMatch = isNational ||
+                             !centerCourseType || 
                              centerCourseType === '' || 
                              centerCourseType.toLowerCase() === studentCourseType.toLowerCase();
       

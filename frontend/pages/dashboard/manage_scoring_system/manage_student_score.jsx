@@ -63,18 +63,28 @@ export default function ManageStudentScore() {
     enabled: !!searchId,
   });
 
-  // Update score mutation
+  // Update score mutation — goes through scoring history
   const updateScoreMutation = useMutation({
-    mutationFn: async ({ studentId, newScore }) => {
-      const response = await apiClient.put(`/api/students/${studentId}`, {
-        score: newScore
+    mutationFn: async ({ studentId, delta }) => {
+      const response = await apiClient.post('/api/scoring/calculate', {
+        studentId,
+        type: 'manual',
+        source: {
+          kind: 'staff_adjustment',
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+          label: 'Manage Student Score',
+        },
+        data: {
+          delta,
+          reason: 'Staff adjustment from Manage Student Score',
+        },
       });
       return response.data;
     },
     onSuccess: () => {
-      // Refetch student data and rankings
       queryClient.invalidateQueries(['student-with-rankings', searchId]);
       queryClient.invalidateQueries(['scoring-view-scores']);
+      queryClient.invalidateQueries(['scoring-history']);
     },
   });
 
@@ -141,16 +151,12 @@ export default function ManageStudentScore() {
   const handleScoreChange = async (delta) => {
     if (!studentData) return;
     
-    const currentScore = studentData.score || 0;
-    const newScore = Math.max(0, currentScore + delta); // Ensure score doesn't go below 0
-    
     try {
       await updateScoreMutation.mutateAsync({
         studentId: studentData.id,
-        newScore
+        delta,
       });
       
-      // Refetch to get updated rankings
       await refetchStudent();
     } catch (error) {
       console.error('Error updating score:', error);

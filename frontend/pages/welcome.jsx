@@ -1919,6 +1919,7 @@ export default function MarketingPage() {
                   showUploadTab={showUploadTab}
                   hideTitle
                   hideVideoName
+                  hideYoutubePreview
                 />
               </div>
             )}

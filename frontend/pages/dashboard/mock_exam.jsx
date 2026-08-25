@@ -263,6 +263,11 @@ export default function MockExam() {
               studentId: student.id,
               type: 'mock_exam',
               lesson: lessonName,
+              source: {
+                kind: 'classroom_mock_exam',
+                id: String(examIndex + 1),
+                label: lessonName,
+              },
               data: { percentage, previousPercentage }
             });
 

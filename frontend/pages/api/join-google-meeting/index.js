@@ -63,7 +63,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Only one Google Meeting is allowed. Please edit or delete the existing one.' });
       }
 
-      const { course, courseType, lesson, link, deadline, dateOfStart, dateOfEnd } = req.body;
+      const { course, courseType, lesson, link, deadline, dateOfStart, dateOfEnd, meeting_state, account_state } = req.body;
 
       if (!course || !lesson || !link) {
         return res.status(400).json({ error: 'Course, Lesson and Google Meet Link are required' });
@@ -73,6 +73,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Google Meet link must start with "https://meet.google.com/"' });
       }
 
+      const rawState = meeting_state ?? account_state;
+      const meetingState = rawState === 'Deactivated' ? 'Deactivated' : 'Activated';
+
       const newMeeting = {
         course: course.trim(),
         courseType: courseType ? courseType.trim() : null,
@@ -81,6 +84,7 @@ export default async function handler(req, res) {
         deadline: deadline || null,
         dateOfStart: dateOfStart || null,
         dateOfEnd: dateOfEnd || null,
+        meeting_state: meetingState,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -96,7 +100,7 @@ export default async function handler(req, res) {
       });
     } else if (req.method === 'PUT') {
       // Update Google Meeting
-      const { id, course, courseType, lesson, link, deadline, dateOfStart, dateOfEnd } = req.body;
+      const { id, course, courseType, lesson, link, deadline, dateOfStart, dateOfEnd, meeting_state, account_state } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'Meeting ID is required' });
@@ -117,6 +121,9 @@ export default async function handler(req, res) {
         query = { _id: id };
       }
 
+      const rawState = meeting_state ?? account_state;
+      const meetingState = rawState === 'Deactivated' ? 'Deactivated' : 'Activated';
+
       const updateData = {
         course: course.trim(),
         courseType: courseType ? courseType.trim() : null,
@@ -125,6 +132,7 @@ export default async function handler(req, res) {
         deadline: deadline || null,
         dateOfStart: dateOfStart || null,
         dateOfEnd: dateOfEnd || null,
+        meeting_state: meetingState,
         updatedAt: new Date()
       };
 

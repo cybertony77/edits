@@ -4,6 +4,7 @@ import path from 'path';
 import { authMiddleware } from '../../../lib/authMiddleware';
 import { resolveGoogleMeetVideoForSave } from '../../../lib/googleServer';
 import { maskGoogleMeetIdsInDocuments } from '../../../lib/googleVideoIds';
+import { normalizeViewingSettingsForSave } from '../../../lib/onlineSessionViewing';
 
 function loadEnvConfig() {
   try {
@@ -106,7 +107,19 @@ export default async function handler(req, res) {
 
     } else if (req.method === 'POST') {
       // Create new online session
-      const { name, video_urls, videos, description, course, courseType, lesson, payment_state, state } = req.body;
+      const {
+        name,
+        video_urls,
+        videos,
+        description,
+        course,
+        courseType,
+        lesson,
+        payment_state,
+        state,
+        viewing_limit_type,
+        viewing_limit_value,
+      } = req.body;
 
       // Validate required fields
       if (!course || !course.trim()) {
@@ -121,9 +134,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Name is required' });
       }
 
-      // Validate payment_state
-      if (!payment_state || (payment_state !== 'paid' && payment_state !== 'free')) {
-        return res.status(400).json({ error: 'Video Payment State is required and must be "paid" or "free"' });
+      const viewingNormalized = normalizeViewingSettingsForSave(
+        payment_state,
+        viewing_limit_type,
+        viewing_limit_value
+      );
+      if (viewingNormalized.error) {
+        return res.status(400).json({ error: viewingNormalized.error });
       }
 
       // Handle both old format (video_urls) and new format (videos array)
@@ -228,6 +245,8 @@ export default async function handler(req, res) {
         courseType: courseType && courseType.trim() ? courseType.trim() : null,
         lesson: lesson.trim(),
         payment_state: payment_state,
+        viewing_limit_type: viewingNormalized.viewing_limit_type,
+        viewing_limit_value: viewingNormalized.viewing_limit_value,
         name: name.trim(),
         ...videoData,
         description: description && description.trim() ? description.trim() : null,
@@ -246,7 +265,19 @@ export default async function handler(req, res) {
     } else if (req.method === 'PUT') {
       // Update online session
       const { id } = req.query;
-      const { name, video_urls, videos, description, course, courseType, lesson, payment_state, state } = req.body;
+      const {
+        name,
+        video_urls,
+        videos,
+        description,
+        course,
+        courseType,
+        lesson,
+        payment_state,
+        state,
+        viewing_limit_type,
+        viewing_limit_value,
+      } = req.body;
 
       if (!id) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -265,9 +296,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Name is required' });
       }
 
-      // Validate payment_state
-      if (!payment_state || (payment_state !== 'paid' && payment_state !== 'free')) {
-        return res.status(400).json({ error: 'Video Payment State is required and must be "paid" or "free"' });
+      const viewingNormalized = normalizeViewingSettingsForSave(
+        payment_state,
+        viewing_limit_type,
+        viewing_limit_value
+      );
+      if (viewingNormalized.error) {
+        return res.status(400).json({ error: viewingNormalized.error });
       }
 
       // Handle both old format (video_urls) and new format (videos array)
@@ -378,6 +413,8 @@ export default async function handler(req, res) {
         courseType: courseType && courseType.trim() ? courseType.trim() : null,
         lesson: lesson.trim(),
         payment_state: payment_state,
+        viewing_limit_type: viewingNormalized.viewing_limit_type,
+        viewing_limit_value: viewingNormalized.viewing_limit_value,
         name: name.trim(),
         ...videoData,
         description: description && description.trim() ? description.trim() : null,

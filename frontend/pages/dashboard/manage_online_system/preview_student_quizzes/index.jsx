@@ -6,8 +6,11 @@ import { useStudents, useStudent } from '../../../../lib/api/students';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
 import Image from 'next/image';
+import { useNationalSystem, getCourseFieldLabels } from '../../../../lib/api/system';
 
 export default function PreviewStudentQuizzes() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [studentId, setStudentId] = useState("");
@@ -74,8 +77,10 @@ export default function PreviewStudentQuizzes() {
     },
     onSuccess: () => {
       refetchQuizzes();
-      // Invalidate and refetch chart data
       queryClient.invalidateQueries({ queryKey: ['quiz-performance', searchId] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['student-with-rankings'] });
+      queryClient.invalidateQueries({ queryKey: ['scoring-history'] });
       setResettingId(null);
     },
     onError: (err) => {
@@ -531,7 +536,7 @@ export default function PreviewStudentQuizzes() {
                     {s.name} (ID: {s.id})
                   </div>
                   <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
-                    {[s.course, s.courseType, s.main_center].filter(Boolean).join(' • ')}
+                    {[s.course, !isNational && s.courseType, s.main_center].filter(Boolean).join(' • ')}
                   </div>
                 </button>
               ))}
@@ -553,15 +558,17 @@ export default function PreviewStudentQuizzes() {
                   <div className="detail-label">Full Name</div>
                   <div className="detail-value">{student.name}</div>
                 </div>
+                {courseLabels.showGradeField && (
                 <div className="detail-item">
                   <div className="detail-label">Grade</div>
                   <div className="detail-value">{student.grade}</div>
                 </div>
+                )}
                 <div className="detail-item">
-                  <div className="detail-label">Course</div>
+                  <div className="detail-label">{courseLabels.course}</div>
                   <div className="detail-value">{student.course || 'N/A'}</div>
                 </div>
-                {student.courseType && (
+                {courseLabels.showCourseType && student.courseType && (
                   <div className="detail-item">
                     <div className="detail-label">Course Type</div>
                     <div className="detail-value" style={{ textTransform: 'capitalize' }}>{student.courseType}</div>

@@ -38,3 +38,48 @@ export function formatEgyptDateTime(input = new Date()) {
 
   return `${day}/${month}/${year} at ${hour}:${minute} ${period}`;
 }
+
+/** YYYY-MM-DD for a Date/ISO instant in Africa/Cairo. */
+export function toEgyptYmd(input = new Date()) {
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: EGYPT_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const d = parts.find((p) => p.type === 'day')?.value;
+  if (!y || !m || !d) return null;
+  return `${y}-${m}-${d}`;
+}
+
+/** YYYY-MM-DD for "today" in Africa/Cairo. */
+export function getEgyptYmdToday() {
+  return toEgyptYmd(new Date());
+}
+
+/** Add calendar days to a YYYY-MM-DD string (Egypt civil date arithmetic). */
+export function addDaysEgyptYmd(ymd, days) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const n = Number(days);
+  if (Number.isNaN(n) || !Number.isFinite(n)) return null;
+  const [y, mo, d] = ymd.split('-').map(Number);
+  // Noon UTC avoids DST edge cases when shifting civil dates
+  const utc = Date.UTC(y, mo - 1, d, 12, 0, 0);
+  const shifted = new Date(utc + Math.trunc(n) * 24 * 60 * 60 * 1000);
+  const yy = shifted.getUTCFullYear();
+  const mm = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/** Compare YYYY-MM-DD: -1 if a<b, 0 if equal, 1 if a>b. */
+export function compareEgyptYmd(a, b) {
+  if (!a || !b) return 0;
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}

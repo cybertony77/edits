@@ -2,6 +2,7 @@ import { MongoClient, ObjectId } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../../lib/authMiddleware';
+import { reverseItemScoring, parsePercentage } from '../../../../lib/reverseItemScoring';
 
 function loadEnvConfig() {
   try {
@@ -71,20 +72,6 @@ export default async function handler(req, res) {
       }
     );
 
-    // Remove the mock exam from the array
-    const updatedMockExams = onlineMockExams.filter(
-      me => {
-        const meIdStr = me.mock_exam_id ? String(me.mock_exam_id) : null;
-        const queryIdStr = String(mock_exam_id);
-        return meIdStr !== queryIdStr;
-      }
-    );
-
-    // Prepare update object
-    const updateFields = {
-      online_mock_exams: updatedMockExams
-    };
-
     // Resolve lesson ("Exam 1", etc.) from saved result or mock_exams document
     let lesson = mockExamToReset?.lesson || null;
     if (!lesson) {
@@ -99,6 +86,35 @@ export default async function handler(req, res) {
         console.error('Error fetching mock exam document for reset:', err);
       }
     }
+
+    const previousPercentage = parsePercentage(mockExamToReset?.percentage);
+    await reverseItemScoring(db, {
+      studentId: student_id,
+      type: 'mock_exam',
+      lesson,
+      sourceKind: 'online_mock_exam',
+      sourceId: mock_exam_id,
+      sourceLabel: lesson || mock_exam_id,
+      previousPercentage,
+      fallbackPoints: mockExamToReset?.points_added,
+    });
+
+    const latestStudent = await db.collection('students').findOne({ id: student_id }) || student;
+    const onlineMockExamsLatest = latestStudent.online_mock_exams || onlineMockExams;
+
+    // Remove the mock exam from the array
+    const updatedMockExams = onlineMockExamsLatest.filter(
+      me => {
+        const meIdStr = me.mock_exam_id ? String(me.mock_exam_id) : null;
+        const queryIdStr = String(mock_exam_id);
+        return meIdStr !== queryIdStr;
+      }
+    );
+
+    // Prepare update object
+    const updateFields = {
+      online_mock_exams: updatedMockExams
+    };
 
     // Also reset in mockExams array if lesson field exists
     if (lesson) {

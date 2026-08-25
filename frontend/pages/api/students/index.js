@@ -48,6 +48,7 @@ const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI || 'mongodb://loc
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'demo-attendance-system';
 const SYSTEM_SCORING_SYSTEM = envConfig.SYSTEM_SCORING_SYSTEM === 'true' || process.env.SYSTEM_SCORING_SYSTEM === 'true';
 const WITH_PHISICAL_CARD = envConfig.WITH_PHISICAL_CARD === 'true';
+const NATIONAL_SYSTEM = envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
 
 console.log('🔗 Final MONGO_URI being used:', MONGO_URI.replace(/:[^:@]*@/, ':****@'));
 console.log('🔗 Final DB_NAME being used:', DB_NAME);
@@ -488,8 +489,15 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Student ID is required when WITH_PHISICAL_CARD is enabled' });
         }
         
-        if (!name || !grade || !course || !phone || !parents_phone || !main_center || age === undefined || !gender || !school) {
-          return res.status(400).json({ error: 'All fields are required (name, grade, course, phone, parents_phone, main_center, age, gender, school)' });
+        const missingCore =
+          !name || !course || !phone || !parents_phone || !main_center || age === undefined || !gender || !school;
+        const missingGrade = !NATIONAL_SYSTEM && !grade;
+        if (missingCore || missingGrade) {
+          return res.status(400).json({
+            error: NATIONAL_SYSTEM
+              ? 'All fields are required (name, course/grade, phone, parents_phone, main_center, age, gender, school)'
+              : 'All fields are required (name, grade, course, phone, parents_phone, main_center, age, gender, school)',
+          });
         }
         
         // Check if the custom ID is already used
@@ -502,7 +510,10 @@ export default async function handler(req, res) {
       } else {
         // If WITH_PHISICAL_CARD is false, auto-generate ID (last student ID + 1)
         // Ignore id field completely - don't validate it even if it's sent
-        if (!name || !grade || !course || !phone || !parents_phone || !main_center || age === undefined || !gender || !school) {
+        const missingCore =
+          !name || !course || !phone || !parents_phone || !main_center || age === undefined || !gender || !school;
+        const missingGrade = !NATIONAL_SYSTEM && !grade;
+        if (missingCore || missingGrade) {
           return res.status(400).json({ error: 'All fields are required' });
         }
         
@@ -550,9 +561,9 @@ export default async function handler(req, res) {
         id: newId,
         name,
         gender,
-        grade: grade || null, // Grade is optional (like "Grade 10")
-        course: course || null, // Course is required (EST, SAT, ACT)
-        courseType: courseType || "basics", // Course type defaults to basics
+        grade: grade || null, // GradeSelect field; not required when NATIONAL_SYSTEM
+        course: course || null, // Course/Grade from CourseSelect (EST, SAT, ACT, etc.)
+        courseType: NATIONAL_SYSTEM ? null : (courseType || "basics"),
         school,
         phone,
         parentsPhone: parents_phone,

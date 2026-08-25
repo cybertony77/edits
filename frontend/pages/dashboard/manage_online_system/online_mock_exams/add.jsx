@@ -7,7 +7,7 @@ import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import CenterSelect from '../../../../components/CenterSelect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import Image from 'next/image';
 import ZoomableImage from '../../../../components/ZoomableImage';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
@@ -52,6 +52,8 @@ function createDefaultMcqQuestion(desmosEnabled) {
 }
 
 export default function AddMockExam() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: systemConfig } = useSystemConfig();
@@ -586,7 +588,7 @@ export default function AddMockExam() {
 
     // Validate course
     if (!selectedCourse || selectedCourse.trim() === '') {
-      newErrors.course = '❌ Course is required';
+      newErrors.course = `❌ ${courseLabels.course} is required`;
     }
 
     // Validate mock exam
@@ -828,10 +830,10 @@ export default function AddMockExam() {
               </button>
             </div>
 
-            {/* Mock Exam Course */}
+            {/* Mock Exam {courseLabels.course} */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', textAlign: 'left' }}>
-                Mock Exam Course <span style={{ color: 'red' }}>*</span>
+                Mock Exam {courseLabels.course} <span style={{ color: 'red' }}>*</span>
               </label>
               <CourseSelect
                 selectedGrade={selectedCourse}
@@ -859,7 +861,8 @@ export default function AddMockExam() {
             </div>
 
             {/* Mock Exam Course Type */}
-            <div style={{ marginBottom: '20px' }}>
+            {courseLabels.showCourseType && (
+<div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', textAlign: 'left' }}>
                 Mock Exam Course Type
               </label>
@@ -885,6 +888,7 @@ export default function AddMockExam() {
                 </div>
               )}
             </div>
+)}
 
             {/* Mock Exam Center (optional) */}
             <div style={{ marginBottom: '20px' }}>

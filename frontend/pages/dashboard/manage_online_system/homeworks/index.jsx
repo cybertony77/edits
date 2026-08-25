@@ -12,7 +12,7 @@ import CenterSelect from '../../../../components/CenterSelect';
 import AttendanceLessonSelect from '../../../../components/AttendancelessonSelect';
 import TimerSelect from '../../../../components/TimerSelect';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
 import HomeworkAnalyticsChart from '../../../../components/HomeworkAnalyticsChart';
@@ -40,6 +40,8 @@ function InputWithButton(props) {
 }
 
 export default function Homeworks() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: systemConfig } = useSystemConfig();
@@ -345,7 +347,7 @@ export default function Homeworks() {
           }}>
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
-                Filter by Course
+                {courseLabels.filterByCourse}
               </label>
               <CourseSelect
                 selectedGrade={filterCourse}
@@ -364,7 +366,8 @@ export default function Homeworks() {
                 showAllOption={true}
               />
             </div>
-            <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
+            {courseLabels.showCourseType && (
+<div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Course Type
               </label>
@@ -384,6 +387,7 @@ export default function Homeworks() {
                 onClose={() => setFilterCourseTypeDropdownOpen(false)}
               />
             </div>
+)}
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Center
@@ -534,7 +538,7 @@ export default function Homeworks() {
                 >
                   <div className="item-info" style={{ flex: '1 1 260px', minWidth: 0, maxWidth: '100%' }}>
                     <div style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {[homework.course, homework.courseType, homework.center, homework.lesson, homework.lesson_name].filter(Boolean).join(' • ')}
+                      {[homework.course, !isNational && homework.courseType, homework.center, homework.lesson, homework.lesson_name].filter(Boolean).join(' • ')}
                     </div>
                     <div style={{ color: '#6c757d', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       {homework.homework_type === 'pdf' ? (
@@ -806,7 +810,6 @@ export default function Homeworks() {
             </div>
           </div>
         )}
-      </div>
 
       <style jsx>{`
         .analytics-modal-overlay {
@@ -1221,6 +1224,7 @@ export default function Homeworks() {
         fileName={pdfViewer.name}
         onClose={() => setPdfViewer({ isOpen: false, url: '', name: '' })}
       />
+      </div>
     </div>
   );
 }

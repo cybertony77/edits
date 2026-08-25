@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useNationalSystem, getCourseFieldLabels } from '../lib/api/system';
 import Image from 'next/image';
 import CourseSelect from './CourseSelect';
 import CourseTypeSelect from './CourseTypeSelect';
@@ -16,6 +17,8 @@ export default function MaterialForm({
   submitting = false,
   errorMessage = '',
 }) {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const [formData, setFormData] = useState({
     course: initialData?.course || '',
     courseType: initialData?.courseType || '',
@@ -50,7 +53,7 @@ export default function MaterialForm({
 
   const validate = () => {
     const next = {};
-    if (!formData.course.trim()) next.course = '❌ Material course is required';
+    if (!formData.course.trim()) next.course = `❌ Material ${courseLabels.courseLower} is required`;
     if (!formData.material_name.trim()) next.material_name = '❌ Material name is required';
     if (!formData.pdf_file_name.trim()) next.pdf_file_name = '❌ PDF file name is required';
     if (!formData.pdf_url.trim()) next.pdf_url = '❌ PDF file is required';
@@ -102,7 +105,7 @@ export default function MaterialForm({
         if (!validate()) return;
         onSubmit({
           course: formData.course.trim(),
-          courseType: formData.course.trim() ? (formData.courseType.trim() || null) : null,
+          courseType: isNational ? null : (formData.course.trim() ? (formData.courseType.trim() || null) : null),
           center: formData.center.trim() || null,
           material_name: formData.material_name.trim(),
           state: formData.state || 'Activated',
@@ -124,7 +127,7 @@ export default function MaterialForm({
       </div>
 
       <div style={{ marginBottom: 20 }}>
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Material Course <span style={{ color: 'red' }}>*</span></label>
+        <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Material {courseLabels.course} <span style={{ color: 'red' }}>*</span></label>
         <CourseSelect
           selectedGrade={formData.course}
           onGradeChange={(v) => {
@@ -139,10 +142,12 @@ export default function MaterialForm({
         />
         {errors.course && <div style={{ color: '#dc3545', fontSize: '.875rem', marginTop: 4 }}>{errors.course}</div>}
       </div>
+      {courseLabels.showCourseType && (
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Material Course Type</label>
         <CourseTypeSelect selectedCourseType={formData.courseType} onCourseTypeChange={(v) => setFormData((p) => ({ ...p, courseType: v }))} isOpen={courseTypeOpen} onToggle={() => { setCourseTypeOpen(!courseTypeOpen); setCourseOpen(false); setCenterOpen(false); }} onClose={() => setCourseTypeOpen(false)} />
       </div>
+      )}
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Material Center</label>
         <CenterSelect selectedCenter={formData.center} onCenterChange={(v) => setFormData((p) => ({ ...p, center: v }))} required={false} isOpen={centerOpen} onToggle={() => { setCenterOpen(!centerOpen); setCourseOpen(false); setCourseTypeOpen(false); }} onClose={() => setCenterOpen(false)} />

@@ -10,6 +10,7 @@ import AccountStateSelect from '../../components/AccountStateSelect';
 import GenderSelect from '../../components/GenderSelect';
 import Title from '../../components/Title';
 import { useStudents, useStudent, useUpdateStudent } from '../../lib/api/students';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { formatPhoneForDB, validateEgyptPhone, handleEgyptPhoneKeyDown } from '../../lib/phoneUtils';
@@ -25,6 +26,8 @@ function normalizeGrade(grade) {
 }
 
 export default function EditStudent() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const containerRef = useRef(null);
   const [studentId, setStudentId] = useState("");
   const [searchId, setSearchId] = useState(""); // Separate state for search
@@ -81,7 +84,6 @@ export default function EditStudent() {
         parents_phone: (student.parentsPhone || student.parentsPhone1 || student.parents_phone || ''), // Support both old and new
         main_center: student.main_center || "",
         school: student.school || "",
-        homeschooling: (student.school === "Homeschooling"),
         comment: student.main_comment || student.comment || "",
         account_state: student.account_state || "Activated"
       };
@@ -344,14 +346,10 @@ export default function EditStudent() {
       updatedStudent.main_comment = (typeof c === 'string' && c.trim() === '') ? null : (typeof c === 'string' ? c.trim() : c);
       delete updatedStudent.comment;
     }
-    
-    // Handle school field based on homeschooling checkbox
-    if (Object.prototype.hasOwnProperty.call(changedFields, 'homeschooling')) {
-      if (changedFields.homeschooling) {
-        updatedStudent.school = "Homeschooling";
-      }
-      // Remove homeschooling field from payload since we don't store it in DB
-      delete updatedStudent.homeschooling;
+
+    if (isNational) {
+      updatedStudent.grade = null;
+      updatedStudent.courseType = null;
     }
     
     console.log('🚀 Final payload being sent:', updatedStudent);
@@ -774,6 +772,7 @@ export default function EditStudent() {
                 onClose={() => setGenderDropdownOpen(false)}
               />
             </div>
+            {courseLabels.showGradeField && (
             <div className="form-group">
               <label>Grade <span style={{color: 'red'}}>*</span></label>
               <GradeSelect
@@ -784,8 +783,9 @@ export default function EditStudent() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            )}
               <div className="form-group">
-              <label>Course <span style={{color: 'red'}}>*</span></label>
+              <label>{courseLabels.course} <span style={{color: 'red'}}>*</span></label>
               <CourseSelect 
                   selectedGrade={formData.course || ''} 
                 onGradeChange={(course) => handleChange({ target: { name: 'course', value: course } })} 
@@ -795,6 +795,7 @@ export default function EditStudent() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            {courseLabels.showCourseType && (
             <div className="form-group">
               <label>Course Type <span style={{color: 'red'}}>*</span></label>
               <CourseTypeSelect 
@@ -806,24 +807,9 @@ export default function EditStudent() {
                   onClose={() => setOpenDropdown(null)}
                 />
               </div>
+            )}
               <div className="form-group">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <label>School <span style={{color: 'red'}}>*</span></label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', fontWeight: 'normal', color: '#666' }}>
-                  <input
-                    type="checkbox"
-                    name="homeschooling"
-                    checked={formData.homeschooling || false}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      handleChange({ target: { name: 'homeschooling', value: isChecked } });
-                    }}
-                    style={{ margin: 0 }}
-                  />
-                  Homeschooling
-                </label>
-              </div>
-              {!formData.homeschooling && (
                 <input
                   className="form-input"
                   name="school"
@@ -833,7 +819,6 @@ export default function EditStudent() {
                   required
                   autocomplete="off"
                 />
-              )}
             </div>
               <div className="form-group">
               <label>Phone <span style={{color: 'red'}}>*</span></label>

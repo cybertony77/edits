@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../lib/axios';
 import { useProfile } from '../../lib/api/auth';
 import { useStudent, studentKeys } from '../../lib/api/students';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig, useNationalSystem } from '../../lib/api/system';
 import StudentLessonSelect from '../../components/StudentLessonSelect';
 import NeedHelp from '../../components/NeedHelp';
 import R2VideoPlayer from '../../components/R2VideoPlayer';
@@ -16,6 +16,37 @@ import GoogleMeetVideoPlayer from '../../components/GoogleMeetVideoPlayer';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
 import { getStudentLesson } from '../../lib/studentLessons';
+import { isDeadlinePassedEgypt } from '../../lib/deadlineTimeEgypt';
+import { isCodeNumberOfDaysValid } from '../../lib/codeNumberOfDays';
+
+function unlockInfoFromVhcResponse(data) {
+  if (!data) return null;
+  return {
+    vhc_id: data.vhc_id,
+    code_settings: data.code_settings || 'number_of_views',
+    number_of_views: data.number_of_views ?? null,
+    number_of_days: data.number_of_days ?? null,
+    access_started_at: data.access_started_at || null,
+    deadline_date: data.deadline_date || null,
+  };
+}
+
+function formatCodePopupMessage(msg) {
+  if (!msg) return '';
+  return String(msg).replace(/^❌\s*/, '').trim();
+}
+
+function CodePopupMessage({ message }) {
+  if (!message) return null;
+  return (
+    <div role="alert" className="code-popup-msg">
+      <span aria-hidden="true" className="code-popup-msg-icon">
+        !
+      </span>
+      <span className="code-popup-msg-text">{formatCodePopupMessage(message)}</span>
+    </div>
+  );
+}
 
 // Input with Button Component (matching manage online system style)
 function InputWithButton(props) {
@@ -74,6 +105,7 @@ export default function HomeworksVideos() {
   const router = useRouter();
   const { data: profile } = useProfile();
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
   const isHomeworksVideosEnabled = systemConfig?.homeworks_videos === true || systemConfig?.homeworks_videos === 'true';
   const [expandedSessions, setExpandedSessions] = useState(new Set());
   
@@ -105,6 +137,13 @@ export default function HomeworksVideos() {
   const [isCheckingVhc, setIsCheckingVhc] = useState(false);
   const [pendingVideo, setPendingVideo] = useState(null); // Store video info while waiting for VHC
   const [unlockedSessions, setUnlockedSessions] = useState(new Map()); // Store unlocked sessions with VHC info
+
+  // Auto-hide VHC popup messages after 6s
+  useEffect(() => {
+    if (!vhcError) return undefined;
+    const timer = setTimeout(() => setVhcError(''), 6000);
+    return () => clearTimeout(timer);
+  }, [vhcError]);
 
   // Fetch student data to check attendance
   const studentId = profile?.id ? profile.id.toString() : null;
@@ -146,6 +185,7 @@ export default function HomeworksVideos() {
 
       console.log('[RESTORE VHC] Starting restore process, found', studentData.homeworks_videos.length, 'homeworks_videos');
       const newUnlocked = new Map();
+      const invalidIds = [];
       
       // Process each homeworks_video entry
       for (const homeworkVideo of studentData.homeworks_videos) {
@@ -153,6 +193,10 @@ export default function HomeworksVideos() {
           console.log('[RESTORE VHC] Skipping entry - missing vhc_id or video_id:', homeworkVideo);
           continue;
         }
+
+        const videoId = typeof homeworkVideo.video_id === 'string' 
+          ? homeworkVideo.video_id 
+          : homeworkVideo.video_id.toString();
 
         try {
           console.log('[RESTORE VHC] Fetching VHC details for video_id:', homeworkVideo.video_id, 'vhc_id:', homeworkVideo.vhc_id);
@@ -163,20 +207,11 @@ export default function HomeworksVideos() {
 
           console.log('[RESTORE VHC] VHC response:', response.data);
           if (response.data.success && response.data.valid) {
-            // Add to unlocked sessions Map
-            const videoId = typeof homeworkVideo.video_id === 'string' 
-              ? homeworkVideo.video_id 
-              : homeworkVideo.video_id.toString();
-            
             console.log('[RESTORE VHC] Adding to unlocked sessions - videoId:', videoId, 'vhc_id:', response.data.vhc_id);
-            newUnlocked.set(videoId, {
-              vhc_id: response.data.vhc_id,
-              code_settings: response.data.code_settings || 'number_of_views',
-              number_of_views: response.data.number_of_views || null,
-              deadline_date: response.data.deadline_date || null
-            });
+            newUnlocked.set(videoId, unlockInfoFromVhcResponse(response.data));
           } else {
             console.log('[RESTORE VHC] VHC not valid:', response.data);
+            invalidIds.push(videoId);
           }
         } catch (err) {
           console.error('[RESTORE VHC] Failed to restore VHC for video:', homeworkVideo.video_id, err);
@@ -184,11 +219,12 @@ export default function HomeworksVideos() {
         }
       }
 
-      // Update unlocked sessions state
+      // Update unlocked sessions state (add valid, remove expired/invalid)
       console.log('[RESTORE VHC] Restored', newUnlocked.size, 'unlocked sessions');
-      if (newUnlocked.size > 0) {
+      if (newUnlocked.size > 0 || invalidIds.length > 0) {
         setUnlockedSessions((prev) => {
           const merged = new Map(prev);
+          invalidIds.forEach((id) => merged.delete(id));
           newUnlocked.forEach((value, key) => merged.set(key, value));
           return merged;
         });
@@ -196,7 +232,7 @@ export default function HomeworksVideos() {
     };
 
     restoreUnlockedSessions();
-  }, [studentData]);
+  }, [studentData, sessionsData]);
 
   // Helper function to check if student attended a specific lesson
   const checkLessonAttendance = (lessonName) => {
@@ -237,38 +273,31 @@ export default function HomeworksVideos() {
       // Check if session is in unlockedSessions
       const sessionId = session._id?.toString() || session._id;
       const unlockedInfo = unlockedSessions.get(sessionId);
-      
-      console.log('[UNLOCK CHECK VHC] Session ID:', sessionId, 'Unlocked info:', unlockedInfo, 'All unlocked keys:', Array.from(unlockedSessions.keys()));
-      
+
       if (!unlockedInfo) {
         return false; // Not unlocked yet
       }
-      
-      // Check deadline date if code_settings is 'deadline_date'
-      if (unlockedInfo.code_settings === 'deadline_date' && unlockedInfo.deadline_date) {
-        const deadlineDate = new Date(unlockedInfo.deadline_date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        deadlineDate.setHours(0, 0, 0, 0);
-        
-        if (deadlineDate <= today) {
-          // Expired - remove from unlocked sessions
-          const newUnlocked = new Map(unlockedSessions);
-          newUnlocked.delete(sessionId);
-          setUnlockedSessions(newUnlocked);
+
+      // Check deadline date if code_settings is 'deadline_date' / number_of_days (Africa/Cairo)
+      if (unlockedInfo.code_settings === 'number_of_days') {
+        if (unlockedInfo.access_started_at != null && unlockedInfo.number_of_days != null) {
+          if (!isCodeNumberOfDaysValid(unlockedInfo.access_started_at, unlockedInfo.number_of_days)) {
+            return false;
+          }
+        } else if (unlockedInfo.deadline_date && isDeadlinePassedEgypt(unlockedInfo.deadline_date, null)) {
+          return false;
+        }
+      } else if (unlockedInfo.code_settings === 'deadline_date' && unlockedInfo.deadline_date) {
+        if (isDeadlinePassedEgypt(unlockedInfo.deadline_date, null)) {
           return false;
         }
       } else if (unlockedInfo.code_settings === 'number_of_views') {
-        // Check if views are remaining
-        if (unlockedInfo.number_of_views <= 0) {
-          // No views remaining - remove from unlocked sessions
-          const newUnlocked = new Map(unlockedSessions);
-          newUnlocked.delete(sessionId);
-          setUnlockedSessions(newUnlocked);
+        const views = Number(unlockedInfo.number_of_views);
+        if (!Number.isFinite(views) || views <= 0) {
           return false;
         }
       }
-      
+
       return true; // Unlocked and valid
     }
     return false; // Default to locked
@@ -298,9 +327,9 @@ export default function HomeworksVideos() {
         const courseMatch = sessionCourse.toLowerCase() === 'all' || 
                            sessionCourse.toLowerCase() === studentCourse.toLowerCase();
         
-        // CourseType match: if session has no courseType, it matches any student courseType
-        // If session has courseType, it must match student's courseType (case-insensitive)
-        const courseTypeMatch = !sessionCourseType || 
+        // CourseType match: skip when national system; otherwise match as before
+        const courseTypeMatch = isNational ||
+                               !sessionCourseType || 
                                !studentCourseType ||
                                sessionCourseType.toLowerCase() === studentCourseType.toLowerCase();
         
@@ -406,19 +435,24 @@ export default function HomeworksVideos() {
       });
       if (decrementResponse.data.success) {
         const sessionId = typeof v._id === 'string' ? v._id : v._id.toString();
+        const remaining = Number(decrementResponse.data.number_of_views);
         setUnlockedSessions((prev) => {
           const updatedUnlocked = new Map(prev);
           const sessionInfo = updatedUnlocked.get(sessionId);
-          if (sessionInfo) {
-            sessionInfo.number_of_views = decrementResponse.data.number_of_views;
-            if (sessionInfo.number_of_views <= 0) {
-              updatedUnlocked.delete(sessionId);
-            } else {
-              updatedUnlocked.set(sessionId, sessionInfo);
-            }
+          if (!sessionInfo) return updatedUnlocked;
+          if (!Number.isFinite(remaining) || remaining <= 0) {
+            updatedUnlocked.delete(sessionId);
+          } else {
+            updatedUnlocked.set(sessionId, {
+              ...sessionInfo,
+              number_of_views: remaining,
+            });
           }
           return updatedUnlocked;
         });
+        if (studentId && (!Number.isFinite(remaining) || remaining <= 0)) {
+          queryClient.invalidateQueries({ queryKey: studentKeys.detail(studentId) });
+        }
       } else {
         vhcViewsDecrementDoneRef.current = false;
       }
@@ -432,10 +466,13 @@ export default function HomeworksVideos() {
           next.delete(sessionId);
           return next;
         });
+        if (studentId) {
+          queryClient.invalidateQueries({ queryKey: studentKeys.detail(studentId) });
+        }
         setVhcError('❌ Sorry, This code has no views remaining');
       }
     }
-  }, []);
+  }, [studentId, queryClient]);
 
   const postWatchAttendance = useCallback(async (currentVideo) => {
     if (attendancePostedRef.current) return;
@@ -477,18 +514,39 @@ export default function HomeworksVideos() {
     if (isVideoUnlocked(session)) {
       // Video is unlocked - check deadline date (views decrement after >=10% watch via player)
       const sessionId = session._id?.toString() || session._id;
-      const unlockedInfo = unlockedSessions.get(sessionId);
-      
-      if (unlockedInfo) {
-        // Check deadline date expiration
+      let unlockedInfo = unlockedSessions.get(sessionId);
+
+      // Sync number_of_days from server so admin day extensions apply automatically
+      if (unlockedInfo?.vhc_id && unlockedInfo.code_settings === 'number_of_days') {
+        try {
+          const syncRes = await apiClient.post('/api/vhc/get-by-id', {
+            vhc_id: unlockedInfo.vhc_id,
+          });
+          if (syncRes.data?.success && syncRes.data?.valid) {
+            unlockedInfo = unlockInfoFromVhcResponse(syncRes.data);
+            setUnlockedSessions((prev) => {
+              const next = new Map(prev);
+              next.set(sessionId, unlockedInfo);
+              return next;
+            });
+          } else {
+            setVhcError(syncRes.data?.error || '❌ Sorry, This code is expired');
+            setUnlockedSessions((prev) => {
+              const next = new Map(prev);
+              next.delete(sessionId);
+              return next;
+            });
+            setPendingVideo({ session, videoId, videoIndex, videoType });
+            setVhcPopupOpen(true);
+            setVhc('');
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to sync VHC number_of_days:', err);
+        }
+      } else if (unlockedInfo) {
         if (unlockedInfo.code_settings === 'deadline_date' && unlockedInfo.deadline_date) {
-          const deadlineDate = new Date(unlockedInfo.deadline_date);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          deadlineDate.setHours(0, 0, 0, 0);
-          
-          if (deadlineDate <= today) {
-            // Expired
+          if (isDeadlinePassedEgypt(unlockedInfo.deadline_date, null)) {
             setVhcError('❌ Sorry, This code is expired');
             const newUnlocked = new Map(unlockedSessions);
             newUnlocked.delete(sessionId);
@@ -506,6 +564,8 @@ export default function HomeworksVideos() {
         vhc_id: unlockedInfo?.vhc_id,
         code_settings: unlockedInfo?.code_settings,
         number_of_views: unlockedInfo?.number_of_views,
+        number_of_days: unlockedInfo?.number_of_days,
+        access_started_at: unlockedInfo?.access_started_at,
         deadline_date: unlockedInfo?.deadline_date
       });
       setVideoPopupOpen(true);
@@ -514,6 +574,45 @@ export default function HomeworksVideos() {
       watchedTenPercentRef.current = false;
       attendancePostedRef.current = false;
     } else {
+      // Locked locally — but if student already redeemed a VHC, re-check server
+      // (admin may have extended number_of_days)
+      const sessionId = session._id?.toString() || session._id;
+      const redeemed = Array.isArray(studentData?.homeworks_videos)
+        ? studentData.homeworks_videos.find((s) => {
+            const videoIdStr = typeof s.video_id === 'string' ? s.video_id : s.video_id?.toString();
+            return videoIdStr === String(sessionId) && s.vhc_id;
+          })
+        : null;
+      if (redeemed?.vhc_id) {
+        try {
+          const syncRes = await apiClient.post('/api/vhc/get-by-id', {
+            vhc_id: redeemed.vhc_id,
+          });
+          if (syncRes.data?.success && syncRes.data?.valid) {
+            const unlockedInfo = unlockInfoFromVhcResponse(syncRes.data);
+            setUnlockedSessions((prev) => {
+              const next = new Map(prev);
+              next.set(sessionId, unlockedInfo);
+              return next;
+            });
+            setSelectedVideo({
+              ...session,
+              video_ID: videoId,
+              video_type: videoType,
+              ...unlockedInfo,
+            });
+            setVideoPopupOpen(true);
+            videoStartTimeRef.current = Date.now();
+            r2CompletedRef.current = false;
+            watchedTenPercentRef.current = false;
+            attendancePostedRef.current = false;
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to revive VHC after day extension:', err);
+        }
+      }
+
       // Video is locked - require VHC
       setPendingVideo({ session, videoId, videoIndex, videoType });
       setVhcPopupOpen(true);
@@ -556,12 +655,7 @@ export default function HomeworksVideos() {
         
         // Store unlocked session info
         const newUnlocked = new Map(unlockedSessions);
-        newUnlocked.set(sessionId, {
-          vhc_id: response.data.vhc_id,
-          code_settings: response.data.code_settings || 'number_of_views',
-          number_of_views: response.data.number_of_views || null,
-          deadline_date: response.data.deadline_date || null
-        });
+        newUnlocked.set(sessionId, unlockInfoFromVhcResponse(response.data));
         setUnlockedSessions(newUnlocked);
 
         if (studentId) {
@@ -586,10 +680,7 @@ export default function HomeworksVideos() {
           ...pendingVideo.session, 
           video_ID: pendingVideo.videoId, 
           video_type: pendingVideo.videoType,
-          vhc_id: response.data.vhc_id,
-          code_settings: response.data.code_settings || 'number_of_views',
-          number_of_views: response.data.number_of_views || null,
-          deadline_date: response.data.deadline_date || null
+          ...unlockInfoFromVhcResponse(response.data),
         });
         setVideoPopupOpen(true);
         videoStartTimeRef.current = Date.now();
@@ -948,21 +1039,7 @@ export default function HomeworksVideos() {
                 }}
                 autoFocus
               />
-              {vhcError && (
-                <div style={{ 
-                  color: '#dc3545', 
-                  fontSize: '0.95rem', 
-                  marginBottom: '20px', 
-                  textAlign: 'center',
-                  fontWeight: '500',
-                  padding: '8px',
-                  backgroundColor: '#fff5f5',
-                  borderRadius: '8px',
-                  border: '1px solid #fecaca'
-                }}>
-                  {vhcError}
-                </div>
-              )}
+              {vhcError && <CodePopupMessage message={vhcError} />}
               <div style={{ display: 'flex', gap: '12px', flexDirection: 'row-reverse' }}>
                 <button
                   onClick={closeVhcPopup}
@@ -1196,6 +1273,49 @@ export default function HomeworksVideos() {
         )}
 
         <style jsx>{`
+          @keyframes codePopupMsgIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+
+          :global(.code-popup-msg) {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+            border: 1px solid #f5c2c7;
+            border-left: 4px solid #dc3545;
+            box-shadow: 0 4px 14px rgba(220, 53, 69, 0.12);
+            color: #842029;
+            font-size: 0.92rem;
+            font-weight: 600;
+            line-height: 1.45;
+            text-align: left;
+            animation: codePopupMsgIn 0.28s ease;
+          }
+
+          :global(.code-popup-msg-icon) {
+            flex-shrink: 0;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #dc3545;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-top: 1px;
+          }
+
+          :global(.code-popup-msg-text) {
+            flex: 1;
+          }
+
           .sessions-container {
             background: white;
             border-radius: 16px;

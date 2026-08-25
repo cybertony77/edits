@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSystemConfig } from '../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../lib/api/system';
 
 export default function CourseSelect({
   selectedGrade,
@@ -9,6 +9,7 @@ export default function CourseSelect({
   onToggle,
   onClose,
   showAllOption = false,
+  placeholder,
 }) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const actualIsOpen = isOpen !== undefined ? isOpen : internalIsOpen;
@@ -16,6 +17,9 @@ export default function CourseSelect({
   const actualOnClose = onClose || (() => setInternalIsOpen(false));
 
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const labels = getCourseFieldLabels(isNational);
+  const emptyLabel = placeholder || labels.selectCourse;
 
   const grades = useMemo(() => {
     const fromEnv = Array.isArray(systemConfig?.grades_or_courses)
@@ -55,7 +59,7 @@ export default function CourseSelect({
         }}
         onClick={actualOnToggle}
       >
-        <span>{selectedGrade || 'Select Course'}</span>
+        <span>{selectedGrade || emptyLabel}</span>
       </div>
 
       {actualIsOpen && (

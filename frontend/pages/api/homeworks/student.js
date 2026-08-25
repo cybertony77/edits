@@ -34,6 +34,7 @@ function loadEnvConfig() {
 const envConfig = loadEnvConfig();
 const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/topphysics';
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'mr-george-magdy';
+const NATIONAL_SYSTEM = envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
 
 export default async function handler(req, res) {
   let client;
@@ -94,9 +95,9 @@ export default async function handler(req, res) {
           const courseMatch = hwCourse.toLowerCase() === 'all' || 
                             hwCourse.toLowerCase() === studentCourseTrimmed.toLowerCase();
           
-          // CourseType match: if homework has no courseType, it matches any student courseType
-          // If homework has courseType, it must match student's courseType (case-insensitive)
-          const courseTypeMatch = !hwCourseType || 
+          // CourseType match: skip when national system
+          const courseTypeMatch = NATIONAL_SYSTEM ||
+                                 !hwCourseType || 
                                  !studentCourseTypeTrimmed ||
                                  hwCourseType.toLowerCase() === studentCourseTypeTrimmed.toLowerCase();
           // Activation state: hide deactivated homeworks from students

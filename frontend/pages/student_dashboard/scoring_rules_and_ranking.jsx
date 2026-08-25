@@ -62,10 +62,14 @@ export default function ScoringRulesAndRanking() {
 
   // Get student ID from profile and fetch student data
   const studentId = profile?.id ? profile.id.toString() : null;
-  const { data: studentData, isLoading: studentLoading } = useStudent(studentId, {
+  const { data: studentData, isLoading: studentLoading, refetch: refetchStudent } = useStudent(studentId, {
     enabled: !!studentId,
-    refetchInterval: 60000, // Auto-refetch every 1 minute (60,000 ms)
-    refetchIntervalInBackground: true, // Continue refetching even when tab is in background
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
   });
 
   // Fetch student rankings — do not swallow API errors
@@ -83,8 +87,12 @@ export default function ScoringRulesAndRanking() {
       return response.data;
     },
     enabled: !!studentId && isScoringEnabled,
-    refetchInterval: 60000, // Auto-refetch every 1 minute (60,000 ms)
-    refetchIntervalInBackground: true, // Continue refetching even when tab is in background
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
   });
 
   // Fetch scoring conditions (rules and bonus)
@@ -142,6 +150,33 @@ export default function ScoringRulesAndRanking() {
       router.replace('/student_dashboard');
     }
   }, [scoringDisabled, router]);
+
+  useEffect(() => {
+    if (!studentId || !isScoringEnabled) return undefined;
+    refetchStudent();
+    refetchRankings();
+
+    const refreshLiveScore = () => {
+      if (document.visibilityState !== 'visible') return;
+      refetchStudent();
+      refetchRankings();
+    };
+    const handleRoute = (url) => {
+      if (url.includes('/student_dashboard/scoring_rules_and_ranking')) {
+        refetchStudent();
+        refetchRankings();
+      }
+    };
+
+    window.addEventListener('focus', refreshLiveScore);
+    document.addEventListener('visibilitychange', refreshLiveScore);
+    router.events.on('routeChangeComplete', handleRoute);
+    return () => {
+      window.removeEventListener('focus', refreshLiveScore);
+      document.removeEventListener('visibilitychange', refreshLiveScore);
+      router.events.off('routeChangeComplete', handleRoute);
+    };
+  }, [studentId, isScoringEnabled, refetchStudent, refetchRankings, router.events]);
 
   if (isLoading) {
     return (
@@ -273,6 +308,7 @@ export default function ScoringRulesAndRanking() {
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(31, 168, 220, 0.2);
             text-align: center;
+            min-width: 0;
           }
           .ranking-label {
             font-size: 0.85rem;
@@ -281,6 +317,8 @@ export default function ScoringRulesAndRanking() {
             margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
           .ranking-value {
             font-size: 1.5rem;
@@ -348,7 +386,8 @@ export default function ScoringRulesAndRanking() {
           }
           @media (max-width: 768px) {
             .rankings-container {
-              grid-template-columns: 1fr;
+              grid-template-columns: 1fr 1fr;
+              gap: 10px;
             }
             .score-display-card {
               padding: 24px;
@@ -361,6 +400,10 @@ export default function ScoringRulesAndRanking() {
             }
           }
           @media (max-width: 480px) {
+            .rankings-container {
+              grid-template-columns: 1fr 1fr;
+              gap: 8px;
+            }
             .score-display-card {
               padding: 20px;
             }
@@ -368,13 +411,14 @@ export default function ScoringRulesAndRanking() {
               font-size: 2.5rem;
             }
             .ranking-card {
-              padding: 16px;
+              padding: 12px 8px;
             }
             .ranking-value {
               font-size: 1.2rem;
             }
             .ranking-label {
-              font-size: 0.75rem;
+              font-size: 0.68rem;
+              letter-spacing: 0.3px;
             }
             .rules-container {
               padding: 16px;
@@ -407,11 +451,15 @@ export default function ScoringRulesAndRanking() {
             .score-value {
               font-size: 2rem;
             }
+            .rankings-container {
+              grid-template-columns: 1fr 1fr;
+              gap: 6px;
+            }
             .ranking-card {
-              padding: 12px;
+              padding: 10px 6px;
             }
             .ranking-label {
-              font-size: 0.7rem;
+              font-size: 0.62rem;
             }
             .ranking-value {
               font-size: 1rem;

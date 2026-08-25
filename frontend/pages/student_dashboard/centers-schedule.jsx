@@ -6,6 +6,7 @@ import { useProfile } from '../../lib/api/auth';
 import { useStudent } from '../../lib/api/students';
 import apiClient from '../../lib/axios';
 import NeedHelp from '../../components/NeedHelp';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 
 // API function to get centers
 const centersAPI = {
@@ -17,6 +18,8 @@ const centersAPI = {
 
 export default function CentersSchedule() {
   const router = useRouter();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   
   // Get current logged-in user profile
   const { data: profile, isLoading: profileLoading } = useProfile();
@@ -38,7 +41,7 @@ export default function CentersSchedule() {
     staleTime: 0,
   });
 
-  // Build schedule data filtered by student course and courseType
+  // Build schedule data filtered by student course (and courseType when not national)
   const buildSchedule = () => {
     if (!studentData?.course || !centers || centers.length === 0) {
       console.log('🔍 Schedule Debug - Missing data:', {
@@ -57,6 +60,7 @@ export default function CentersSchedule() {
     console.log('🔍 Schedule Debug - Building schedule:', {
       studentCourse,
       studentCourseType,
+      isNational,
       centersCount: centers.length
     });
 
@@ -79,9 +83,9 @@ export default function CentersSchedule() {
         const courseMatch = centerCourse.toLowerCase() === 'all' || 
                            centerCourse.toLowerCase() === studentCourse.toLowerCase();
         
-        // If courseType exists in center, it must match student's courseType
-        // If courseType doesn't exist in center, it matches any student
-        const courseTypeMatch = !centerCourseType || 
+        // National system: match by course/grade only (ignore course type)
+        const courseTypeMatch = isNational ||
+                               !centerCourseType || 
                                centerCourseType === '' || 
                                centerCourseType.toLowerCase() === studentCourseType.toLowerCase();
         
@@ -138,6 +142,14 @@ export default function CentersSchedule() {
   const scheduleData = buildSchedule();
   const isLoading = profileLoading || studentLoading || centersLoading;
 
+  const scheduleTitle = isNational
+    ? (studentData?.course || '')
+    : (
+        studentData?.courseType && studentData.courseType.toLowerCase() === 'basics'
+          ? 'Basics'
+          : studentData?.course
+      );
+
   return (
     <div style={{ 
       flex: 1,
@@ -186,22 +198,19 @@ export default function CentersSchedule() {
           </div>
         ) : !studentData?.course ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <h3 style={{ color: '#666', margin: '0 0 16px 0' }}>No Course Assigned</h3>
+            <h3 style={{ color: '#666', margin: '0 0 16px 0' }}>No {courseLabels.course} Assigned</h3>
             <p style={{ color: '#999', margin: 0 }}>
-              Please contact your administrator to assign a course.
+              Please contact your administrator to assign a {courseLabels.courseLower}.
             </p>
           </div>
         ) : scheduleData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <h3 style={{ color: '#666', margin: '0 0 16px 0' }}>No Schedule Found</h3>
             <p style={{ color: '#999', margin: '0 0 16px 0' }}>
-              No centers found with schedule for course:{' '}
-              <strong>
-                {studentData.courseType && studentData.courseType.toLowerCase() === 'basics'
-                  ? 'Basics'
-                  : studentData.course}
-              </strong>
-              {studentData.courseType &&
+              No centers found with schedule for {courseLabels.courseLower}:{' '}
+              <strong>{scheduleTitle}</strong>
+              {!isNational &&
+                studentData.courseType &&
                 studentData.courseType.toLowerCase() !== 'basics' && (
                   <span> ({studentData.courseType})</span>
                 )}
@@ -220,10 +229,9 @@ export default function CentersSchedule() {
                   fontFamily: 'fantasy',
                 }}
               >
-                {studentData.courseType && studentData.courseType.toLowerCase() === 'basics'
-                  ? 'Basics'
-                  : studentData.course}
-                {studentData.courseType &&
+                {scheduleTitle}
+                {!isNational &&
+                  studentData.courseType &&
                   studentData.courseType.toLowerCase() !== 'basics' && (
                     <span
                       style={{

@@ -18,7 +18,7 @@ import FromPublicSelect from '../../components/FromPublicSelect';
 import CourseSelect from '../../components/CourseSelect';
 import apiClient from '../../lib/axios';
 import { formatEgyptDateTime } from '../../lib/egyptDateTime';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import styles from '../../styles/students_reviews.module.css';
 import manageStyles from '../../styles/public_page_manage.module.css';
 
@@ -146,6 +146,8 @@ export default function StudentsReviewsPage() {
   const manageFileRef = useRef(null);
 
   const { data: systemConfig, isLoading: systemConfigLoading } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const marketingPageEnabled =
     systemConfig?.marketing_page === true || systemConfig?.marketing_page === 'true';
 
@@ -413,9 +415,9 @@ export default function StudentsReviewsPage() {
   const validateItemFields = (item) => {
     const next = emptyItemFieldErrors();
     if (!item.name.trim()) next.name = 'Name is required';
-    if (!String(item.course || '').trim()) next.course = 'Course is required';
+    if (!String(item.course || '').trim()) next.course = `${courseLabels.course} is required`;
     const score = parseScore(item.score);
-    if (Number.isNaN(score)) next.score = 'Score must be a valid number';
+    if (Number.isNaN(score)) next.score = `${courseLabels.score} must be a valid number`;
     if (!String(item.text || '').trim()) next.text = 'Message is required';
     if (!item.rating || item.rating <= 0) next.rating = 'Star rating is required';
     if (item.state !== 'Activated' && item.state !== 'Deactivated') {
@@ -747,7 +749,7 @@ export default function StudentsReviewsPage() {
               />
             </div>
             <div className={styles.filterGroup}>
-              <label className={styles.filterLabel}>Filter by Course</label>
+              <label className={styles.filterLabel}>{courseLabels.filterByCourse}</label>
               <CourseSelect
                 selectedGrade={courseFilter}
                 onGradeChange={setCourseFilter}
@@ -860,7 +862,7 @@ export default function StudentsReviewsPage() {
                     </div>
                     {item.score != null && item.score !== '' ? (
                       <p className={styles.itemText}>
-                        Score: <strong>{item.score}</strong>
+                        {courseLabels.score}: <strong>{item.score}</strong>
                       </p>
                     ) : null}
                     {item.text ? <p className={styles.itemText}>{item.text}</p> : null}
@@ -960,7 +962,7 @@ export default function StudentsReviewsPage() {
 
               <div className={styles.formField}>
                 <label>
-                  Course <span className={styles.requiredStar}>*</span>
+                  {courseLabels.course} <span className={styles.requiredStar}>*</span>
                 </label>
                 <div className={addFieldErrors.course ? styles.selectError : undefined}>
                   <CourseSelect
@@ -982,7 +984,7 @@ export default function StudentsReviewsPage() {
 
               <div className={styles.formField}>
                 <label>
-                  Score <span className={styles.optionalLabel}>(optional)</span>
+                  {courseLabels.score} <span className={styles.optionalLabel}>(optional)</span>
                 </label>
                 <input
                   type="number"
@@ -992,7 +994,7 @@ export default function StudentsReviewsPage() {
                     setNewItem((s) => ({ ...s, score: e.target.value }));
                     clearAddFieldError('score');
                   }}
-                  placeholder="Optional score"
+                  placeholder={isNational ? 'e.g. 60 / 60' : `Optional ${courseLabels.scoreLower}`}
                   className={`${styles.modalInput} ${addFieldErrors.score ? styles.inputError : ''}`}
                 />
                 {addFieldErrors.score ? (
@@ -1170,7 +1172,7 @@ export default function StudentsReviewsPage() {
 
               <div className={styles.formField}>
                 <label>
-                  Course <span className={styles.requiredStar}>*</span>
+                  {courseLabels.course} <span className={styles.requiredStar}>*</span>
                 </label>
                 <div className={editFieldErrors.course ? styles.selectError : undefined}>
                   <CourseSelect
@@ -1192,7 +1194,7 @@ export default function StudentsReviewsPage() {
 
               <div className={styles.formField}>
                 <label>
-                  Score <span className={styles.optionalLabel}>(optional)</span>
+                  {courseLabels.score} <span className={styles.optionalLabel}>(optional)</span>
                 </label>
                 <input
                   type="number"
@@ -1202,7 +1204,7 @@ export default function StudentsReviewsPage() {
                     setEditItem((s) => ({ ...s, score: e.target.value }));
                     clearEditFieldError('score');
                   }}
-                  placeholder="Optional score"
+                  placeholder={isNational ? 'e.g. 60 / 60' : `Optional ${courseLabels.scoreLower}`}
                   className={`${styles.modalInput} ${editFieldErrors.score ? styles.inputError : ''}`}
                 />
                 {editFieldErrors.score ? (

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useProfile, useProfilePicture } from '../lib/api/auth';
 import { useSubscription } from '../lib/api/subscription';
 import { useStudent } from '../lib/api/students';
-import { useSystemConfig } from '../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../lib/api/system';
 import QRCodeModal from './QRCodeModal';
 import InstallApp from './InstallApp';
 import StudentLinksModal from './StudentLinksModal';
@@ -30,6 +30,8 @@ export default function UserMenu() {
   const { data: subscription } = useSubscription();
   const { data: profilePictureUrl } = useProfilePicture();
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isSubscriptionEnabled = systemConfig?.subscription === true || systemConfig?.subscription === 'true';
   const isMarketingSystemEnabled =
@@ -363,12 +365,17 @@ export default function UserMenu() {
                 </div>
                 {(studentData.course || studentData.grade) && (
                   <div style={{ color: '#495057', fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
-                    Course: {studentData.course || studentData.grade}
+                    {courseLabels.course}: {studentData.course || studentData.grade}
                   </div>
                 )}
-                {studentData.courseType && (
-                  <div style={{ color: '#495057', fontSize: 15, fontWeight: 600 }}>
+                {courseLabels.showCourseType && studentData.courseType && (
+                  <div style={{ color: '#495057', fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
                     Course Type: {studentData.courseType}
+                  </div>
+                )}
+                {studentData.main_center && (
+                  <div style={{ color: '#495057', fontSize: 15, fontWeight: 600 }}>
+                    Main Center: {studentData.main_center}
                   </div>
                 )}
               </>

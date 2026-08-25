@@ -6,6 +6,7 @@ import WhatsAppButton from './WhatsAppButton.jsx';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../lib/axios';
+import { useNationalSystem, getCourseFieldLabels } from '../lib/api/system';
 
 export function SessionTable({ 
   data, 
@@ -19,6 +20,7 @@ export function SessionTable({
   showMainCenter = true,
   showWhatsApp = true,
   showMessageState = true,
+  showEmail = true,
   showSchool = false,
   showGrade = false,
   showCourse = false,
@@ -33,6 +35,10 @@ export function SessionTable({
   showHomeworkVideo = false,
   showOppositeTotals = false
 }) {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
+  const effectiveShowCourseType = showCourseType && courseLabels.showCourseType;
+  const effectiveShowGrade = showGrade && courseLabels.showGradeField;
   const [scrolled, setScrolled] = useState(false);
   const [needsScroll, setNeedsScroll] = useState(false);
   const tableRef = useRef(null);
@@ -228,12 +234,13 @@ export function SessionTable({
       <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '60px', minWidth: '60px', textAlign: 'center', fontSize: '15px' }}>{student.id}</Table.Td>
       <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center', fontSize: '15px' }}>{student.name}</Table.Td>
       {showCourse && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.course || student.grade || 'N/A'}</Table.Td>}
-      {showCourseType && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.courseType || 'N/A'}</Table.Td>}
+      {effectiveShowCourseType && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.courseType || 'N/A'}</Table.Td>}
       {showGender && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.gender || 'N/A'}</Table.Td>}
-      {showGrade && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.grade || 'N/A'}</Table.Td>}
+      {effectiveShowGrade && <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center', fontSize: '15px' }}>{student.grade || 'N/A'}</Table.Td>}
       {showSchool && <Table.Td style={{ width: '150px', minWidth: '150px', textAlign: 'center', fontSize: '15px' }}>{student.school || 'N/A'}</Table.Td>}
       <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>{student.phone || ''}</Table.Td>
       <Table.Td style={{ width: '140px', minWidth: '140px', fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>{student.parents_phone || student.parentsPhone || ''}</Table.Td>
+      {showEmail && (
       <Table.Td style={{ 
         width: '160px', 
         minWidth: '160px', 
@@ -246,6 +253,7 @@ export function SessionTable({
       }}>
         {student.email || 'No Email'}
       </Table.Td>
+      )}
       {showMainCenter && <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px', fontSize: '15px' }}>{student.main_center}</Table.Td>}
       {showAccountStatus && (
         <Table.Td style={{ textAlign: 'center', width: '120px', minWidth: '120px', fontSize: '15px' }}>
@@ -430,11 +438,12 @@ export function SessionTable({
   const getMinWidth = () => {
     // Use smaller widths when table is empty
     if (data.length === 0) {
-      let baseWidth = showMainCenter ? 960 : 880; // Compact widths for empty table (increased for email column and statistics columns)
+      let baseWidth = showMainCenter ? 800 : 720; // Compact widths for empty table
+      if (showEmail) baseWidth += 160;
       if (showGender) baseWidth += 80; // Gender column
-      if (showCourse) baseWidth += 80; // Course column
-      if (showCourseType) baseWidth += 80; // Course Type column
-      if (showGrade) baseWidth += 80; // Grade column
+      if (showCourse) baseWidth += 80; // Course/Grade column
+      if (effectiveShowCourseType) baseWidth += 80; // Course Type column
+      if (effectiveShowGrade) baseWidth += 80; // Grade column
       if (showSchool) baseWidth += 100; // School column
       if (showAccountStatus) baseWidth += 80; // Account Status column
       if (showScore) baseWidth += 80; // Score column
@@ -451,12 +460,13 @@ export function SessionTable({
       if (showOppositeTotals) baseWidth += 480; // opposite totals (150 + 160 + 170)
       return baseWidth;
     } else {
-      // Calculate based on actual column widths: ID(60) + Name(120) + Gender(100) + Course(100) + CourseType(100) + Grade(100) + School(150) + Student(140) + Parents(140) + Email(160) + MainCenter(120) + AccountStatus(120) + Score(100) + AttendanceCenter(140) + MessageState(120) + WhatsApp(120) + Stats(500)
-      let baseWidth = 60 + 120 + 140 + 140 + 160; // ID + Name + Student No. + Parents No. + Email
+      // Calculate based on actual column widths
+      let baseWidth = 60 + 120 + 140 + 140; // ID + Name + Student No. + Parents No.
+      if (showEmail) baseWidth += 160; // Email column
       if (showGender) baseWidth += 100; // Gender column
-      if (showCourse) baseWidth += 100; // Course column
-      if (showCourseType) baseWidth += 100; // Course Type column
-      if (showGrade) baseWidth += 100; // Grade column
+      if (showCourse) baseWidth += 100; // Course/Grade column
+      if (effectiveShowCourseType) baseWidth += 100; // Course Type column
+      if (effectiveShowGrade) baseWidth += 100; // Grade column
       if (showSchool) baseWidth += 150; // School column
       if (showMainCenter) baseWidth += 120; // Main Center
       if (showAccountStatus) baseWidth += 120; // Account Status
@@ -485,14 +495,14 @@ export function SessionTable({
         <Table.Tr>
           <Table.Th style={{ minWidth: data.length === 0 ? '40px' : '60px', width: '60px', textAlign: 'center' }}>ID</Table.Th>
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Name</Table.Th>
-          {showCourse && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Course</Table.Th>}
-          {showCourseType && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Course Type</Table.Th>}
+          {showCourse && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>{courseLabels.course}</Table.Th>}
+          {effectiveShowCourseType && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Course Type</Table.Th>}
           {showGender && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Gender</Table.Th>}
-          {showGrade && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Grade</Table.Th>}
+          {effectiveShowGrade && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '100px', width: '100px', textAlign: 'center' }}>Grade</Table.Th>}
           {showSchool && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '150px', width: '150px', textAlign: 'center' }}>School</Table.Th>}
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Student No.</Table.Th>
           <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '140px', width: '140px', textAlign: 'center' }}>Parents No.</Table.Th>
-          <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Email</Table.Th>
+          {showEmail && <Table.Th style={{ minWidth: data.length === 0 ? '120px' : '160px', width: '160px', textAlign: 'center' }}>Email</Table.Th>}
           {showMainCenter && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Main Center</Table.Th>}
           {showAccountStatus && <Table.Th style={{ minWidth: data.length === 0 ? '80px' : '120px', width: '120px', textAlign: 'center' }}>Account Status</Table.Th>}
           {showStatsColumns && <Table.Th style={{ minWidth: data.length === 0 ? '100px' : '140px', width: '140px', textAlign: 'center' }}>Attend In</Table.Th>}
@@ -517,7 +527,7 @@ export function SessionTable({
         {data.length === 0 ? (
           <Table.Tr>
               <Table.Td 
-              colSpan={1 + 1 + (showCourse ? 1 : 0) + (showCourseType ? 1 : 0) + (showGender ? 1 : 0) + (showGrade ? 1 : 0) + (showSchool ? 1 : 0) + 1 + 1 + 1 + (showMainCenter ? 1 : 0) + (showAccountStatus ? 1 : 0) + 3 + (showOppositeTotals ? 3 : 0) + (showHW ? 1 : 0) + (showHomeworkVideo ? 1 : 0) + (showQuiz ? 1 : 0) + (showComment || showMainComment ? 1 : 0) + (showComment || showWeekComment ? 1 : 0) + (showMessageState ? 1 : 0) + (showWhatsApp && data.length > 0 ? 1 : 0) + 1 + (showScore ? 1 : 0)} 
+              colSpan={1 + 1 + (showCourse ? 1 : 0) + (effectiveShowCourseType ? 1 : 0) + (showGender ? 1 : 0) + (effectiveShowGrade ? 1 : 0) + (showSchool ? 1 : 0) + 1 + 1 + (showEmail ? 1 : 0) + (showMainCenter ? 1 : 0) + (showAccountStatus ? 1 : 0) + 3 + (showOppositeTotals ? 3 : 0) + (showHW ? 1 : 0) + (showHomeworkVideo ? 1 : 0) + (showQuiz ? 1 : 0) + (showComment || showMainComment ? 1 : 0) + (showComment || showWeekComment ? 1 : 0) + (showMessageState ? 1 : 0) + (showWhatsApp && data.length > 0 ? 1 : 0) + 1 + (showScore ? 1 : 0)} 
               style={{ 
                 border: 'none', 
                 padding: 0,

@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../lib/axios';
 import { downloadFileUrl } from '../../../lib/downloadFileUrl';
 import { useProfile } from '../../../lib/api/auth';
-import { useSystemConfig } from '../../../lib/api/system';
+import { useSystemConfig, useNationalSystem } from '../../../lib/api/system';
 import NeedHelp from '../../../components/NeedHelp';
 import QuizPerformanceChart from '../../../components/QuizPerformanceChart';
 const PdfViewerModal = dynamic(() => import('../../../components/PdfViewerModal'), { ssr: false });
@@ -40,6 +40,7 @@ function InputWithButton(props) {
 
 export default function MyQuizzes() {
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isQuizzesEnabled = systemConfig?.quizzes === true || systemConfig?.quizzes === 'true';
   
@@ -124,9 +125,9 @@ export default function MyQuizzes() {
         const courseMatch = quizCourse.toLowerCase() === 'all' || 
                            quizCourse.toLowerCase() === studentCourse.toLowerCase();
         
-        // CourseType match: if quiz has no courseType, it matches any student courseType
-        // If quiz has courseType, it must match student's courseType (case-insensitive)
-        const courseTypeMatch = !quizCourseType || 
+        // CourseType match: skip when national system; otherwise match as before
+        const courseTypeMatch = isNational ||
+                               !quizCourseType || 
                                !studentCourseType ||
                                quizCourseType.toLowerCase() === studentCourseType.toLowerCase();
         
@@ -544,6 +545,11 @@ export default function MyQuizzes() {
                         studentId: profile.id,
                         type: 'quiz',
                         lesson: lessonName,
+                        source: {
+                          kind: 'deadline_quiz',
+                          id: quiz._id.toString(),
+                          label: lessonName,
+                        },
                         data: { percentage: 0, previousPercentage: actualPreviousPercentage }
                       });
                       console.log(`[DEADLINE] Scoring response:`, scoringResponse.data);

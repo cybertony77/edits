@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNationalSystem, getCourseFieldLabels } from '../lib/api/system';
 import { ActionIcon, Checkbox, Loader, TextInput, useMantineTheme } from '@mantine/core';
 import { IconArrowRight, IconSearch, IconUsers } from '@tabler/icons-react';
 import CourseSelect from './CourseSelect';
@@ -52,6 +53,8 @@ function InputWithButton({ onButtonClick, onKeyDown, ...props }) {
  * Value is comma-separated IDs string (e.g. "1, 3, 6").
  */
 export default function CertificateStudentsSelect({ value = '', onChange, error }) {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const selectedIds = useMemo(() => parseStudentsCsv(value), [value]);
   const selectedSet = useMemo(() => new Set(selectedIds.map(String)), [selectedIds]);
 
@@ -170,7 +173,7 @@ export default function CertificateStudentsSelect({ value = '', onChange, error 
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1.02rem' }}>Select Students</div>
               <div style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600, marginTop: 2 }}>
-                {selectedIds.length} selected · shown as id : name • course • course type • main center
+                {selectedIds.length} selected · shown as id : name • {isNational ? 'grade' : 'course • course type'} • main center
               </div>
             </div>
           </div>
@@ -256,7 +259,7 @@ export default function CertificateStudentsSelect({ value = '', onChange, error 
           >
             <div className="cert-students-filter" style={{ overflow: 'visible', minWidth: 0 }}>
               <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: '#334155', fontSize: '0.88rem' }}>
-                Filter by Course
+                {courseLabels.filterByCourse}
               </label>
               <CourseSelect
                 selectedGrade={filterCourse}
@@ -272,7 +275,8 @@ export default function CertificateStudentsSelect({ value = '', onChange, error 
                 onClose={() => setCourseOpen(false)}
               />
             </div>
-            <div className="cert-students-filter" style={{ overflow: 'visible', minWidth: 0 }}>
+            {courseLabels.showCourseType && (
+<div className="cert-students-filter" style={{ overflow: 'visible', minWidth: 0 }}>
               <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: '#334155', fontSize: '0.88rem' }}>
                 Filter by Course Type
               </label>
@@ -288,6 +292,7 @@ export default function CertificateStudentsSelect({ value = '', onChange, error 
                 onClose={() => setCourseTypeOpen(false)}
               />
             </div>
+)}
             <div className="cert-students-filter" style={{ overflow: 'visible', minWidth: 0 }}>
               <label style={{ display: 'block', marginBottom: 8, fontWeight: 700, color: '#334155', fontSize: '0.88rem' }}>
                 Filter by Center
@@ -392,7 +397,7 @@ export default function CertificateStudentsSelect({ value = '', onChange, error 
                           wordBreak: 'break-word',
                         }}
                       >
-                        {[s.course || '—', s.courseType || '—', s.main_center || s.center || '—'].join(' • ')}
+                        {[s.course || '—', !isNational && (s.courseType || '—'), s.main_center || s.center || '—'].filter(Boolean).join(' • ')}
                       </span>
                     </span>
                   </label>

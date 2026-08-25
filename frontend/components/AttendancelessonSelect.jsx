@@ -84,10 +84,43 @@ export default function AttendanceLessonSelect({
   );
 
   const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState({});
   const dropdownRef = useRef(null);
+  const triggerRef = useRef(null);
   const actualIsOpen = isOpen !== undefined ? isOpen : internalIsOpen;
   const actualOnToggle = onToggle || (() => setInternalIsOpen(!internalIsOpen));
   const actualOnClose = onClose || (() => setInternalIsOpen(false));
+
+  // Position panel so it is not clipped by modals / viewport (open up when needed)
+  useEffect(() => {
+    if (!actualIsOpen || !triggerRef.current) return;
+
+    const updatePosition = () => {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const gap = 6;
+      const spaceBelow = window.innerHeight - rect.bottom - gap - 12;
+      const spaceAbove = rect.top - gap - 12;
+      const preferredMax = Math.min(380, Math.floor(window.innerHeight * 0.72));
+      const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+      const available = Math.max(140, openUp ? spaceAbove : spaceBelow);
+      const maxHeight = Math.min(preferredMax, available);
+
+      setPanelStyle({
+        maxHeight: `${maxHeight}px`,
+        ...(openUp
+          ? { top: 'auto', bottom: '100%', marginTop: 0, marginBottom: `${gap}px` }
+          : { top: '100%', bottom: 'auto', marginTop: `${gap}px`, marginBottom: 0 }),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [actualIsOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -144,8 +177,9 @@ export default function AttendanceLessonSelect({
   const hasTree = orderedKeys.length > 0 || uncategorized.length > 0;
 
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
+    <div ref={dropdownRef} style={{ position: 'relative', width: '100%', zIndex: actualIsOpen ? 1100 : 'auto' }}>
       <div
+        ref={triggerRef}
         role="button"
         tabIndex={0}
         aria-expanded={actualIsOpen}
@@ -163,7 +197,7 @@ export default function AttendanceLessonSelect({
       </div>
 
       {actualIsOpen && (
-        <div className={styles.panel}>
+        <div className={styles.panel} style={panelStyle}>
           <button
             type="button"
             className={`${styles.topActionBtn} ${styles.topAction} ${styles.topActionClear}`}

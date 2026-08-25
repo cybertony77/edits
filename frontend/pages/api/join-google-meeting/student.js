@@ -142,6 +142,13 @@ export default async function handler(req, res) {
     }
 
     const meeting = meetings[0];
+
+    // Hide from students when deactivated (legacy: account_state / state)
+    const meetingState = meeting.meeting_state || meeting.account_state || meeting.state || 'Activated';
+    if (meetingState === 'Deactivated') {
+      return res.status(200).json({ success: true, meeting: null });
+    }
+
     const nowMinutes = getCairoNowMinutes();
 
     if (nowMinutes === null) {

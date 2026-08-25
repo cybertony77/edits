@@ -34,6 +34,7 @@ function loadEnvConfig() {
 const envConfig = loadEnvConfig();
 const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI;
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME;
+const NATIONAL_SYSTEM = envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -92,9 +93,9 @@ export default async function handler(req, res) {
         const courseMatch = session.course.toLowerCase() === 'all' || 
                            session.course.toLowerCase() === studentCourse.toLowerCase();
         
-        // Check courseType match: if session has no courseType, it matches any student courseType
-        // If session has courseType, it must match student's courseType (case-insensitive)
-        const courseTypeMatch = !session.courseType || 
+        // Check courseType match: skip when national system
+        const courseTypeMatch = NATIONAL_SYSTEM ||
+                               !session.courseType || 
                                !studentCourseType ||
                                session.courseType.toLowerCase() === studentCourseType.toLowerCase();
         

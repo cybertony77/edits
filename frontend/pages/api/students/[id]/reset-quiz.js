@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../../lib/authMiddleware';
 import { getStudentLesson, mergeStudentLesson } from '../../../../lib/studentLessons';
+import { reverseItemScoring, parsePercentage } from '../../../../lib/reverseItemScoring';
 
 function loadEnvConfig() {
   try {
@@ -65,31 +66,9 @@ export default async function handler(req, res) {
     
     // Find the quiz to get the week / lesson context
     const quizToReset = onlineQuizzes.find(
-      qz => qz.quiz_id === quiz_id
-    );
-    
-    // Remove the quiz from the array
-    const updatedQuizzes = onlineQuizzes.filter(
-      qz => qz.quiz_id !== quiz_id
+      qz => String(qz.quiz_id ?? '') === String(quiz_id)
     );
 
-    // Update weeks array if quiz was found and has a week number
-    const weeks = student.weeks || [];
-    let updatedWeeks = weeks;
-    
-    if (quizToReset && quizToReset.week !== undefined && quizToReset.week !== null) {
-      updatedWeeks = weeks.map(weekData => {
-        if (weekData.week === quizToReset.week) {
-          return {
-            ...weekData,
-            quizDegree: null
-          };
-        }
-        return weekData;
-      });
-    }
-
-    // Resolve lesson name so we can clear lessons[].quizDegree
     let lessonName =
       (quizToReset && quizToReset.lesson) ||
       null;
@@ -107,13 +86,58 @@ export default async function handler(req, res) {
       }
     }
 
+    const previousPercentage = parsePercentage(quizToReset?.percentage);
+    await reverseItemScoring(db, {
+      studentId: student_id,
+      type: 'quiz',
+      lesson: lessonName,
+      sourceKind: 'online_quiz',
+      sourceId: quiz_id,
+      sourceLabel: lessonName || quiz_id,
+      previousPercentage,
+      fallbackPoints: quizToReset?.points_added,
+    });
+    await reverseItemScoring(db, {
+      studentId: student_id,
+      type: 'quiz',
+      lesson: lessonName,
+      sourceKind: 'deadline_quiz',
+      sourceId: quiz_id,
+      sourceLabel: lessonName || quiz_id,
+      previousPercentage: 0,
+    });
+
+    const latestStudent = await db.collection('students').findOne({ id: student_id }) || student;
+    const onlineQuizzesLatest = latestStudent.online_quizzes || onlineQuizzes;
+    
+    // Remove the quiz from the array
+    const updatedQuizzes = onlineQuizzesLatest.filter(
+      qz => String(qz.quiz_id ?? '') !== String(quiz_id)
+    );
+
+    // Update weeks array if quiz was found and has a week number
+    const weeks = latestStudent.weeks || [];
+    let updatedWeeks = weeks;
+    
+    if (quizToReset && quizToReset.week !== undefined && quizToReset.week !== null) {
+      updatedWeeks = weeks.map(weekData => {
+        if (weekData.week === quizToReset.week) {
+          return {
+            ...weekData,
+            quizDegree: null
+          };
+        }
+        return weekData;
+      });
+    }
+
     const updateFields = {
       online_quizzes: updatedQuizzes,
       weeks: updatedWeeks,
     };
 
-    if (lessonName && getStudentLesson(student.lessons, lessonName)) {
-      updateFields.lessons = mergeStudentLesson(student.lessons, lessonName, {
+    if (lessonName && getStudentLesson(latestStudent.lessons, lessonName)) {
+      updateFields.lessons = mergeStudentLesson(latestStudent.lessons, lessonName, {
         quizDegree: null,
       });
     }

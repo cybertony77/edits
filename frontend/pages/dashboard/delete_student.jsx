@@ -6,9 +6,12 @@ import Title from '../../components/Title';
 import { useStudents, useStudent, useDeleteStudent } from '../../lib/api/students';
 import apiClient from '../../lib/axios';
 import { useQuery } from '@tanstack/react-query';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 
 export default function DeleteStudent() {
   const router = useRouter();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const [studentId, setStudentId] = useState("");
   const [searchId, setSearchId] = useState(""); // Separate state for search
   const [deleted, setDeleted] = useState(false);
@@ -498,7 +501,7 @@ export default function DeleteStudent() {
                       {student.name} (ID: {student.id})
                     </div>
                     <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
-                      {[student.course, student.courseType, student.main_center].filter(Boolean).join(' • ')}
+                      {[student.course, !isNational && student.courseType, student.main_center].filter(Boolean).join(' • ')}
                     </div>
                   </button>
                 ))}
@@ -515,9 +518,13 @@ export default function DeleteStudent() {
                 <p><strong>Name:</strong> {student.name}</p>
                 <p><strong>Age:</strong> {student.age || 'N/A'}</p>
                 <p><strong>Gender:</strong> {student.gender || 'N/A'}</p>
-                <p><strong>Grade:</strong> {student.grade || 'N/A'}</p>
-                <p><strong>Course:</strong> {student.course || ''}</p>
-                <p><strong>Course Type:</strong> {student.courseType || ''}</p>
+                {courseLabels.showGradeField && (
+                  <p><strong>Grade:</strong> {student.grade || 'N/A'}</p>
+                )}
+                <p><strong>{courseLabels.course}:</strong> {student.course || ''}</p>
+                {courseLabels.showCourseType && (
+                  <p><strong>Course Type:</strong> {student.courseType || ''}</p>
+                )}
                 <p><strong>School:</strong> {student.school || 'N/A'}</p>
                 <p><strong>Phone:</strong> {student.phone || 'N/A'}</p>
                 <p><strong>Parent's Phone:</strong> {student.parents_phone || student.parentsPhone || 'N/A'}</p>

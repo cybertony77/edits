@@ -102,8 +102,14 @@ export default async function handler(req, res) {
       envConfig.SYSTEM_COLORS || process.env.SYSTEM_COLORS
     );
 
+    const nationalSystem =
+      envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
+
     const gradesOrCourses = parseGradesOrCourses(
       envConfig.GRADES_OR_COURSES || process.env.GRADES_OR_COURSES || '[]'
+    );
+    const courseTypes = parseGradesOrCourses(
+      envConfig.COURSE_TYPE || process.env.COURSE_TYPE || '[]'
     );
 
     const studentDriveLink = envConfig.STUDENT_DRIVE_LINK || process.env.STUDENT_DRIVE_LINK || '';
@@ -138,7 +144,9 @@ export default async function handler(req, res) {
       marketing_page: marketingPage,
       page_background: pageBackground,
       SYSTEM_COLORS: envConfig.SYSTEM_COLORS || process.env.SYSTEM_COLORS || '',
+      national_system: nationalSystem,
       grades_or_courses: gradesOrCourses,
+      course_type: courseTypes,
       student_drive_link: studentDriveLink,
       student_signup_video: studentSignupVideo,
       assistant_drive_link: assistantDriveLink,

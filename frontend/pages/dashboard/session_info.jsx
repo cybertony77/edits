@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../lib/axios';
+import CourseSelect from '../../components/CourseSelect';
 import CourseTypeSelect from '../../components/CourseTypeSelect';
 import CenterSelect from '../../components/CenterSelect';
 import AttendancelessonSelect from '../../components/AttendancelessonSelect';
@@ -11,17 +12,20 @@ import { IconArrowDownRight, IconArrowUpRight, IconChevronLeft, IconChevronRight
 import { Center, Group, Paper, RingProgress, SimpleGrid, Text } from '@mantine/core';
 import { useRouter } from 'next/router';
 import { useStudents } from '../../lib/api/students';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 
 export default function SessionInfo() {
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isPaymentSystemEnabled = systemConfig?.payment_system === true || systemConfig?.payment_system === 'true';
   
   const containerRef = useRef(null);
   const router = useRouter();
   const [selectedCenter, setSelectedCenter] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedCourseType, setSelectedCourseType] = useState('');
   const [selectedLesson, setSelectedLesson] = useState('');
   const [filtered, setFiltered] = useState(null);
@@ -31,7 +35,7 @@ export default function SessionInfo() {
   const [showComment, setShowComment] = useState(false); // legacy toggle: both main + lesson for attended table
   const [showMainComment, setShowMainComment] = useState(false);
   const [showLessonComment, setShowLessonComment] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null); // 'courseType', 'center', 'lesson', or null
+  const [openDropdown, setOpenDropdown] = useState(null); // 'course', 'courseType', 'center', 'lesson', or null
   
   // Pagination state for each table
   const [attendedPage, setAttendedPage] = useState(1);
@@ -56,7 +60,22 @@ export default function SessionInfo() {
   });
 
   // Require all filters to be selected to show any data
-  const allFiltersSelected = !!(selectedCenter && selectedCourseType && selectedLesson);
+  const allFiltersSelected = isNational
+    ? !!(selectedCenter && selectedCourse && selectedLesson)
+    : !!(selectedCenter && selectedCourseType && selectedLesson);
+
+  const primaryFiltersReady = isNational
+    ? !!(selectedCourse && selectedCenter && selectedLesson)
+    : !!(selectedCourseType && selectedCenter && selectedLesson);
+
+  const matchesPrimaryFilter = (s) => {
+    if (isNational) {
+      return !!(s.course && selectedCourse && s.course.toLowerCase() === selectedCourse.toLowerCase());
+    }
+    return !!(s.courseType && selectedCourseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase());
+  };
+
+  const selectedPrimaryLabel = isNational ? selectedCourse : selectedCourseType;
 
   // Handle message state updates (simplified - SessionTable handles the local state)
   const handleMessageStateChange = (studentId, messageState) => {
@@ -100,10 +119,12 @@ export default function SessionInfo() {
   // Load remembered values from sessionStorage on component mount
   useEffect(() => {
     const rememberedCenter = sessionStorage.getItem('sessionInfoLastSelectedCenter');
+    const rememberedCourse = sessionStorage.getItem('sessionInfoLastSelectedCourse');
     const rememberedCourseType = sessionStorage.getItem('sessionInfoLastSelectedCourseType');
     const rememberedLesson = sessionStorage.getItem('sessionInfoLastSelectedLesson');
     
     if (rememberedCenter) setSelectedCenter(rememberedCenter);
+    if (rememberedCourse) setSelectedCourse(rememberedCourse);
     if (rememberedCourseType) setSelectedCourseType(rememberedCourseType);
     if (rememberedLesson) setSelectedLesson(rememberedLesson);
   }, []);
@@ -153,8 +174,14 @@ export default function SessionInfo() {
       return;
     }
     let filteredList = students;
-    // Filter by courseType
-    if (selectedCourseType) {
+    // Filter by course (national) or courseType (standard)
+    if (isNational) {
+      if (selectedCourse) {
+        filteredList = filteredList.filter(s => {
+          return s.course && s.course.toLowerCase() === selectedCourse.toLowerCase();
+        });
+      }
+    } else if (selectedCourseType) {
       filteredList = filteredList.filter(s => {
         return s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
       });
@@ -167,7 +194,7 @@ export default function SessionInfo() {
   // Trigger filtering when students data or filters change
   useEffect(() => {
     handleFilter();
-  }, [students, selectedCourseType, selectedCenter, selectedLesson]);
+  }, [students, selectedCourse, selectedCourseType, selectedCenter, selectedLesson, isNational]);
 
   // Helper function to get student data for specific lesson
   const getStudentLessonData = (student, lessonName) => {
@@ -282,10 +309,10 @@ export default function SessionInfo() {
   // --- NEW METRICS LOGIC ---
   // MC: Main Center Attended (in specific lesson if selected)
   const MC = dataToCount.filter(s => {
-    if (!selectedCourseType || !selectedCenter || !selectedLesson) return false;
+    if (!primaryFiltersReady) return false;
     
-    // Check courseType match
-    const courseTypeMatch = s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
+    // Check course / courseType match
+    const courseTypeMatch = matchesPrimaryFilter(s);
     
     // Check main center match
     const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
@@ -298,10 +325,10 @@ export default function SessionInfo() {
 
   // NAMC: Not Attended but Main Center (in specific lesson if selected)
   const NAMC_students = allFiltersSelected ? dataToCount.filter(s => {
-    if (!selectedCourseType || !selectedCenter || !selectedLesson) return false;
+    if (!primaryFiltersReady) return false;
     
-    // Check courseType match
-    const courseTypeMatch = s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
+    // Check course / courseType match
+    const courseTypeMatch = matchesPrimaryFilter(s);
     
     // Check main center match
     const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
@@ -316,18 +343,18 @@ export default function SessionInfo() {
   const NAMC = NAMC_students.length;
   const NAMC_ids = NAMC_students.map(s => s.id).join(', ');
 
-  // Main Center denominator: all students with main_center === selectedCenter and courseType === selectedCourseType (regardless of attendance)
+  // Main Center denominator: all students with main_center === selectedCenter and matching primary filter
   const mainCenterTotal = allFiltersSelected ? dataToCount.filter(s => {
     return s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase() &&
-           s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
+           matchesPrimaryFilter(s);
   }).length : 0;
 
   // NMC: Not Main Center Attended (in specific lesson if selected)
   const NMC = dataToCount.filter(s => {
-    if (!selectedCourseType || !selectedCenter || !selectedLesson) return false;
+    if (!primaryFiltersReady) return false;
     
-    // Check courseType match
-    const courseTypeMatch = s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
+    // Check course / courseType match
+    const courseTypeMatch = matchesPrimaryFilter(s);
     
     // Check main center does NOT match
     const centerMatch = s.main_center && s.main_center.toLowerCase() !== selectedCenter.toLowerCase();
@@ -344,16 +371,15 @@ export default function SessionInfo() {
   // MC percent (show as MC / mainCenterTotal and percent)
   const MC_percent = mainCenterTotal > 0 ? Math.round((MC / mainCenterTotal) * 100) : 0;
 
-  // Filtered students for table 1 (Attended): by courseType, center, and lesson
+  // Filtered students for table 1 (Attended): by course/courseType, center, and lesson
   let filteredStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
-    if (!selectedCourseType || !selectedCenter || !selectedLesson) return false;
+    if (!primaryFiltersReady) return false;
     
     // Exclude deactivated students
     if (s.account_state === 'Deactivated') return false;
     
-    // Check courseType match
-    const courseTypeMatch = s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
-    if (!courseTypeMatch) return false;
+    // Check course / courseType match
+    if (!matchesPrimaryFilter(s)) return false;
     
     // Check if student has the selected lesson
     if (!s.lessons || typeof s.lessons !== 'object' || Array.isArray(s.lessons)) return false;
@@ -371,16 +397,15 @@ export default function SessionInfo() {
     filteredStudents = filteredStudents.map(student => getStudentLessonData(student, selectedLesson));
   }
 
-  // Filter for not attended students (table 2): by courseType, main center, and lesson
+  // Filter for not attended students (table 2): by course/courseType, main center, and lesson
   const notAttendedStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
-    if (!selectedCourseType || !selectedCenter || !selectedLesson) return false;
+    if (!primaryFiltersReady) return false;
     
     // Exclude deactivated students
     if (s.account_state === 'Deactivated') return false;
     
-    // Check courseType match
-    const courseTypeMatch = s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
-    if (!courseTypeMatch) return false;
+    // Check course / courseType match
+    if (!matchesPrimaryFilter(s)) return false;
     
     // Check main center match
     const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
@@ -401,14 +426,13 @@ export default function SessionInfo() {
 
   // AIAC: Attended in Another Center - students who attended in a different center than their main center
   const aiacStudents = (allFiltersSelected ? (filtered !== null ? filtered : students) : []).filter(s => {
-    if (!selectedCourseType || !selectedCenter || !selectedLesson) return false;
+    if (!primaryFiltersReady) return false;
     
     // Exclude deactivated students
     if (s.account_state === 'Deactivated') return false;
     
-    // Check courseType match
-    const courseTypeMatch = s.courseType && s.courseType.toLowerCase() === selectedCourseType.toLowerCase();
-    if (!courseTypeMatch) return false;
+    // Check course / courseType match
+    if (!matchesPrimaryFilter(s)) return false;
     
     // Check main center match
     const centerMatch = s.main_center && s.main_center.toLowerCase() === selectedCenter.toLowerCase();
@@ -468,7 +492,7 @@ export default function SessionInfo() {
     setAttendedPage(1);
     setAbsencesPage(1);
     setAiacPage(1);
-  }, [selectedCenter, selectedCourseType, selectedLesson]);
+  }, [selectedCenter, selectedCourse, selectedCourseType, selectedLesson]);
 
   // Pagination handlers for attended table
   const handleAttendedPageClick = (pageNumber) => {
@@ -965,11 +989,30 @@ export default function SessionInfo() {
         {/* Show lesson info if lesson is selected */}
         {selectedLesson && (
           <div className="week-info">
-            <Image src="/books.svg" alt="Lesson Info" width={20} height={20} style={{ display: 'inline-block' , transform: 'translateY(4px)', marginRight: '5px' }} /> Showing data for {selectedLesson} Lesson - {selectedCenter} ({selectedCourseType})
+            <Image src="/books.svg" alt="Lesson Info" width={20} height={20} style={{ display: 'inline-block' , transform: 'translateY(4px)', marginRight: '5px' }} /> Showing data for {selectedLesson} Lesson - {selectedCenter} ({selectedPrimaryLabel})
           </div>
         )}
         
         <form onSubmit={handleFilterFormSubmit} className="filter-section">
+          {isNational && (
+            <>
+              <div className="filter-label">{courseLabels.course}</div>
+              <CourseSelect
+                selectedGrade={selectedCourse}
+                onGradeChange={(course) => {
+                  setSelectedCourse(course);
+                  if (course) {
+                    sessionStorage.setItem('sessionInfoLastSelectedCourse', course);
+                  } else {
+                    sessionStorage.removeItem('sessionInfoLastSelectedCourse');
+                  }
+                }}
+                isOpen={openDropdown === 'course'}
+                onToggle={() => setOpenDropdown(openDropdown === 'course' ? null : 'course')}
+                onClose={() => setOpenDropdown(null)}
+              />
+            </>
+          )}
           <div className="filter-label">Center</div>
           <CenterSelect
             selectedCenter={selectedCenter}
@@ -985,6 +1028,8 @@ export default function SessionInfo() {
             onToggle={() => setOpenDropdown(openDropdown === 'center' ? null : 'center')}
             onClose={() => setOpenDropdown(null)}
           />
+          {courseLabels.showCourseType && (
+            <>
           <div className="filter-label">Course Type</div>
           <CourseTypeSelect
             selectedCourseType={selectedCourseType}
@@ -1000,6 +1045,8 @@ export default function SessionInfo() {
             onToggle={() => setOpenDropdown(openDropdown === 'courseType' ? null : 'courseType')}
             onClose={() => setOpenDropdown(null)}
           />
+            </>
+          )}
           <div className="filter-label">Lesson</div>
           <AttendancelessonSelect
             selectedLesson={selectedLesson}
@@ -1060,13 +1107,14 @@ export default function SessionInfo() {
             showWeekComment={showComment || showLessonComment}
             height={300}
             showWhatsApp={true}
+            showEmail={false}
             showCourse={true}
             showCourseType={true}
             showScore={isScoringEnabled}
             showPayment={isPaymentSystemEnabled}
             emptyMessage={selectedLesson ? 
-              `No students attended in ${selectedCenter} for ${selectedCourseType} in ${selectedLesson}.` :
-              `No students found for selected course type and center.`
+              `No students attended in ${selectedCenter} for ${selectedPrimaryLabel} in ${selectedLesson}.` :
+              `No students found for selected ${isNational ? 'grade' : 'course type'} and center.`
             }
             onMessageStateChange={handleMessageStateChange}
             onScoreUpdate={handleWhatsAppMessageSent}
@@ -1141,6 +1189,7 @@ export default function SessionInfo() {
             showMainComment={true}
             showWeekComment={true}
             showWhatsApp={true}
+            showEmail={false}
             showCourse={true}
             showCourseType={true}
             showHW={showHW}
@@ -1148,8 +1197,8 @@ export default function SessionInfo() {
             showScore={isScoringEnabled}
             showPayment={isPaymentSystemEnabled}
             emptyMessage={selectedLesson ? 
-              `No Absences in ${selectedCenter} for ${selectedCourseType} in ${selectedLesson}.` :
-              `No students found for selected course type and center.`
+              `No Absences in ${selectedCenter} for ${selectedPrimaryLabel} in ${selectedLesson}.` :
+              `No students found for selected ${isNational ? 'grade' : 'course type'} and center.`
             }
             onMessageStateChange={handleMessageStateChange}
             onScoreUpdate={handleWhatsAppMessageSent}
@@ -1224,6 +1273,7 @@ export default function SessionInfo() {
             showMainComment={true}
             showWeekComment={true}
             showWhatsApp={true}
+            showEmail={false}
             showMessageState={true}
             showStatsColumns={true}
             showCourse={true}
@@ -1234,7 +1284,7 @@ export default function SessionInfo() {
             showPayment={isPaymentSystemEnabled}
             emptyMessage={selectedLesson ? 
               `No students attended in another center in ${selectedLesson}.` :
-              `No students found for selected course type and center.`
+              `No students found for selected ${isNational ? 'grade' : 'course type'} and center.`
             }
             onMessageStateChange={handleMessageStateChange}
             onScoreUpdate={handleWhatsAppMessageSent}

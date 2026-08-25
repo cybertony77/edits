@@ -118,10 +118,23 @@ export default async function handler(req, res) {
       );
     }
 
-    // Push the quiz result
+    const currentOnlineQuizzes = Array.isArray(student.online_quizzes) ? [...student.online_quizzes] : [];
+    const existingQuizIndex = currentOnlineQuizzes.findIndex(
+      (item) => String(item?.quiz_id ?? '') === String(quiz_id)
+    );
+    if (existingQuizIndex >= 0) {
+      currentOnlineQuizzes[existingQuizIndex] = {
+        ...currentOnlineQuizzes[existingQuizIndex],
+        ...quizResult,
+      };
+    } else {
+      currentOnlineQuizzes.push(quizResult);
+    }
+
+    // Replace existing result for the same quiz instead of duplicating it
     const updateResult = await db.collection('students').updateOne(
       { id: student_id },
-      { $push: { online_quizzes: quizResult } }
+      { $set: { online_quizzes: currentOnlineQuizzes } }
     );
 
     if (updateResult.matchedCount === 0) {

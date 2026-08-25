@@ -1,3 +1,4 @@
+import { useNationalSystem, getCourseFieldLabels } from '../../../../lib/api/system';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,6 +35,8 @@ function InputWithButton(props) {
 }
 
 export default function MaterialPage() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -126,13 +129,15 @@ export default function MaterialPage() {
         <div className="filters-container" style={{ background: 'white', borderRadius: 16, padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', marginBottom: 24 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 180 }}>
-              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Filter by Course</label>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>{courseLabels.filterByCourse}</label>
               <CourseSelect selectedGrade={filterCourse} onGradeChange={setFilterCourse} showAllOption={true} isOpen={courseOpen} onToggle={() => { setCourseOpen(!courseOpen); setCourseTypeOpen(false); setCenterOpen(false); }} onClose={() => setCourseOpen(false)} />
             </div>
-            <div style={{ flex: 1, minWidth: 180 }}>
+            {courseLabels.showCourseType && (
+<div style={{ flex: 1, minWidth: 180 }}>
               <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Filter by Course Type</label>
               <CourseTypeSelect selectedCourseType={filterCourseType} onCourseTypeChange={setFilterCourseType} isOpen={courseTypeOpen} onToggle={() => { setCourseTypeOpen(!courseTypeOpen); setCourseOpen(false); setCenterOpen(false); }} onClose={() => setCourseTypeOpen(false)} />
             </div>
+)}
             <div style={{ flex: 1, minWidth: 180 }}>
               <label style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>Filter by Center</label>
               <CenterSelect selectedCenter={filterCenter} onCenterChange={setFilterCenter} required={false} isOpen={centerOpen} onToggle={() => { setCenterOpen(!centerOpen); setCourseOpen(false); setCourseTypeOpen(false); }} onClose={() => setCenterOpen(false)} />
@@ -183,7 +188,7 @@ export default function MaterialPage() {
                   }}
                 >
                   <div className="material-item-content" style={{ flex: 1 }}>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 8 }}>{[item.course, item.courseType, item.center, item.material_name].filter(Boolean).join(' • ')}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 8 }}>{[item.course, !isNational && item.courseType, item.center, item.material_name].filter(Boolean).join(' • ')}</div>
                     <div className="material-file-badge" style={{ padding: '12px 16px', border: '2px solid #e9ecef', borderRadius: 8, display: 'inline-block' }}>
                       <span style={{ color: (item.state || 'Activated') === 'Activated' ? '#28a745' : '#dc3545', fontWeight: 600 }}>{item.state || 'Activated'}</span>
                       <span style={{ margin: '0 8px' }}>•</span>

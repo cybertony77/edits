@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import { useRouter } from 'next/router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
@@ -8,6 +9,7 @@ import CourseSelect from '../../components/CourseSelect';
 import CourseTypeSelect from '../../components/CourseTypeSelect';
 import PeriodSelect from '../../components/PeriodSelect';
 import AttendancelessonSelect from '../../components/AttendancelessonSelect';
+import AccountStateSelect from '../../components/AccountStateSelect';
 
 // Time Input component (hours, minutes, AM/PM using PeriodSelect)
 function TimeInput({ value, onChange, label, accentColor = '#2d8cff' }) {
@@ -158,6 +160,8 @@ const zoomMeetingAPI = {
 };
 
 export default function JoinZoomMeeting() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   
@@ -169,6 +173,7 @@ export default function JoinZoomMeeting() {
   const [newDeadline, setNewDeadline] = useState({});
   const [newDateOfStart, setNewDateOfStart] = useState({});
   const [newDateOfEnd, setNewDateOfEnd] = useState({});
+  const [newMeetingState, setNewMeetingState] = useState('Activated');
   const [newCourseOpen, setNewCourseOpen] = useState(false);
   const [newCourseTypeOpen, setNewCourseTypeOpen] = useState(false);
   const [newLessonOpen, setNewLessonOpen] = useState(false);
@@ -181,6 +186,7 @@ export default function JoinZoomMeeting() {
   const [editDeadline, setEditDeadline] = useState({});
   const [editDateOfStart, setEditDateOfStart] = useState({});
   const [editDateOfEnd, setEditDateOfEnd] = useState({});
+  const [editMeetingState, setEditMeetingState] = useState('Activated');
   const [editCourseOpen, setEditCourseOpen] = useState(false);
   const [editCourseTypeOpen, setEditCourseTypeOpen] = useState(false);
   const [editLessonOpen, setEditLessonOpen] = useState(false);
@@ -292,6 +298,7 @@ export default function JoinZoomMeeting() {
     setNewDeadline({});
     setNewDateOfStart({});
     setNewDateOfEnd({});
+    setNewMeetingState('Activated');
   };
 
   const resetEditForm = () => {
@@ -302,6 +309,7 @@ export default function JoinZoomMeeting() {
     setEditDeadline({});
     setEditDateOfStart({});
     setEditDateOfEnd({});
+    setEditMeetingState('Activated');
   };
 
   // Clean time object - only include if all three fields are filled
@@ -314,7 +322,7 @@ export default function JoinZoomMeeting() {
 
   const handleAddMeeting = () => {
     if (!newCourse || !newLesson || !newLink.trim()) {
-      setError('Course, Lesson and Zoom Link are required');
+      setError(`${courseLabels.course}, Lesson and Zoom Link are required`);
       return;
     }
     
@@ -325,12 +333,13 @@ export default function JoinZoomMeeting() {
     
     createMutation.mutate({
       course: newCourse,
-      courseType: newCourseType || null,
+      courseType: isNational ? null : (newCourseType || null),
       lesson: newLesson,
       link: newLink.trim(),
       deadline: cleanTime(newDeadline),
       dateOfStart: cleanTime(newDateOfStart),
-      dateOfEnd: cleanTime(newDateOfEnd)
+      dateOfEnd: cleanTime(newDateOfEnd),
+      meeting_state: newMeetingState === 'Deactivated' ? 'Deactivated' : 'Activated',
     });
   };
 
@@ -343,12 +352,13 @@ export default function JoinZoomMeeting() {
     setEditDeadline(meeting.deadline || {});
     setEditDateOfStart(meeting.dateOfStart || {});
     setEditDateOfEnd(meeting.dateOfEnd || {});
+    setEditMeetingState(meeting.meeting_state || meeting.account_state || meeting.state || 'Activated');
     setError('');
   };
 
   const handleUpdateMeeting = () => {
     if (!editCourse || !editLesson || !editLink.trim()) {
-      setError('Course, Lesson and Zoom Link are required');
+      setError(`${courseLabels.course}, Lesson and Zoom Link are required`);
       return;
     }
     
@@ -361,12 +371,13 @@ export default function JoinZoomMeeting() {
       id: editingMeeting._id, 
       data: {
         course: editCourse,
-        courseType: editCourseType || null,
+        courseType: isNational ? null : (editCourseType || null),
         lesson: editLesson,
         link: editLink.trim(),
         deadline: cleanTime(editDeadline),
         dateOfStart: cleanTime(editDateOfStart),
-        dateOfEnd: cleanTime(editDateOfEnd)
+        dateOfEnd: cleanTime(editDateOfEnd),
+        meeting_state: editMeetingState === 'Deactivated' ? 'Deactivated' : 'Activated',
       }
     });
   };
@@ -569,9 +580,9 @@ export default function JoinZoomMeeting() {
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
                     <span style={{ color: '#666', fontSize: '0.9rem' }}>
-                      <strong>Course:</strong> {meeting.course || 'N/A'}
+                      <strong>{courseLabels.course}:</strong> {meeting.course || 'N/A'}
                     </span>
-                    {meeting.courseType && (
+                    {courseLabels.showCourseType && meeting.courseType && (
                       <span style={{ color: '#666', fontSize: '0.9rem' }}>
                         <strong>Course Type:</strong> {meeting.courseType}
                       </span>
@@ -581,6 +592,15 @@ export default function JoinZoomMeeting() {
                         <strong>Lesson:</strong> {meeting.lesson}
                       </span>
                     )}
+                    <span style={{ color: '#666', fontSize: '0.9rem' }}>
+                      <strong>Meeting State:</strong>{' '}
+                      <span style={{
+                        color: (meeting.meeting_state || meeting.account_state || 'Activated') === 'Deactivated' ? '#dc3545' : '#28a745',
+                        fontWeight: 700,
+                      }}>
+                        {(meeting.meeting_state || meeting.account_state || meeting.state || 'Activated')}
+                      </span>
+                    </span>
                     {(formatTime(meeting.deadline) || formatTime(meeting.dateOfStart) || formatTime(meeting.dateOfEnd)) && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
                         {formatTime(meeting.deadline) && (
@@ -788,7 +808,7 @@ export default function JoinZoomMeeting() {
             </div>
             <div className="add-meeting-form">
               <div className="form-field">
-                <label>Course <span className="required-star">*</span></label>
+                <label>{courseLabels.course} <span className="required-star">*</span></label>
                 <CourseSelect
                   selectedGrade={newCourse}
                   onGradeChange={(course) => {
@@ -805,7 +825,8 @@ export default function JoinZoomMeeting() {
                 />
               </div>
               
-              <div className="form-field">
+              {courseLabels.showCourseType && (
+<div className="form-field">
                 <label>Course Type</label>
                 <CourseTypeSelect
                   selectedCourseType={newCourseType}
@@ -821,6 +842,7 @@ export default function JoinZoomMeeting() {
                   onClose={() => setNewCourseTypeOpen(false)}
                 />
               </div>
+)}
               
               <div className="form-field">
                 <label>Lesson <span className="required-star">*</span></label>
@@ -851,6 +873,15 @@ export default function JoinZoomMeeting() {
                   placeholder="https://zoom.us/j/..."
                   className="form-input"
                   autoFocus
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <AccountStateSelect
+                  label="Meeting State"
+                  value={newMeetingState || 'Activated'}
+                  onChange={(value) => setNewMeetingState(value || 'Activated')}
                   required
                 />
               </div>
@@ -950,7 +981,7 @@ export default function JoinZoomMeeting() {
             </div>
             <div className="edit-meeting-form">
               <div className="form-field">
-                <label>Course <span className="required-star">*</span></label>
+                <label>{courseLabels.course} <span className="required-star">*</span></label>
                 <CourseSelect
                   selectedGrade={editCourse}
                   onGradeChange={(course) => {
@@ -967,7 +998,8 @@ export default function JoinZoomMeeting() {
                 />
               </div>
               
-              <div className="form-field">
+              {courseLabels.showCourseType && (
+<div className="form-field">
                 <label>Course Type</label>
                 <CourseTypeSelect
                   selectedCourseType={editCourseType}
@@ -983,6 +1015,7 @@ export default function JoinZoomMeeting() {
                   onClose={() => setEditCourseTypeOpen(false)}
                 />
               </div>
+)}
               
               <div className="form-field">
                 <label>Lesson <span className="required-star">*</span></label>
@@ -1013,6 +1046,15 @@ export default function JoinZoomMeeting() {
                   placeholder="https://zoom.us/j/..."
                   className="form-input"
                   autoFocus
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <AccountStateSelect
+                  label="Meeting State"
+                  value={editMeetingState || 'Activated'}
+                  onChange={(value) => setEditMeetingState(value || 'Activated')}
                   required
                 />
               </div>

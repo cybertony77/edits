@@ -7,7 +7,7 @@ import Title from '../../components/Title';
 import CourseSelect from '../../components/CourseSelect';
 import CourseTypeSelect from '../../components/CourseTypeSelect';
 import CenterSelect from '../../components/CenterSelect';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../lib/api/system';
 
 // API functions
 const whatsappGroupAPI = {
@@ -274,7 +274,7 @@ export default function JoinWhatsappGroup() {
 
   const handleAddGroup = () => {
     if (!newTitle.trim() || !newCourse || !newGender || !newLink.trim()) {
-      setError('Title, Course, Gender, and Link are required');
+      setError(`Title, ${courseLabels.course}, Gender, and Link are required`);
       return;
     }
     
@@ -306,7 +306,7 @@ export default function JoinWhatsappGroup() {
 
   const handleUpdateGroup = () => {
     if (!editTitle.trim() || !editCourse || !editGender || !editLink.trim()) {
-      setError('Title, Course, Gender, and Link are required');
+      setError(`Title, ${courseLabels.course}, Gender, and Link are required`);
       return;
     }
     
@@ -537,9 +537,9 @@ export default function JoinWhatsappGroup() {
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
                     <span style={{ color: '#666', fontSize: '0.9rem' }}>
-                      <strong>Course:</strong> {group.course || group.grade || 'N/A'}
+                      <strong>{courseLabels.course}:</strong> {group.course || group.grade || 'N/A'}
                     </span>
-                    {group.courseType && (
+                    {courseLabels.showCourseType && group.courseType && (
                       <span style={{ color: '#666', fontSize: '0.9rem' }}>
                         <strong>Course Type:</strong> {group.courseType}
                       </span>
@@ -752,7 +752,7 @@ export default function JoinWhatsappGroup() {
               </div>
               
               <div className="form-field">
-                <label>Course <span className="required-star">*</span></label>
+                <label>{courseLabels.course} <span className="required-star">*</span></label>
                 <CourseSelect
                   selectedGrade={newCourse}
                   onGradeChange={(course) => {
@@ -771,7 +771,8 @@ export default function JoinWhatsappGroup() {
                 />
               </div>
               
-              <div className="form-field">
+              {courseLabels.showCourseType && (
+<div className="form-field">
                 <label>Course Type</label>
                 <CourseTypeSelect
                   selectedCourseType={newCourseType}
@@ -789,6 +790,7 @@ export default function JoinWhatsappGroup() {
                   onClose={() => setNewCourseTypeOpen(false)}
                 />
               </div>
+)}
               
               <div className="form-field">
                 <label>Center</label>
@@ -912,7 +914,7 @@ export default function JoinWhatsappGroup() {
               </div>
               
               <div className="form-field">
-                <label>Course <span className="required-star">*</span></label>
+                <label>{courseLabels.course} <span className="required-star">*</span></label>
                 <CourseSelect
                   selectedGrade={editCourse}
                   onGradeChange={(course) => {
@@ -931,7 +933,8 @@ export default function JoinWhatsappGroup() {
                 />
               </div>
               
-              <div className="form-field">
+              {courseLabels.showCourseType && (
+<div className="form-field">
                 <label>Course Type</label>
                 <CourseTypeSelect
                   selectedCourseType={editCourseType}
@@ -949,6 +952,7 @@ export default function JoinWhatsappGroup() {
                   onClose={() => setEditCourseTypeOpen(false)}
                 />
               </div>
+)}
               
               <div className="form-field">
                 <label>Center</label>

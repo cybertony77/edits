@@ -138,10 +138,23 @@ export default async function handler(req, res) {
       );
     }
 
-    // Push the mock exam result
+    const currentOnlineMockExams = Array.isArray(student.online_mock_exams) ? [...student.online_mock_exams] : [];
+    const existingMockExamIndex = currentOnlineMockExams.findIndex(
+      (item) => String(item?.mock_exam_id ?? '') === String(mock_exam_id)
+    );
+    if (existingMockExamIndex >= 0) {
+      currentOnlineMockExams[existingMockExamIndex] = {
+        ...currentOnlineMockExams[existingMockExamIndex],
+        ...mockExamResult,
+      };
+    } else {
+      currentOnlineMockExams.push(mockExamResult);
+    }
+
+    // Replace existing result for the same mock exam instead of duplicating it
     const updateResult = await db.collection('students').updateOne(
       { id: student_id },
-      { $push: { online_mock_exams: mockExamResult } }
+      { $set: { online_mock_exams: currentOnlineMockExams } }
     );
 
     if (updateResult.matchedCount === 0) {

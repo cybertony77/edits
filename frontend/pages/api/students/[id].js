@@ -36,6 +36,7 @@ const envConfig = loadEnvConfig();
 const JWT_SECRET = envConfig.JWT_SECRET || process.env.JWT_SECRET || 'topphysics_secret';
 const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/topphysics';
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'topphysics';
+const NATIONAL_SYSTEM = envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
 
 console.log('🔗 Using Mongo URI:', MONGO_URI);
 
@@ -129,8 +130,8 @@ export default async function handler(req, res) {
       // Edit student - handle partial updates properly
       const { name, grade, course, courseType, phone, parents_phone, main_center, age, gender, school, main_comment, comment, account_state, score, email } = req.body;
       
-      // Validate grade is required
-      if (grade !== undefined && (grade === null || grade === '')) {
+      // Validate grade is required (except NATIONAL_SYSTEM, where CourseSelect is the grade)
+      if (!NATIONAL_SYSTEM && grade !== undefined && (grade === null || grade === '')) {
         return res.status(400).json({ error: 'Grade is required' });
       }
 
@@ -177,14 +178,16 @@ export default async function handler(req, res) {
       if (name !== undefined && name !== null) {
         update.name = name;
       }
-      if (grade !== undefined && grade !== null) {
-        update.grade = grade;
+      if (grade !== undefined) {
+        // Allow null (NATIONAL_SYSTEM clears the GradeSelect field)
+        update.grade = grade === '' ? null : grade;
       }
       if (course !== undefined && course !== null) {
         update.course = course;
       }
-      if (courseType !== undefined && courseType !== null) {
-        update.courseType = courseType;
+      if (courseType !== undefined) {
+        // Allow null when NATIONAL_SYSTEM hides course type
+        update.courseType = courseType === '' ? null : courseType;
       }
       if (phone !== undefined && phone !== null) {
         update.phone = phone;
@@ -221,6 +224,11 @@ export default async function handler(req, res) {
       if (score !== undefined && score !== null) {
         // Handle score updates - ensure it's a number
         update.score = typeof score === 'number' ? score : parseInt(score, 10);
+        if (Number.isNaN(update.score)) {
+          delete update.score;
+        } else {
+          update.score = Math.max(0, update.score);
+        }
       }
       
       // Handle weeks array updates (for hwDone and quizDegree)
@@ -272,11 +280,54 @@ export default async function handler(req, res) {
       }
 
       if (Object.keys(update).length > 0) {
+        const existingStudent = update.score !== undefined
+          ? await db.collection('students').findOne({ id: student_id }, { projection: { score: 1 } })
+          : null;
+        const previousScore = Number(existingStudent?.score || 0);
+
         const result = await db.collection('students').updateOne(
           { id: student_id },
           { $set: update }
         );
         if (result.matchedCount === 0) return res.status(404).json({ error: 'Student not found' });
+
+        if (update.score !== undefined && update.score !== previousScore) {
+          const appliedDelta = update.score - previousScore;
+          const processId = `${student_id}_manual_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+          try {
+            await db.collection('scoring_system_history').insertOne({
+              student_id,
+              process_id: processId,
+              process_name: `Staff adjustment: ${appliedDelta >= 0 ? '+' : ''}${appliedDelta}`,
+              process_lesson: null,
+              type: 'manual',
+              source_key: `student:${student_id}|type:manual|kind:staff_adjustment|id:${processId}`,
+              source_kind: 'staff_adjustment',
+              source_id: processId,
+              source_label: 'Student record update',
+              score_before_process: previousScore,
+              score_after_process: update.score,
+              score_added: appliedDelta,
+              requested_delta: appliedDelta,
+              applied_delta: appliedDelta,
+              desired_total_points: appliedDelta,
+              previous_awarded_contribution: 0,
+              awarded_total_points: appliedDelta,
+              awarded_base_points: appliedDelta,
+              awarded_bonus_points: 0,
+              base_points: appliedDelta,
+              bonus_points: 0,
+              bonus_lessons: [],
+              data: {
+                delta: appliedDelta,
+                reason: 'Score updated on student record',
+              },
+              timestamp: new Date(),
+            });
+          } catch (historyError) {
+            console.error('[SCORING] Failed to write staff score history from student PUT:', historyError);
+          }
+        }
       } else {
         // Email-only update: ensure student exists
         const studentExists = await db.collection('students').findOne({ id: student_id }, { projection: { id: 1 } });

@@ -13,6 +13,7 @@ import styles from '../../styles/TableScrollArea.module.css';
 import { IconArrowRight, IconSearch, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { ActionIcon, TextInput, useMantineTheme } from '@mantine/core';
 import { useStudentsHistory } from '../../lib/api/students';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 
 export function InputWithButton(props) {
@@ -37,6 +38,8 @@ export function InputWithButton(props) {
 // No client-side token handling; auth is enforced in _app.js
 
 export default function History() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const containerRef = useRef(null);
   const [selectedCourse, setSelectedCourse] = useState("");
@@ -603,7 +606,7 @@ export default function History() {
         <div className="filters-container">
           <div className="filter-row">
             <div className="filter-group">
-              <label className="filter-label">Filter by Course</label>
+              <label className="filter-label">{courseLabels.filterByCourse}</label>
               <CourseSelect
                 selectedGrade={selectedCourse}
                 onGradeChange={(course) => {
@@ -620,6 +623,7 @@ export default function History() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            {courseLabels.showCourseType && (
             <div className="filter-group">
               <label className="filter-label">Filter by Course Type</label>
               <CourseTypeSelect
@@ -638,6 +642,7 @@ export default function History() {
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            )}
             <div className="filter-group">
               <label className="filter-label">Filter by Center</label>
               <CenterSelect
@@ -712,9 +717,13 @@ export default function History() {
                     <Table.Th style={{ width: '60px', minWidth: '60px', textAlign: 'center' }}>ID</Table.Th>
                     <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Name</Table.Th>
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Gender</Table.Th>
+                    {courseLabels.showGradeField && (
                     <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Grade</Table.Th>
-                    <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>Course</Table.Th>
+                    )}
+                    <Table.Th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{courseLabels.course}</Table.Th>
+                    {courseLabels.showCourseType && (
                     <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Course Type</Table.Th>
+                    )}
                     <Table.Th style={{ width: '180px', minWidth: '180px', textAlign: 'center' }}>School</Table.Th>
                     <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Phone</Table.Th>
                     <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Parent Phone</Table.Th>
@@ -734,9 +743,13 @@ export default function History() {
                         <Table.Td style={{ fontWeight: 'bold', color: '#1FA8DC', width: '60px', minWidth: '60px', textAlign: 'center' }}>{student.id}</Table.Td>
                         <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.name}</Table.Td>
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{student.gender || 'N/A'}</Table.Td>
+                        {courseLabels.showGradeField && (
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{student.grade || 'N/A'}</Table.Td>
+                        )}
                         <Table.Td style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>{student.course || student.grade || 'N/A'}</Table.Td>
+                        {courseLabels.showCourseType && (
                         <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.courseType || 'N/A'}</Table.Td>
+                        )}
                         <Table.Td style={{ width: '180px', minWidth: '180px', wordWrap: 'break-word', textAlign: 'center' }}>{student.school || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>{student.phone || 'N/A'}</Table.Td>
                         <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>{student.parentsPhone || 'N/A'}</Table.Td>

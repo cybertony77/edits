@@ -5,8 +5,11 @@ import Title from '../../../components/Title';
 import { useStudents, useStudent } from '../../../lib/api/students';
 import apiClient from '../../../lib/axios';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useNationalSystem, getCourseFieldLabels } from '../../../lib/api/system';
 
 export default function DeleteStudentAccount() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [studentId, setStudentId] = useState("");
@@ -500,7 +503,7 @@ export default function DeleteStudentAccount() {
                       {student.name} (ID: {student.id})
                     </div>
                     <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
-                      {[student.course, student.courseType, student.main_center].filter(Boolean).join(' • ')}
+                      {[student.course, !isNational && student.courseType, student.main_center].filter(Boolean).join(' • ')}
                     </div>
                   </button>
                 ))}
@@ -516,7 +519,13 @@ export default function DeleteStudentAccount() {
                 <h3>Student Found:</h3>
                 <p><strong>Name:</strong> {student.name}</p>
                 {student.age && <p><strong>Age:</strong> {student.age}</p>}
-                <p><strong>Grade:</strong> {student.grade}</p>
+                {courseLabels.showGradeField && (
+                  <p><strong>Grade:</strong> {student.grade}</p>
+                )}
+                <p><strong>{courseLabels.course}:</strong> {student.course || 'N/A'}</p>
+                {courseLabels.showCourseType && student.courseType && (
+                  <p><strong>Course Type:</strong> {student.courseType}</p>
+                )}
                 <p><strong>School:</strong> {student.school}</p>
                 <p><strong>Phone:</strong> {student.phone}</p>
                 <p><strong>Email:</strong> {userAccount?.email || "No Email"}</p>

@@ -7,7 +7,7 @@ import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import CenterSelect from '../../../../components/CenterSelect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import Image from 'next/image';
 import ZoomableImage from '../../../../components/ZoomableImage';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
@@ -53,6 +53,8 @@ function createDefaultMcqQuestion(desmosEnabled) {
 }
 
 export default function AddHomework() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: systemConfig } = useSystemConfig();
@@ -597,7 +599,7 @@ export default function AddHomework() {
 
     // Validate course
     if (!selectedCourse || selectedCourse.trim() === '') {
-      newErrors.course = '❌ Course is required';
+      newErrors.course = `❌ ${courseLabels.course} is required`;
     }
 
     // Validate lesson
@@ -865,10 +867,10 @@ export default function AddHomework() {
               </button>
             </div>
 
-            {/* Homework Course */}
+            {/* Homework {courseLabels.course} */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', textAlign: 'left' }}>
-                Homework Course <span style={{ color: 'red' }}>*</span>
+                Homework {courseLabels.course} <span style={{ color: 'red' }}>*</span>
               </label>
               <CourseSelect
                 selectedGrade={selectedCourse}
@@ -897,7 +899,8 @@ export default function AddHomework() {
             </div>
 
             {/* Homework Course Type */}
-            <div style={{ marginBottom: '20px' }}>
+            {courseLabels.showCourseType && (
+<div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', textAlign: 'left' }}>
                 Homework Course Type
               </label>
@@ -924,6 +927,7 @@ export default function AddHomework() {
                 </div>
               )}
             </div>
+)}
 
             {/* Homework Center (optional) */}
             <div style={{ marginBottom: '20px' }}>

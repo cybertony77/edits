@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Group, Rating, Text } from '@mantine/core';
 import CourseSelect from '../../components/CourseSelect';
 import FullPageActionLoader from '../../components/FullPageActionLoader';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import styles from '../../styles/leave-a-review.module.css';
 
 const RATING_COLOR = 'rgba(242, 207, 5, 1)';
@@ -38,6 +39,9 @@ export default function LeaveAReviewPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState(emptyFieldErrors);
   const [submitted, setSubmitted] = useState(false);
+
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
 
   const { data: profile } = useQuery({
     queryKey: ['auth', 'profile', 'leave-a-review'],
@@ -119,12 +123,12 @@ export default function LeaveAReviewPage() {
       firstKey = firstKey || 'name';
     }
     if (!String(course || '').trim()) {
-      next.course = 'Course is required';
+      next.course = `${courseLabels.course} is required`;
       firstKey = firstKey || 'course';
     }
     const parsedScore = parseScore(score);
     if (Number.isNaN(parsedScore)) {
-      next.score = 'Score must be a valid number';
+      next.score = `${courseLabels.score} must be a valid number`;
       firstKey = firstKey || 'score';
     }
     if (!message.trim()) {
@@ -289,7 +293,7 @@ export default function LeaveAReviewPage() {
 
                 <div className={styles.field} data-field="course">
                   <label className={styles.label}>
-                    Course <span className={styles.required}>*</span>
+                    {courseLabels.course} <span className={styles.required}>*</span>
                   </label>
                   <div
                     className={`${styles.courseSelectWrap} ${
@@ -315,7 +319,7 @@ export default function LeaveAReviewPage() {
 
                 <div className={styles.field} data-field="score">
                   <label className={styles.label} htmlFor="review-score">
-                    Score <span className={styles.optional}>(optional)</span>
+                    {courseLabels.score} <span className={styles.optional}>(optional)</span>
                   </label>
                   <input
                     id="review-score"
@@ -327,7 +331,7 @@ export default function LeaveAReviewPage() {
                       setScore(e.target.value);
                       clearFieldError('score');
                     }}
-                    placeholder="e.g. 1400"
+                    placeholder={isNational ? 'e.g. 60 / 60' : 'e.g. 1400'}
                     disabled={submitting}
                     aria-invalid={Boolean(fieldErrors.score)}
                     aria-describedby={fieldErrors.score ? 'review-score-error' : undefined}

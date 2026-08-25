@@ -1,3 +1,4 @@
+import { useNationalSystem, getCourseFieldLabels } from '../../../../lib/api/system';
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Title from '../../../../components/Title';
@@ -44,6 +45,8 @@ function weekNumberToString(weekNumber) {
 }
 
 export default function EditHomeworkVideo() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const { id } = router.query;
   const queryClient = useQueryClient();
@@ -429,7 +432,7 @@ export default function EditHomeworkVideo() {
     const newErrors = {};
 
     if (!selectedCourse || selectedCourse.trim() === '') {
-      newErrors.course = '❌ Course is required';
+      newErrors.course = `❌ ${courseLabels.course} is required`;
     }
 
     if (!selectedLesson || selectedLesson.trim() === '') {
@@ -606,10 +609,10 @@ export default function EditHomeworkVideo() {
           marginTop: '24px'
         }}>
           <form onSubmit={handleSubmit}>
-            {/* Video Course */}
+            {/* Video {courseLabels.course} */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#333', fontWeight: '500' }}>
-                Video Course <span style={{ color: 'red' }}>*</span>
+                Video {courseLabels.course} <span style={{ color: 'red' }}>*</span>
               </label>
               <CourseSelect
                 selectedGrade={selectedCourse}
@@ -633,7 +636,8 @@ export default function EditHomeworkVideo() {
             </div>
 
             {/* Video Course Type */}
-            <div style={{ marginBottom: '20px' }}>
+            {courseLabels.showCourseType && (
+<div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#333', fontWeight: '500' }}>
                 Video Course Type
               </label>
@@ -655,6 +659,7 @@ export default function EditHomeworkVideo() {
                 </div>
               )}
             </div>
+)}
 
             {/* Video Lesson */}
             <div style={{ marginBottom: '20px' }}>

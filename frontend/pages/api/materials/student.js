@@ -30,6 +30,7 @@ function loadEnvConfig() {
 const envConfig = loadEnvConfig();
 const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/topphysics';
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME || 'mr-george-magdy';
+const NATIONAL_SYSTEM = envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
 
 export default async function handler(req, res) {
   let client;
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
       const itemCourseType = (item.courseType || '').trim();
       const itemState = item.state || 'Activated';
       const courseMatch = itemCourse.toLowerCase() === 'all' || itemCourse.toLowerCase() === studentCourseTrimmed.toLowerCase();
-      const courseTypeMatch = !itemCourseType || !studentCourseTypeTrimmed || itemCourseType.toLowerCase() === studentCourseTypeTrimmed.toLowerCase();
+      const courseTypeMatch = NATIONAL_SYSTEM || !itemCourseType || !studentCourseTypeTrimmed || itemCourseType.toLowerCase() === studentCourseTypeTrimmed.toLowerCase();
       const isActivated = itemState !== 'Deactivated';
       const centerMatch = itemCenterMatchesStudentMainCenter(item.center, studentMainCenter);
       return courseMatch && courseTypeMatch && isActivated && centerMatch;

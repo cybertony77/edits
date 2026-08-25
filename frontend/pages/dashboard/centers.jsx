@@ -8,6 +8,7 @@ import CourseSelect from '../../components/CourseSelect';
 import CourseTypeSelect from '../../components/CourseTypeSelect';
 import PeriodSelect from '../../components/PeriodSelect';
 import DaySelect from '../../components/DaySelect';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 
 // API functions
 const centersAPI = {
@@ -33,6 +34,8 @@ const centersAPI = {
 };
 
 export default function Centers() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -922,7 +925,7 @@ export default function Centers() {
                     ✕
                   </button>
                   <div className="form-field">
-                    <label>Course <span className="required-star">*</span></label>
+                    <label>{courseLabels.course} <span className="required-star">*</span></label>
                     <CourseSelect
                       selectedGrade={gradeData.course}
                       onGradeChange={(course) => updateCourseInAdd(gradeIndex, course)}
@@ -936,6 +939,7 @@ export default function Centers() {
                       showAllOption={true}
                     />
                   </div>
+                  {courseLabels.showCourseType && (
                   <div className="form-field">
                     <label>Course Type</label>
                     <CourseTypeSelect
@@ -950,6 +954,7 @@ export default function Centers() {
                       }}
                     />
                   </div>
+                  )}
 
                   {gradeData.course && gradeData.course.trim() !== '' && (
                     <>
@@ -1058,7 +1063,7 @@ export default function Centers() {
                       style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <Image src="/plus.svg" alt="Add" width={18} height={18} />
-                      Add another course
+                      {courseLabels.addAnotherCourse}
                     </button>
                   )}
                 </div>
@@ -1158,7 +1163,7 @@ export default function Centers() {
                     ✕
                   </button>
                   <div className="form-field">
-                    <label>Course <span className="required-star">*</span></label>
+                    <label>{courseLabels.course} <span className="required-star">*</span></label>
                     <CourseSelect
                       selectedGrade={gradeData.course}
                       onGradeChange={(course) => updateCourseInEdit(gradeIndex, course)}
@@ -1172,6 +1177,7 @@ export default function Centers() {
                       showAllOption={true}
                     />
                   </div>
+                  {courseLabels.showCourseType && (
                   <div className="form-field">
                     <label>Course Type</label>
                     <CourseTypeSelect
@@ -1186,6 +1192,7 @@ export default function Centers() {
                       }}
                     />
                   </div>
+                  )}
 
                   {gradeData.course && gradeData.course.trim() !== '' && (
                     <>
@@ -1294,7 +1301,7 @@ export default function Centers() {
                       style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <Image src="/plus.svg" alt="Add" width={18} height={18} />
-                      Add another course
+                      {courseLabels.addAnotherCourse}
                     </button>
                   )}
                 </div>
@@ -1379,8 +1386,8 @@ export default function Centers() {
                   <table className="details-table">
                     <thead>
                       <tr>
-                        <th>Course</th>
-                        <th>Course Type</th>
+                        <th>{courseLabels.course}</th>
+                        {courseLabels.showCourseType && <th>Course Type</th>}
                         <th>Day</th>
                         <th>Time</th>
                       </tr>
@@ -1393,7 +1400,9 @@ export default function Centers() {
                               {timingIndex === 0 && (
                                 <>
                                   <td rowSpan={grade.timings.length}>{grade.course || grade.grade || 'N/A'}</td>
+                                  {courseLabels.showCourseType && (
                                   <td rowSpan={grade.timings.length}>{grade.courseType || 'N/A'}</td>
+                                  )}
                                 </>
                               )}
                               <td>{timing.day}</td>

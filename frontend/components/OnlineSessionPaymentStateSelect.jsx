@@ -20,6 +20,7 @@ const OnlineSessionPaymentStateSelect = ({
   const options = [
     { value: '', label: '✕ Clear selection', color: '#dc3545', isClear: true },
     { value: 'paid', label: 'Paid', color: '#000000' },
+    { value: 'free_if_attended_in_center', label: 'Free if attended in center', color: '#000000' },
     { value: 'free', label: 'Free', color: '#000000' }
   ];
 

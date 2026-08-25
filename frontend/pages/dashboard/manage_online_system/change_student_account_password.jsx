@@ -5,8 +5,11 @@ import Title from '../../../components/Title';
 import { useStudents, useStudent } from '../../../lib/api/students';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import apiClient from '../../../lib/axios';
+import { useNationalSystem, getCourseFieldLabels } from '../../../lib/api/system';
 
 export default function ChangeStudentAccountPassword() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const [studentId, setStudentId] = useState("");
   const [searchId, setSearchId] = useState("");
@@ -767,7 +770,7 @@ export default function ChangeStudentAccountPassword() {
                     {s.name} (ID: {s.id})
                   </div>
                   <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
-                    {[s.course, s.courseType, s.main_center].filter(Boolean).join(' • ')}
+                    {[s.course, !isNational && s.courseType, s.main_center].filter(Boolean).join(' • ')}
                   </div>
                 </button>
               ))}
@@ -799,10 +802,22 @@ export default function ChangeStudentAccountPassword() {
                   <div className="detail-label">Full Name</div>
                   <div className="detail-value">{student.name}</div>
                 </div>
+                {courseLabels.showGradeField && (
                 <div className="detail-item">
                   <div className="detail-label">Grade</div>
                   <div className="detail-value">{student.grade}</div>
                 </div>
+                )}
+                <div className="detail-item">
+                  <div className="detail-label">{courseLabels.course}</div>
+                  <div className="detail-value">{student.course || 'N/A'}</div>
+                </div>
+                {courseLabels.showCourseType && student.courseType && (
+                <div className="detail-item">
+                  <div className="detail-label">Course Type</div>
+                  <div className="detail-value" style={{ textTransform: 'capitalize' }}>{student.courseType}</div>
+                </div>
+                )}
                 <div className="detail-item">
                   <div className="detail-label">Student Phone</div>
                   <div className="detail-value" style={{ fontFamily: 'monospace' }}>{student.phone}</div>

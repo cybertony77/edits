@@ -2,6 +2,11 @@ import { MongoClient, ObjectId } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../lib/authMiddleware';
+import {
+  isCodeNumberOfDaysValid,
+  computeAccessDeadlineDate,
+} from '../../../lib/codeNumberOfDays';
+import { isDeadlinePassedEgypt } from '../../../lib/deadlineTimeEgypt';
 
 function loadEnvConfig() {
   try {
@@ -80,7 +85,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Check if code belongs to another student (for number_of_views)
+    // Check if code belongs to another student (for number_of_views / number_of_days)
     const codeSettings = vhcRecord.code_settings || 'number_of_views';
     if (codeSettings === 'number_of_views') {
       // Check if code belongs to another student
@@ -100,7 +105,37 @@ export default async function handler(req, res) {
           valid: false 
         });
       }
+    } else if (codeSettings === 'number_of_days') {
+      if (vhcRecord.viewed_by_who !== null && vhcRecord.viewed_by_who !== studentId) {
+        return res.status(200).json({
+          success: false,
+          error: '❌ Sorry, this code is already used by another student',
+          valid: false,
+        });
+      }
+      if (!isCodeNumberOfDaysValid(vhcRecord.access_started_at, vhcRecord.number_of_days)) {
+        return res.status(200).json({
+          success: false,
+          error: '❌ Sorry, This code is expired',
+          valid: false,
+        });
+      }
+    } else if (codeSettings === 'deadline_date' && vhcRecord.deadline_date) {
+      if (isDeadlinePassedEgypt(vhcRecord.deadline_date, null)) {
+        return res.status(200).json({
+          success: false,
+          error: '❌ Sorry, This code is expired',
+          valid: false,
+        });
+      }
     }
+
+    const accessStartedAt = vhcRecord.access_started_at || null;
+    const numberOfDays = vhcRecord.number_of_days ?? null;
+    const computedDeadline =
+      codeSettings === 'number_of_days'
+        ? computeAccessDeadlineDate(accessStartedAt, numberOfDays)
+        : (vhcRecord.deadline_date || null);
 
     return res.status(200).json({ 
       success: true,
@@ -108,7 +143,9 @@ export default async function handler(req, res) {
       vhc_id: vhcRecord._id.toString(),
       code_settings: codeSettings,
       number_of_views: vhcRecord.number_of_views || null,
-      deadline_date: vhcRecord.deadline_date || null,
+      number_of_days: numberOfDays,
+      access_started_at: accessStartedAt,
+      deadline_date: computedDeadline,
       code_lesson: vhcRecord.code_lesson || 'All'
     });
   } catch (error) {

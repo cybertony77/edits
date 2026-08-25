@@ -10,12 +10,15 @@ import AccountStateSelect from '../../components/AccountStateSelect';
 import GenderSelect from '../../components/GenderSelect';
 import Title from '../../components/Title';
 import { useCreateStudent } from '../../lib/api/students';
+import { useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { formatPhoneForDB, validateEgyptPhone, handleEgyptPhoneKeyDown } from '../../lib/phoneUtils';
 
 
 export default function AddStudent() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const containerRef = useRef(null);
   const [form, setForm] = useState({
     id: "",
@@ -24,9 +27,8 @@ export default function AddStudent() {
     gender: "",
     grade: "",
     course: "",
-    courseType: "basics to advanced", // Default to basics
+    courseType: "",
     school: "",
-    homeschooling: false,
     phone: "",
     parentsPhone: "",
     main_center: "",
@@ -235,20 +237,20 @@ export default function AddStudent() {
       return;
     }
     
-    // Validate grade (required)
-    if (!form.grade || form.grade.trim() === '') {
+    // Validate grade (required) — skipped for national system
+    if (!isNational && (!form.grade || form.grade.trim() === '')) {
       setError("Please select a grade");
       return;
     }
 
     // Validate course (required)
     if (!form.course || form.course.trim() === '') {
-      setError("Please select a course");
+      setError(isNational ? "Please select a grade" : "Please select a course");
       return;
     }
     
-    // Validate courseType (required)
-    if (!form.courseType || form.courseType.trim() === '') {
+    // Validate courseType (required) — skipped for national system
+    if (!isNational && (!form.courseType || form.courseType.trim() === '')) {
       setError("Please select a course type");
       return;
     }
@@ -256,16 +258,16 @@ export default function AddStudent() {
     // Map parentsPhone to parents_phone for backend - preserve leading zeros by storing as strings
     const payload = { ...form, parents_phone: parentPhone };
     payload.phone = studentPhone; // Keep as string to preserve leading zeros exactly
-    
-    // Handle school field based on homeschooling checkbox
-    if (form.homeschooling) {
-      payload.school = "Homeschooling";
+
+    if (isNational) {
+      payload.grade = null;
+      payload.courseType = null;
     }
     
     // Course is now separate from grade
-    // course: EST/SAT/ACT (from CourseSelect)
-    // courseType: basics/advanced (from CourseTypeSelect)
-    // grade: required field (like "Grade 10")
+    // course: EST/SAT/ACT (from CourseSelect) — labeled Grade when national
+    // courseType: basics/advanced (from CourseTypeSelect) — hidden when national
+    // grade: required field (like "Grade 10") — hidden when national
     
     // Optional main_comment: send as main_comment field
     const mc = form.comment && form.comment.trim() !== '' ? form.comment.trim() : null;
@@ -319,7 +321,6 @@ export default function AddStudent() {
           course: "",
           courseType: "basics",
           school: "",
-          homeschooling: false,
           phone: "",
           parentsPhone: "",
           main_center: "",
@@ -364,7 +365,6 @@ export default function AddStudent() {
       course: "",
       courseType: "basics",
       school: "",
-      homeschooling: false,
       phone: "",
       parentsPhone: "",
       main_center: "",
@@ -819,6 +819,7 @@ Best regards
                 onClose={() => setGenderDropdownOpen(false)}
               />
             </div>
+            {courseLabels.showGradeField && (
             <div className="form-group">
               <label>Grade <span style={{color: 'red'}}>*</span></label>
               <GradeSelect
@@ -829,8 +830,9 @@ Best regards
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            )}
             <div className="form-group">
-              <label>Course <span style={{color: 'red'}}>*</span></label>
+              <label>{courseLabels.course} <span style={{color: 'red'}}>*</span></label>
               <CourseSelect 
                 selectedGrade={form.course} 
                 onGradeChange={(course) => handleChange({ target: { name: 'course', value: course } })} 
@@ -840,6 +842,7 @@ Best regards
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            {courseLabels.showCourseType && (
             <div className="form-group">
               <label>Course Type <span style={{color: 'red'}}>*</span></label>
               <CourseTypeSelect 
@@ -851,24 +854,9 @@ Best regards
                 onClose={() => setOpenDropdown(null)}
               />
             </div>
+            )}
             <div className="form-group">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
               <label>School <span style={{color: 'red'}}>*</span></label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', fontWeight: 'normal', color: '#666' }}>
-                  <input
-                    type="checkbox"
-                    name="homeschooling"
-                    checked={form.homeschooling}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      handleChange({ target: { name: 'homeschooling', value: isChecked } });
-                    }}
-                    style={{ margin: 0 }}
-                  />
-                  Homeschooling
-                </label>
-              </div>
-              {!form.homeschooling && (
               <input
                 className="form-input"
                 name="school"
@@ -878,7 +866,6 @@ Best regards
                 required
                 autocomplete="off"
               />
-              )}
             </div>
             <div className="form-group">
               <label>Phone <span style={{color: 'red'}}>*</span></label>

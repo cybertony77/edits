@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../lib/authMiddleware';
 import { maskGoogleMeetIdsInDocuments } from '../../../lib/googleVideoIds';
+import { getStudentLesson } from '../../../lib/studentLessons';
+import { attendedInCenter } from '../../../lib/onlineSessionViewing';
 
 function loadEnvConfig() {
   try {
@@ -33,6 +35,7 @@ function loadEnvConfig() {
 const envConfig = loadEnvConfig();
 const MONGO_URI = envConfig.MONGO_URI || process.env.MONGO_URI;
 const DB_NAME = envConfig.DB_NAME || process.env.DB_NAME;
+const NATIONAL_SYSTEM = envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -53,16 +56,23 @@ export default async function handler(req, res) {
     // Get student's course and courseType from students collection
     let studentCourse = null;
     let studentCourseType = null;
+    let studentLessons = null;
     if (user.role === 'student') {
       // JWT contains assistant_id, use that to find student
-      const studentId = user.assistant_id || user.id;
-      console.log('🔍 Sessions API - User from JWT:', { role: user.role, assistant_id: user.assistant_id, id: user.id, studentId });
-      if (studentId) {
-        const student = await db.collection('students').findOne({ id: studentId });
+      const rawStudentId = user.assistant_id || user.id;
+      const studentIdNum = typeof rawStudentId === 'number' ? rawStudentId : parseInt(rawStudentId, 10);
+      console.log('🔍 Sessions API - User from JWT:', { role: user.role, assistant_id: user.assistant_id, id: user.id, studentIdNum });
+      if (rawStudentId != null && rawStudentId !== '') {
+        const student =
+          (Number.isFinite(studentIdNum) && !Number.isNaN(studentIdNum)
+            ? await db.collection('students').findOne({ id: studentIdNum })
+            : null) ||
+          (await db.collection('students').findOne({ id: rawStudentId }));
         console.log('🔍 Student found:', student ? { id: student.id, course: student.course, courseType: student.courseType } : 'NOT FOUND');
         if (student) {
           studentCourse = student.course;
           studentCourseType = student.courseType;
+          studentLessons = student.lessons || null;
           console.log('✅ Using student course:', studentCourse, 'courseType:', studentCourseType);
         }
       }
@@ -89,9 +99,9 @@ export default async function handler(req, res) {
         const courseMatch = session.course.toLowerCase() === 'all' || 
                            session.course.toLowerCase() === studentCourse.toLowerCase();
         
-        // Check courseType match: if session has no courseType, it matches any student courseType
-        // If session has courseType, it must match student's courseType (case-insensitive)
-        const courseTypeMatch = !session.courseType || 
+        // Check courseType match: skip when national system
+        const courseTypeMatch = NATIONAL_SYSTEM ||
+                               !session.courseType || 
                                !studentCourseType ||
                                session.courseType.toLowerCase() === studentCourseType.toLowerCase();
         
@@ -104,8 +114,17 @@ export default async function handler(req, res) {
       });
       console.log('✅ Filtered sessions count:', filteredSessions.length);
       
+      const sessionsWithAttendance = filteredSessions.map((session) => {
+        if (session.payment_state === 'free_if_attended_in_center' && session.lesson) {
+          const lessonData = getStudentLesson(studentLessons, session.lesson);
+          const attended = attendedInCenter(lessonData);
+          return { ...session, _isFreeIfAttendedInCenter: true, _attendedInCenter: attended };
+        }
+        return session;
+      });
+      
       // Sort by course, courseType, lesson, then date
-      const sortedSessions = filteredSessions.sort((a, b) => {
+      const sortedSessions = sessionsWithAttendance.sort((a, b) => {
         // Sort by course
         if (a.course !== b.course) {
           return a.course.localeCompare(b.course);

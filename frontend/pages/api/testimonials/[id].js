@@ -22,7 +22,11 @@ function parseOptionalScore(value) {
 }
 
 export default async function handler(req, res) {
-  const { MONGO_URI, DB_NAME } = getMongoFromEnv();
+  const { MONGO_URI, DB_NAME, envConfig } = getMongoFromEnv();
+  const isNational =
+    envConfig.NATIONAL_SYSTEM === 'true' || process.env.NATIONAL_SYSTEM === 'true';
+  const courseLabel = isNational ? 'Grade' : 'Course';
+  const scoreLabel = isNational ? 'Degree' : 'Score';
   const id = Number(req.query.id);
 
   if (!Number.isFinite(id) || id <= 0) {
@@ -64,10 +68,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: '❌ Name is required' });
       }
       if (!course) {
-        return res.status(400).json({ error: '❌ Course is required' });
+        return res.status(400).json({ error: `❌ ${courseLabel} is required` });
       }
       if (Number.isNaN(score)) {
-        return res.status(400).json({ error: '❌ Score must be a valid number' });
+        return res.status(400).json({ error: `❌ ${scoreLabel} must be a valid number` });
       }
       if (!text) {
         return res.status(400).json({ error: '❌ Message is required' });

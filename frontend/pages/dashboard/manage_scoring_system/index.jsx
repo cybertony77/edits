@@ -276,6 +276,14 @@ export default function ManageScoringSystem() {
 
           <button
             className="dashboard-btn"
+            onClick={() => router.push("/dashboard/manage_scoring_system/scoring_history")}
+          >
+            <Image src="/history.svg" alt="Scoring History" width={20} height={20} />
+            Scoring History
+          </button>
+
+          <button
+            className="dashboard-btn"
             onClick={() => router.push("/dashboard/manage_scoring_system/view_scores_and_ranks")}
           >
             <Image src="/stars.svg" alt="View Scores and Ranks" width={20} height={20} />

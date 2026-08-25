@@ -5,7 +5,7 @@ import { Table, ScrollArea, Modal } from '@mantine/core';
 import styles from '../../styles/TableScrollArea.module.css';
 import { useStudent } from '../../lib/api/students';
 import { useProfile, useUpdateProfile, useProfilePicture } from '../../lib/api/auth';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import apiClient from '../../lib/axios';
 import Image from 'next/image';
 import NeedHelp from '../../components/NeedHelp';
@@ -14,6 +14,8 @@ import { useQuery } from '@tanstack/react-query';
 
 export default function MyInfo() {
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isPaymentSystemEnabled = systemConfig?.payment_system === true || systemConfig?.payment_system === 'true';
   const isMockExamsEnabled = systemConfig?.mock_exams === true || systemConfig?.mock_exams === 'true';
@@ -811,18 +813,22 @@ export default function MyInfo() {
                   <div className="detail-value">{student.age}</div>
                 </div>
               )}
+              {courseLabels.showGradeField && (
               <div className="detail-item">
                 <div className="detail-label">Grade</div>
                 <div className="detail-value">{student.grade}</div>
               </div>
+              )}
               <div className="detail-item">
-                <div className="detail-label">Course</div>
+                <div className="detail-label">{courseLabels.course}</div>
                 <div className="detail-value">{student.course || student.grade || 'N/A'}</div>
               </div>
+              {courseLabels.showCourseType && (
               <div className="detail-item">
                 <div className="detail-label">Course Type</div>
                 <div className="detail-value">{student.courseType || 'N/A'}</div>
               </div>
+              )}
               <div className="detail-item">
                 <div className="detail-label">School</div>
                 <div className="detail-value">{student.school || 'N/A'}</div>
@@ -944,7 +950,6 @@ export default function MyInfo() {
                       <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Homework Video</Table.Th>
                       <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Quiz Degree</Table.Th>
                       <Table.Th style={{ width: '200px', minWidth: '200px', textAlign: 'center' }}>Parent Comment</Table.Th>
-                      <Table.Th style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>Message Status</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -1044,15 +1049,6 @@ export default function MyInfo() {
                               const val = (lessonComment && String(lessonComment).trim() !== '') ? lessonComment : 'No Comment';
                               return <span style={{ fontSize: '1rem' }}>{val}</span>;
                             })()}
-                          </Table.Td>
-                          <Table.Td style={{ width: '130px', minWidth: '130px', textAlign: 'center' }}>
-                            <span style={{ 
-                              color: lessonData.message_state ? '#28a745' : '#dc3545',
-                              fontWeight: 'bold',
-                              fontSize: '1rem'
-                            }}>
-                              {lessonData.message_state ? '✅ Sent' : '❌ Not Sent'}
-                            </span>
                           </Table.Td>
                         </Table.Tr>
                       );

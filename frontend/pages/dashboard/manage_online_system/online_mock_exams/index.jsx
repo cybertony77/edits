@@ -12,7 +12,7 @@ import CenterSelect from '../../../../components/CenterSelect';
 import MockExamSelect from '../../../../components/MockExamSelect';
 import TimerSelect from '../../../../components/TimerSelect';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
 import HomeworkAnalyticsChart from '../../../../components/HomeworkAnalyticsChart';
@@ -40,6 +40,8 @@ function InputWithButton(props) {
 }
 
 export default function MockExams() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: systemConfig } = useSystemConfig();
@@ -344,7 +346,7 @@ export default function MockExams() {
           }}>
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
-                Filter by Course
+                {courseLabels.filterByCourse}
               </label>
               <CourseSelect
                 selectedGrade={filterCourse}
@@ -362,7 +364,8 @@ export default function MockExams() {
                 showAllOption={true}
               />
             </div>
-            <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
+            {courseLabels.showCourseType && (
+<div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Course Type
               </label>
@@ -381,6 +384,7 @@ export default function MockExams() {
                 onClose={() => setFilterCourseTypeDropdownOpen(false)}
               />
             </div>
+)}
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Center
@@ -520,7 +524,7 @@ export default function MockExams() {
                 >
                   <div className="item-info" style={{ flex: '1 1 260px', minWidth: 0, maxWidth: '100%' }}>
                     <div style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '8px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {[mockExam.course, mockExam.courseType, mockExam.center, mockExam.lesson, mockExam.lesson_name].filter(Boolean).join(' • ')}
+                      {[mockExam.course, !isNational && mockExam.courseType, mockExam.center, mockExam.lesson, mockExam.lesson_name].filter(Boolean).join(' • ')}
                     </div>
                     <div style={{ color: '#6c757d', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       {mockExam.mock_exam_type === 'pdf' ? (
@@ -748,7 +752,6 @@ export default function MockExams() {
             </div>
           </div>
         )}
-      </div>
 
       <style jsx>{`
         .analytics-modal-overlay {
@@ -1179,6 +1182,7 @@ export default function MockExams() {
         fileName={pdfViewer.name}
         onClose={() => setPdfViewer({ isOpen: false, url: '', name: '' })}
       />
+      </div>
     </div>
   );
 }

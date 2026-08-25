@@ -6,7 +6,7 @@ import { Group, Rating, Text } from '@mantine/core';
 import Title from '../../components/Title';
 import apiClient from '../../lib/axios';
 import { formatEgyptDateTime } from '../../lib/egyptDateTime';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import styles from '../../styles/pending_reviews.module.css';
 
 const RATING_COLOR = 'rgba(242, 207, 5, 1)';
@@ -28,6 +28,8 @@ const api = {
 export default function PendingReviewsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
 
   const { data: systemConfig, isLoading: systemConfigLoading } = useSystemConfig();
   const marketingPageEnabled =
@@ -170,7 +172,7 @@ export default function PendingReviewsPage() {
                       </div>
                       {review.score != null && review.score !== '' ? (
                         <p className={styles.itemText}>
-                          Score: <strong>{review.score}</strong>
+                          {courseLabels.score}: <strong>{review.score}</strong>
                         </p>
                       ) : null}
                       {review.text ? <p className={styles.itemText}>{review.text}</p> : null}

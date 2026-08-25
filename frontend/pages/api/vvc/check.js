@@ -2,6 +2,11 @@ import { MongoClient, ObjectId } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import { authMiddleware } from '../../../lib/authMiddleware';
+import {
+  isCodeNumberOfDaysValid,
+  computeAccessDeadlineDate,
+} from '../../../lib/codeNumberOfDays';
+import { isDeadlinePassedEgypt } from '../../../lib/deadlineTimeEgypt';
 
 function loadEnvConfig() {
   try {
@@ -116,32 +121,29 @@ export default async function handler(req, res) {
     const codeSettings = vvcRecord.code_settings || 'number_of_views'; // Default to number_of_views for backward compatibility
     if (codeSettings === 'deadline_date') {
       if (vvcRecord.deadline_date) {
-        // Parse date in local timezone to avoid timezone shift
-        let deadlineDate;
-        if (typeof vvcRecord.deadline_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(vvcRecord.deadline_date)) {
-          // If it's a string in YYYY-MM-DD format, parse it in local timezone
-          const [year, month, day] = vvcRecord.deadline_date.split('-').map(Number);
-          deadlineDate = new Date(year, month - 1, day);
-        } else if (vvcRecord.deadline_date instanceof Date) {
-          // If it's already a Date object, use it directly
-          deadlineDate = new Date(vvcRecord.deadline_date);
-        } else {
-          // Try to parse as date string
-          deadlineDate = new Date(vvcRecord.deadline_date);
-        }
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        deadlineDate.setHours(0, 0, 0, 0);
-        
-        // Allow use until the end of the deadline day (deadlineDate < today means expired)
-        if (deadlineDate < today) {
+        // Date-only deadline: active through end of that Africa/Cairo day
+        if (isDeadlinePassedEgypt(vvcRecord.deadline_date, null)) {
           return res.status(200).json({ 
             success: false,
             error: '❌ Sorry, This code is expired',
             valid: false 
           });
         }
+      }
+    } else if (codeSettings === 'number_of_days') {
+      if (vvcRecord.viewed_by_who !== null && vvcRecord.viewed_by_who !== studentId) {
+        return res.status(200).json({
+          success: false,
+          error: '❌ Sorry, this code is already used by another student',
+          valid: false,
+        });
+      }
+      if (!isCodeNumberOfDaysValid(vvcRecord.access_started_at, vvcRecord.number_of_days)) {
+        return res.status(200).json({
+          success: false,
+          error: '❌ Sorry, This code is expired',
+          valid: false,
+        });
       }
     } else {
       // Check if code is valid for number_of_views
@@ -186,10 +188,17 @@ export default async function handler(req, res) {
     // VVC is valid - update it and save to student's online_sessions
     // For deadline_date: don't set viewed/viewed_by_who, allow unlimited views
     // For number_of_views: set viewed/viewed_by_who, but don't decrement views here (decrement when video opens)
+    // For number_of_days: set viewed_by_who + access_started_at on first use
     const updateData = {};
     if (codeSettings === 'number_of_views') {
       updateData.viewed = true;
       updateData.viewed_by_who = studentId;
+    } else if (codeSettings === 'number_of_days') {
+      updateData.viewed = true;
+      updateData.viewed_by_who = studentId;
+      if (!vvcRecord.access_started_at) {
+        updateData.access_started_at = new Date().toISOString();
+      }
     }
     // For deadline_date, we don't set viewed/viewed_by_who to allow unlimited views until deadline
     
@@ -267,6 +276,12 @@ export default async function handler(req, res) {
 
     // Get current VVC to return relevant data
     const updatedVvc = await db.collection('VVC').findOne({ _id: vvcRecord._id });
+    const accessStartedAt = updatedVvc.access_started_at || null;
+    const numberOfDays = updatedVvc.number_of_days ?? null;
+    const computedDeadline =
+      codeSettings === 'number_of_days'
+        ? computeAccessDeadlineDate(accessStartedAt, numberOfDays)
+        : (updatedVvc.deadline_date || null);
 
     return res.status(200).json({ 
       success: true,
@@ -276,7 +291,9 @@ export default async function handler(req, res) {
       code_settings: codeSettings,
       code_lesson: codeLesson,
       number_of_views: updatedVvc.number_of_views || null,
-      deadline_date: updatedVvc.deadline_date || null
+      number_of_days: numberOfDays,
+      access_started_at: accessStartedAt,
+      deadline_date: computedDeadline
     });
   } catch (error) {
     console.error('❌ Error in VVC check API:', error);

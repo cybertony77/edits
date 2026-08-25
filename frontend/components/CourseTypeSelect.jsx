@@ -1,19 +1,31 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSystemConfig, useNationalSystem } from '../lib/api/system';
 
 export default function CourseTypeSelect({ selectedCourseType, onCourseTypeChange, required = false, isOpen, onToggle, onClose }) {
-  // Handle legacy props (value, onChange) for backward compatibility
+  const isNational = useNationalSystem();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const actualIsOpen = isOpen !== undefined ? isOpen : internalIsOpen;
   const actualOnToggle = onToggle || (() => setInternalIsOpen(!internalIsOpen));
   const actualOnClose = onClose || (() => setInternalIsOpen(false));
 
-  // Static course type options
-  const courseTypes = ['advanced', 'basics to advanced'];
+  const { data: systemConfig } = useSystemConfig();
+
+  const courseTypes = useMemo(() => {
+    const fromEnv = Array.isArray(systemConfig?.course_type)
+      ? systemConfig.course_type
+          .map((item) => String(item ?? '').trim())
+          .filter(Boolean)
+      : [];
+    return fromEnv;
+  }, [systemConfig?.course_type]);
 
   const handleCourseTypeSelect = (courseType) => {
     onCourseTypeChange(courseType);
     actualOnClose();
   };
+
+  // National systems do not use course type
+  if (isNational) return null;
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
@@ -22,7 +34,6 @@ export default function CourseTypeSelect({ selectedCourseType, onCourseTypeChang
           padding: '14px 16px',
           border: actualIsOpen ? '2px solid #1FA8DC' : '2px solid #e9ecef',
           borderRadius: '10px',
-          backgroundColor: '#ffffff',
           cursor: 'pointer',
           display: 'flex',
           justifyContent: 'space-between',
@@ -57,7 +68,6 @@ export default function CourseTypeSelect({ selectedCourseType, onCourseTypeChang
           overflowY: 'auto',
           marginTop: '4px'
         }}>
-          {/* Clear selection option */}
           <div
             style={{
               padding: '12px 16px',
@@ -67,6 +77,7 @@ export default function CourseTypeSelect({ selectedCourseType, onCourseTypeChang
               color: '#dc3545',
               fontWeight: '500'
             }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleCourseTypeSelect('')}
             onMouseEnter={(e) => e.target.style.backgroundColor = '#fff5f5'}
             onMouseLeave={(e) => e.target.style.backgroundColor = '#ffffff'}
@@ -85,11 +96,17 @@ export default function CourseTypeSelect({ selectedCourseType, onCourseTypeChang
                 backgroundColor: selectedCourseType === courseType ? '#f0f8ff' : '#ffffff',
                 fontWeight: selectedCourseType === courseType ? '600' : '400'
               }}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleCourseTypeSelect(courseType)}
-              onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = '#ffffff'}
+              onMouseEnter={(e) => {
+                if (selectedCourseType !== courseType) e.currentTarget.style.backgroundColor = '#f8f9fa';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  selectedCourseType === courseType ? '#f0f8ff' : '#ffffff';
+              }}
             >
-              {courseType === 'basics to advanced' ? 'Basics to Advanced' : 'Advanced'}
+              {courseType}
             </div>
           ))}
         </div>

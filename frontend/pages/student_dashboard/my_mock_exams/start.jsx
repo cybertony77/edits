@@ -761,6 +761,11 @@ export default function MockExamStart() {
           studentId: profile.id,
           type: 'mock_exam',
           lesson: lessonName,
+          source: {
+            kind: 'online_mock_exam',
+            id: fullMockExam._id.toString(),
+            label: lessonName || fullMockExam._id.toString(),
+          },
           data: { percentage, previousPercentage }
         });
         

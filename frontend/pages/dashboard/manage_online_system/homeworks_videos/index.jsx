@@ -14,7 +14,7 @@ import YoutubeEmbedWithProgress from '../../../../components/YoutubeEmbedWithPro
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
 import { useProfile } from '../../../../lib/api/auth';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
 
@@ -75,6 +75,8 @@ function InputWithButton(props) {
 }
 
 export default function HomeworksVideos() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
@@ -365,7 +367,7 @@ export default function HomeworksVideos() {
           }}>
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
-                Filter by Course
+                {courseLabels.filterByCourse}
               </label>
               <CourseSelect
                 selectedGrade={filterCourse}
@@ -383,7 +385,8 @@ export default function HomeworksVideos() {
                 showAllOption={true}
               />
             </div>
-            <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
+            {courseLabels.showCourseType && (
+<div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Course Type
               </label>
@@ -402,6 +405,7 @@ export default function HomeworksVideos() {
                 onClose={() => setFilterCourseTypeDropdownOpen(false)}
               />
             </div>
+)}
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Lesson
@@ -635,7 +639,7 @@ export default function HomeworksVideos() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#333', marginBottom: '4px' }}>
-                    {[session.course, session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
+                    {[session.course, !isNational && session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
                   </div>
                     <div style={{ fontSize: '0.9rem', color: '#6c757d', marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px' }}>
                       <span style={{ color: isActivated ? '#28a745' : '#dc3545', fontWeight: 600 }}>
@@ -771,7 +775,7 @@ export default function HomeworksVideos() {
                 {/* Title with Toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#333', flex: 1 }}>
-                    {[session.course, session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
+                    {[session.course, !isNational && session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
                   </div>
                   <div 
                     style={{ 

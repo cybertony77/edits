@@ -11,7 +11,7 @@ import apiClient from '../../lib/axios';
 import Image from 'next/image';
 import { verifySignature } from '../../lib/hmac';
 import ChartTabs from '../../components/ChartTabs';
-import { useSystemConfig } from '../../lib/api/system';
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from '../../lib/api/system';
 import MarketingPageLoader from '../../components/MarketingPageLoader';
 
 const welcomeDisplayFont = Playfair_Display({
@@ -180,6 +180,8 @@ export default function StudentInfo() {
 
   // Get system configuration
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const systemName = systemConfig?.name || '';
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isPaymentSystemEnabled = systemConfig?.payment_system === true || systemConfig?.payment_system === 'true';
@@ -1171,7 +1173,7 @@ export default function StudentInfo() {
                       <span style={{ fontFamily: 'monospace' }}>{student.phone || 'N/A'}</span>
                     </div>
                     <div style={{ fontSize: "0.9rem", color: "#6c757d", marginTop: 2 }}>
-                    {[student.course, student.courseType, student.main_center].filter(Boolean).join(' • ')}
+                    {[student.course, !isNational && student.courseType, student.main_center].filter(Boolean).join(' • ')}
                   </div>
                 </button>
               ))}
@@ -1329,13 +1331,15 @@ export default function StudentInfo() {
                 <div className="detail-value">{currentStudent.gender || 'N/A'}</div>
               </div>
               <div className="detail-item">
-                <div className="detail-label">Course</div>
+                <div className="detail-label">{courseLabels.course}</div>
                 <div className="detail-value">{currentStudent.course || currentStudent.grade || 'N/A'}</div>
               </div>
+              {courseLabels.showCourseType && (
               <div className="detail-item">
                 <div className="detail-label">Course Type</div>
                 <div className="detail-value">{currentStudent.courseType || 'N/A'}</div>
               </div>
+              )}
               {currentStudent?.age && (
                 <div className="detail-item">
                   <div className="detail-label">Age</div>
@@ -1485,7 +1489,9 @@ export default function StudentInfo() {
                       
                       <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Quiz Degree</Table.Th>
                       <Table.Th style={{ width: '200px', minWidth: '200px', textAlign: 'center' }}>Comment</Table.Th>
-                      <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Parent Message State</Table.Th>
+                      {hasAuthToken && (
+                        <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Parent Message State</Table.Th>
+                      )}
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -1573,6 +1579,7 @@ export default function StudentInfo() {
                               return <span style={{ fontSize: '1rem' }}>{val}</span>;
                             })()}
                           </Table.Td>
+                          {hasAuthToken && (
                           <Table.Td style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>
                             <span style={{ 
                               color: lessonData.parent_message_state ? '#28a745' : '#dc3545',
@@ -1582,6 +1589,7 @@ export default function StudentInfo() {
                               {lessonData.parent_message_state ? '✅ Sent' : '❌ Not Sent'}
                             </span>
                           </Table.Td>
+                          )}
                         </Table.Tr>
                       );
                     })}

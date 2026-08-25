@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../lib/axios';
 import { downloadFileUrl } from '../../../lib/downloadFileUrl';
 import { useProfile } from '../../../lib/api/auth';
-import { useSystemConfig } from '../../../lib/api/system';
+import { useSystemConfig, useNationalSystem } from '../../../lib/api/system';
 import NeedHelp from '../../../components/NeedHelp';
 import HomeworkPerformanceChart from '../../../components/HomeworkPerformanceChart';
 const PdfViewerModal = dynamic(() => import('../../../components/PdfViewerModal'), { ssr: false });
@@ -40,6 +40,7 @@ function InputWithButton(props) {
 
 export default function MyHomeworks() {
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isHomeworksEnabled = systemConfig?.homeworks === true || systemConfig?.homeworks === 'true';
   
@@ -124,9 +125,9 @@ export default function MyHomeworks() {
         const courseMatch = homeworkCourse.toLowerCase() === 'all' || 
                            homeworkCourse.toLowerCase() === studentCourse.toLowerCase();
         
-        // CourseType match: if homework has no courseType, it matches any student courseType
-        // If homework has courseType, it must match student's courseType (case-insensitive)
-        const courseTypeMatch = !homeworkCourseType || 
+        // CourseType match: skip when national system; otherwise match as before
+        const courseTypeMatch = isNational ||
+                               !homeworkCourseType || 
                                !studentCourseType ||
                                homeworkCourseType.toLowerCase() === studentCourseType.toLowerCase();
         
@@ -386,8 +387,10 @@ export default function MyHomeworks() {
             let lessonData = profile?.lessons?.[lessonName];
             
             const deadlineKey = `homework_${homework._id}_lesson_${lessonName}`;
+            // Skip if the student already completed the homework (hwDone === true)
+            const alreadyDone = lessonData?.hwDone === true;
             const shouldApplyDeadlineUpdate =
-              !deadlinePenaltiesAppliedRef.current.has(deadlineKey) && lessonData?.hwDone !== true;
+              !deadlinePenaltiesAppliedRef.current.has(deadlineKey) && !alreadyDone;
             
             if (shouldApplyDeadlineUpdate) {
               // Check ref FIRST to prevent duplicate calls - this is the primary guard
@@ -508,6 +511,11 @@ export default function MyHomeworks() {
                         studentId: profile.id,
                         type: 'homework',
                         lesson: lessonName,
+                        source: {
+                          kind: 'deadline_homework',
+                          id: homework._id.toString(),
+                          label: lessonName,
+                        },
                         data: { 
                           hwDone: false,
                           previousHwDone: previousHwDone

@@ -734,6 +734,11 @@ export default function QuizStart() {
           studentId: profile.id,
           type: 'quiz',
           week: weekNum,
+          source: {
+            kind: 'online_quiz',
+            id: fullQuiz._id.toString(),
+            label: fullQuiz.lesson || fullQuiz.lesson_name || fullQuiz._id.toString(),
+          },
           data: { percentage, previousPercentage }
         });
         

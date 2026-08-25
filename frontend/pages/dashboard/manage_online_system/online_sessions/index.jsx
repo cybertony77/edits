@@ -6,6 +6,7 @@ import AttendanceLessonSelect from '../../../../components/AttendancelessonSelec
 import CourseSelect from '../../../../components/CourseSelect';
 import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import OnlineSessionPaymentStateSelect from '../../../../components/OnlineSessionPaymentStateSelect';
+import { formatOnlineSessionPaymentLabel } from '../../../../components/OnlineSessionViewingSettings';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
 import R2VideoPlayer from '../../../../components/R2VideoPlayer';
 import ZoomVideoPlayer from '../../../../components/ZoomVideoPlayer';
@@ -14,7 +15,7 @@ import YoutubeEmbedWithProgress from '../../../../components/YoutubeEmbedWithPro
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
 import { useProfile } from '../../../../lib/api/auth';
-import { useSystemConfig } from '../../../../lib/api/system';
+import { useSystemConfig , useNationalSystem, getCourseFieldLabels} from '../../../../lib/api/system';
 import { TextInput, ActionIcon, useMantineTheme } from '@mantine/core';
 import { IconSearch, IconArrowRight } from '@tabler/icons-react';
 
@@ -65,6 +66,8 @@ function InputWithButton(props) {
 }
 
 export default function OnlineSessions() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
@@ -355,7 +358,7 @@ export default function OnlineSessions() {
           }}>
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
-                Filter by Course
+                {courseLabels.filterByCourse}
               </label>
               <CourseSelect
                 selectedGrade={filterCourse}
@@ -373,7 +376,8 @@ export default function OnlineSessions() {
                 showAllOption={true}
               />
             </div>
-            <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
+            {courseLabels.showCourseType && (
+<div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Course Type
               </label>
@@ -392,6 +396,7 @@ export default function OnlineSessions() {
                 onClose={() => setFilterCourseTypeDropdownOpen(false)}
               />
             </div>
+)}
             <div className="filter-group" style={{ flex: 1, minWidth: 180 }}>
               <label className="filter-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#495057', fontSize: '0.95rem' }}>
                 Filter by Lesson
@@ -625,14 +630,14 @@ export default function OnlineSessions() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#333', marginBottom: '4px' }}>
-                    {[session.course, session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
+                    {[session.course, !isNational && session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
                   </div>
                     <div style={{ fontSize: '0.9rem', color: '#6c757d', marginTop: '4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px' }}>
                       <span style={{ color: isActivated ? '#28a745' : '#dc3545', fontWeight: 600 }}>
                         {accountState}
                       </span>
                       <span>•</span>
-                      <span>{session.payment_state || 'paid'}</span>
+                      <span>{formatOnlineSessionPaymentLabel(session.payment_state)}</span>
                       <span>•</span>
                       <span>{`${videoLength} video${videoLength !== 1 ? 's' : ''}`}</span>
                       {session.date && (
@@ -761,7 +766,7 @@ export default function OnlineSessions() {
                 {/* Title with Toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#333', flex: 1 }}>
-                    {[session.course, session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
+                    {[session.course, !isNational && session.courseType, session.lesson, session.name].filter(Boolean).join(' • ')}
                   </div>
                   <div 
                     style={{ 
@@ -788,7 +793,7 @@ export default function OnlineSessions() {
                     {accountState}
                   </span>
                   <span>•</span>
-                  <span>{session.payment_state || 'paid'}</span>
+                  <span>{formatOnlineSessionPaymentLabel(session.payment_state)}</span>
                   <span>•</span>
                   <span>{`${videoLength} video${videoLength !== 1 ? 's' : ''}`}</span>
                   {session.date && (

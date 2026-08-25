@@ -60,6 +60,7 @@ export default function VideoInput({
   showUploadTab,
   hideTitle = false,
   hideVideoName = false,
+  hideYoutubePreview = false,
 }) {
   const { data: systemConfig } = useSystemConfig();
   const showZoomTab = isFeatureEnabled(systemConfig?.zoom_integrations);
@@ -379,7 +380,7 @@ export default function VideoInput({
           {errors[`video_${index}_youtube_url`] && (
             <div className={styles.errorText}>{errors[`video_${index}_youtube_url`]}</div>
           )}
-          {youtubePreviewId && (
+          {youtubePreviewId && !hideYoutubePreview && (
             <div className={styles.youtubePreview}>
               <iframe
                 title={`YouTube preview ${index + 1}`}

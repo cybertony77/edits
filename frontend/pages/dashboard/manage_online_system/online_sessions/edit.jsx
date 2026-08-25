@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNationalSystem, getCourseFieldLabels } from '../../../../lib/api/system';
 import { useRouter } from "next/router";
 import Title from '../../../../components/Title';
 import AttendanceLessonSelect from '../../../../components/AttendancelessonSelect';
@@ -7,6 +8,11 @@ import CourseTypeSelect from '../../../../components/CourseTypeSelect';
 import OnlineSessionPaymentStateSelect from '../../../../components/OnlineSessionPaymentStateSelect';
 import VideoInput from '../../../../components/VideoInput';
 import AccountStateSelect from '../../../../components/AccountStateSelect';
+import OnlineSessionViewingSettings, {
+  ONLINE_SESSION_PAYMENT_STATES,
+  needsViewingSettings,
+  validateViewingSettings,
+} from '../../../../components/OnlineSessionViewingSettings';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../lib/axios';
 import Image from 'next/image';
@@ -45,6 +51,8 @@ function weekNumberToString(weekNumber) {
 }
 
 export default function EditOnlineSession() {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const router = useRouter();
   const { id } = router.query;
   const queryClient = useQueryClient();
@@ -70,6 +78,8 @@ export default function EditOnlineSession() {
   const [selectedLesson, setSelectedLesson] = useState('');
   const [lessonDropdownOpen, setLessonDropdownOpen] = useState(false);
   const [paymentState, setPaymentState] = useState('paid');
+  const [viewingLimitType, setViewingLimitType] = useState('');
+  const [viewingLimitValue, setViewingLimitValue] = useState('');
   const [accountState, setAccountState] = useState('Activated');
   const [errors, setErrors] = useState({});
   const [isLoadingSession, setIsLoadingSession] = useState(true);
@@ -187,6 +197,12 @@ export default function EditOnlineSession() {
       setSelectedCourseType(selectedSession.courseType || '');
       setSelectedLesson(selectedSession.lesson || '');
       setPaymentState(selectedSession.payment_state || 'paid');
+      setViewingLimitType(selectedSession.viewing_limit_type || '');
+      setViewingLimitValue(
+        selectedSession.viewing_limit_value === 0 || selectedSession.viewing_limit_value
+          ? String(selectedSession.viewing_limit_value)
+          : ''
+      );
       setAccountState(selectedSession.state || selectedSession.account_state || 'Activated');
       setIsLoadingSession(false);
     }
@@ -430,16 +446,18 @@ export default function EditOnlineSession() {
     const newErrors = {};
 
     if (!selectedCourse || selectedCourse.trim() === '') {
-      newErrors.course = '❌ Course is required';
+      newErrors.course = `❌ ${courseLabels.course} is required`;
     }
 
     if (!selectedLesson || selectedLesson.trim() === '') {
       newErrors.lesson = '❌ Lesson is required';
     }
 
-    if (!paymentState || (paymentState !== 'paid' && paymentState !== 'free')) {
+    if (!paymentState || !ONLINE_SESSION_PAYMENT_STATES.includes(paymentState)) {
       newErrors.paymentState = '❌ Video Payment State is required';
     }
+
+    Object.assign(newErrors, validateViewingSettings(paymentState, viewingLimitType, viewingLimitValue));
 
     if (!formData.name.trim()) {
       newErrors.name = '❌ Name is required';
@@ -559,7 +577,9 @@ export default function EditOnlineSession() {
       lesson: selectedLesson.trim(),
       videos: finalVideoData,
       description: formData.description.trim() || null,
-      payment_state: paymentState
+      payment_state: paymentState,
+      viewing_limit_type: needsViewingSettings(paymentState) ? viewingLimitType : null,
+      viewing_limit_value: needsViewingSettings(paymentState) ? Number(viewingLimitValue) : null,
     };
 
     if (accountState) {
@@ -606,10 +626,10 @@ export default function EditOnlineSession() {
           marginTop: '24px'
         }}>
           <form onSubmit={handleSubmit}>
-            {/* Video Course */}
+            {/* Video {courseLabels.course} */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#333', fontWeight: '500' }}>
-                Video Course <span style={{ color: 'red' }}>*</span>
+                Video {courseLabels.course} <span style={{ color: 'red' }}>*</span>
               </label>
               <CourseSelect
                 selectedGrade={selectedCourse}
@@ -633,7 +653,8 @@ export default function EditOnlineSession() {
             </div>
 
             {/* Video Course Type */}
-            <div style={{ marginBottom: '20px' }}>
+            {courseLabels.showCourseType && (
+<div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#333', fontWeight: '500' }}>
                 Video Course Type
               </label>
@@ -655,6 +676,7 @@ export default function EditOnlineSession() {
                 </div>
               )}
             </div>
+)}
 
             {/* Video Lesson */}
             <div style={{ marginBottom: '20px' }}>
@@ -698,12 +720,12 @@ export default function EditOnlineSession() {
             )}
 
             {/* Video Payment State Radio */}
-            <div style={{ marginBottom: '20px' }}>
+            <div className="payment-state-section" style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600', textAlign: 'left' }}>
                 Video Payment State <span style={{ color: 'red' }}>*</span>
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '8px', border: paymentState === 'paid' ? '2px solid #1FA8DC' : '2px solid #e9ecef', backgroundColor: paymentState === 'paid' ? '#f0f8ff' : 'white' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '8px', border: paymentState === 'paid' ? '2px solid #1FA8DC' : '2px solid #e9ecef', backgroundColor: paymentState === 'paid' ? '#f0f8ff' : 'white', width: '100%', boxSizing: 'border-box' }}>
                   <input
                     type="radio"
                     name="payment_state"
@@ -711,15 +733,33 @@ export default function EditOnlineSession() {
                     checked={paymentState === 'paid'}
                     onChange={(e) => {
                       setPaymentState(e.target.value);
+                      setViewingLimitType('');
+                      setViewingLimitValue('');
+                      if (errors.paymentState || errors.viewingLimitType || errors.viewingLimitValue) {
+                        setErrors({ ...errors, paymentState: '', viewingLimitType: '', viewingLimitValue: '' });
+                      }
+                    }}
+                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Paid</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '8px', border: paymentState === 'free_if_attended_in_center' ? '2px solid #1FA8DC' : '2px solid #e9ecef', backgroundColor: paymentState === 'free_if_attended_in_center' ? '#f0f8ff' : 'white', width: '100%', boxSizing: 'border-box' }}>
+                  <input
+                    type="radio"
+                    name="payment_state"
+                    value="free_if_attended_in_center"
+                    checked={paymentState === 'free_if_attended_in_center'}
+                    onChange={(e) => {
+                      setPaymentState(e.target.value);
                       if (errors.paymentState) {
                         setErrors({ ...errors, paymentState: '' });
                       }
                     }}
-                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
+                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer', flexShrink: 0 }}
                   />
-                  <span style={{ fontWeight: '500' }}>Paid</span>
+                  <span style={{ fontWeight: '500' }}>Free if attended in center</span>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '8px', border: paymentState === 'free' ? '2px solid #1FA8DC' : '2px solid #e9ecef', backgroundColor: paymentState === 'free' ? '#f0f8ff' : 'white' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px', borderRadius: '8px', border: paymentState === 'free' ? '2px solid #1FA8DC' : '2px solid #e9ecef', backgroundColor: paymentState === 'free' ? '#f0f8ff' : 'white', width: '100%', boxSizing: 'border-box' }}>
                   <input
                     type="radio"
                     name="payment_state"
@@ -731,7 +771,7 @@ export default function EditOnlineSession() {
                         setErrors({ ...errors, paymentState: '' });
                       }
                     }}
-                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
+                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer', flexShrink: 0 }}
                   />
                   <span style={{ fontWeight: '500' }}>Free</span>
                 </label>
@@ -742,6 +782,27 @@ export default function EditOnlineSession() {
                 </div>
               )}
             </div>
+
+            {needsViewingSettings(paymentState) && (
+              <OnlineSessionViewingSettings
+                viewingLimitType={viewingLimitType}
+                viewingLimitValue={viewingLimitValue}
+                onTypeChange={(type) => {
+                  setViewingLimitType(type);
+                  setViewingLimitValue('');
+                  if (errors.viewingLimitType || errors.viewingLimitValue) {
+                    setErrors({ ...errors, viewingLimitType: '', viewingLimitValue: '' });
+                  }
+                }}
+                onValueChange={(value) => {
+                  setViewingLimitValue(value);
+                  if (errors.viewingLimitValue) {
+                    setErrors({ ...errors, viewingLimitValue: '' });
+                  }
+                }}
+                errors={errors}
+              />
+            )}
 
             {/* Name Input */}
             <div style={{ marginBottom: '20px' }}>
@@ -926,6 +987,7 @@ export default function EditOnlineSession() {
             
             .form-container input[type="text"],
             .form-container input[type="url"],
+            .form-container input[type="number"],
             .form-container textarea {
               font-size: 16px !important; /* Prevents zoom on iOS */
             }

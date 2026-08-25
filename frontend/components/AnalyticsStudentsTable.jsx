@@ -1,21 +1,23 @@
+import { useNationalSystem, getCourseFieldLabels } from '../lib/api/system';
 import { useEffect, useMemo, useState } from 'react';
 import { Table } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import styles from '../styles/TableScrollArea.module.css';
 
-const COLUMNS = [
-  { key: 'id', label: 'ID', minWidth: 70 },
-  { key: 'name', label: 'Name', minWidth: 140 },
-  { key: 'course', label: 'Course', minWidth: 110 },
-  { key: 'courseType', label: 'Course Type', minWidth: 120 },
-  { key: 'degree', label: 'Degree', minWidth: 90 },
-  { key: 'percentage', label: 'Percentage', minWidth: 100 },
-  { key: 'wrongQuestions', label: 'Wrong Questions', minWidth: 180 },
-];
-
 const PAGE_SIZE = 30;
 
 export default function AnalyticsStudentsTable({ students = [], categoryLabel = 'Total Students' }) {
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
+  const columns = useMemo(() => [
+    { key: 'id', label: 'ID', minWidth: 70 },
+    { key: 'name', label: 'Name', minWidth: 140 },
+    { key: 'course', label: courseLabels.course, minWidth: 110 },
+    ...(courseLabels.showCourseType ? [{ key: 'courseType', label: 'Course Type', minWidth: 120 }] : []),
+    { key: 'degree', label: 'Degree', minWidth: 90 },
+    { key: 'percentage', label: 'Percentage', minWidth: 100 },
+    { key: 'wrongQuestions', label: 'Wrong Questions', minWidth: 180 },
+  ], [courseLabels.course, courseLabels.showCourseType]);
   const [currentPage, setCurrentPage] = useState(1);
   const [showPagePopup, setShowPagePopup] = useState(false);
 
@@ -81,7 +83,7 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
         >
           <Table.Thead className={styles.header}>
             <Table.Tr>
-              {COLUMNS.map((col) => (
+              {columns.map((col) => (
                 <Table.Th
                   key={col.key}
                   style={{ minWidth: col.minWidth, textAlign: 'center', whiteSpace: 'nowrap' }}
@@ -94,7 +96,7 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
           <Table.Tbody>
             {pagedStudents.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={COLUMNS.length} style={{ textAlign: 'center', color: '#6c757d', padding: 28 }}>
+                <Table.Td colSpan={columns.length} style={{ textAlign: 'center', color: '#6c757d', padding: 28 }}>
                   No students in this category
                 </Table.Td>
               </Table.Tr>
@@ -106,7 +108,9 @@ export default function AnalyticsStudentsTable({ students = [], categoryLabel = 
                   </Table.Td>
                   <Table.Td style={{ textAlign: 'center' }}>{student.name}</Table.Td>
                   <Table.Td style={{ textAlign: 'center' }}>{student.course}</Table.Td>
+                  {courseLabels.showCourseType && (
                   <Table.Td style={{ textAlign: 'center' }}>{student.courseType}</Table.Td>
+                  )}
                   <Table.Td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{student.degree}</Table.Td>
                   <Table.Td style={{ textAlign: 'center', fontWeight: 600 }}>{student.percentage}</Table.Td>
                   <Table.Td style={{ textAlign: 'center', wordBreak: 'break-word' }}>

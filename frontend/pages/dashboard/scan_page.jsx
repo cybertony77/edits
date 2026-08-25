@@ -8,7 +8,7 @@ import AttendanceLessonSelect from "../../components/AttendancelessonSelect";
 import CenterSelect from "../../components/CenterSelect";
 import QRScanner from "../../components/QRScanner";
 import { useStudents, useStudent, useToggleAttendance, useUpdateHomework, useUpdateHomeworkDegree, useUpdateQuizGrade, useUpdateWeekComment } from "../../lib/api/students";
-import { useSystemConfig } from "../../lib/api/system";
+import { useSystemConfig, useNationalSystem, getCourseFieldLabels } from "../../lib/api/system";
 import { getStudentLesson } from "../../lib/studentLessons";
 
 // Helper to extract student ID from QR text (URL or plain number)
@@ -30,6 +30,8 @@ function extractStudentId(qrText) {
 
 export default function QR() {
   const { data: systemConfig } = useSystemConfig();
+  const isNational = useNationalSystem();
+  const courseLabels = getCourseFieldLabels(isNational);
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isPaymentSystemEnabled = systemConfig?.payment_system === true || systemConfig?.payment_system === 'true';
   
@@ -757,7 +759,12 @@ export default function QR() {
               await apiClient.post('/api/scoring/calculate', {
                 studentId: student.id,
                 type: 'attendance',
-                    lesson: selectedLesson,
+                lesson: selectedLesson,
+                source: {
+                  kind: 'attendance',
+                  id: selectedLesson,
+                  label: selectedLesson,
+                },
                 data: { 
                   status: 'absent',
                       previousStatus: lastHistory.data?.status || 'attend',
@@ -776,6 +783,11 @@ export default function QR() {
                     studentId: student.id,
                     type: 'attendance',
                     lesson: selectedLesson,
+                    source: {
+                      kind: 'attendance',
+                      id: selectedLesson,
+                      label: selectedLesson,
+                    },
                     data: { status: 'absent' }
                   });
                 }
@@ -785,6 +797,11 @@ export default function QR() {
               await apiClient.post('/api/scoring/calculate', {
                 studentId: student.id,
                 type: 'attendance',
+                source: {
+                  kind: 'attendance',
+                  id: selectedLesson || 'global',
+                  label: selectedLesson || 'Attendance',
+                },
                 data: { status: 'absent' }
               });
             }
@@ -794,6 +811,11 @@ export default function QR() {
               studentId: student.id,
               type: 'attendance',
               lesson: selectedLesson,
+              source: {
+                kind: 'attendance',
+                id: selectedLesson,
+                label: selectedLesson,
+              },
               data: { status: 'attend' }
             });
           }
@@ -832,6 +854,11 @@ export default function QR() {
                       studentId: student.id,
                       type: 'homework',
                       lesson: selectedLesson,
+                      source: {
+                        kind: 'classroom_homework_status',
+                        id: selectedLesson,
+                        label: selectedLesson,
+                      },
                       data: { 
                         hwDone: lastHwHistory.data.hwDone,
                         previousHwDone: lastHwHistory.data.hwDone,
@@ -844,6 +871,11 @@ export default function QR() {
                       studentId: student.id,
                       type: 'homework',
                       lesson: selectedLesson,
+                      source: {
+                        kind: 'classroom_homework_degree',
+                        id: selectedLesson,
+                        label: selectedLesson,
+                      },
                       data: { 
                         percentage: lastHwHistory.data.percentage,
                         previousPercentage: lastHwHistory.data.percentage,
@@ -872,6 +904,11 @@ export default function QR() {
                       studentId: student.id,
                       type: 'quiz',
                       lesson: selectedLesson,
+                      source: {
+                        kind: 'classroom_quiz_degree',
+                        id: selectedLesson,
+                        label: selectedLesson,
+                      },
                       data: { 
                         percentage: lastQuizHistory.data.percentage,
                         previousPercentage: lastQuizHistory.data.percentage,
@@ -1008,12 +1045,17 @@ export default function QR() {
           await apiClient.post('/api/scoring/calculate', {
             studentId: student.id,
             type: 'homework',
-              lesson: selectedLesson,
-              data: { 
-                hwDone: newHwDone, 
-                previousHwDone: actualPreviousHwDone,
-                reverseOnly: useReverseOnly
-              }
+            lesson: selectedLesson,
+            source: {
+              kind: 'classroom_homework_status',
+              id: selectedLesson,
+              label: selectedLesson,
+            },
+            data: { 
+              hwDone: newHwDone, 
+              previousHwDone: actualPreviousHwDone,
+              reverseOnly: useReverseOnly
+            }
           });
           // Refetch student data to update score
           if (refetchStudent) {
@@ -1129,6 +1171,11 @@ export default function QR() {
                 studentId: student.id,
                 type: 'homework',
                 lesson: selectedLesson,
+                source: {
+                  kind: 'classroom_homework_degree',
+                  id: selectedLesson,
+                  label: selectedLesson,
+                },
                 data: { percentage, previousPercentage }
               });
               // Refetch student data to update score
@@ -1238,6 +1285,11 @@ export default function QR() {
                 studentId: student.id,
                 type: 'quiz',
                 lesson: selectedLesson,
+                source: {
+                  kind: 'classroom_quiz_degree',
+                  id: selectedLesson,
+                  label: selectedLesson,
+                },
                 data: { 
                   percentage, 
                   previousPercentage,
@@ -1725,7 +1777,7 @@ export default function QR() {
                   {student.name} (ID: {student.id})
                 </div>
                 <div style={{ fontSize: "0.9rem", color: "#6c757d" }}>
-                  {[student.course, student.courseType, student.main_center].filter(Boolean).join(' • ')}
+                  {[student.course, !isNational && student.courseType, student.main_center].filter(Boolean).join(' • ')}
                 </div>
               </button>
             ))}
@@ -1913,11 +1965,11 @@ export default function QR() {
           <div className="student-info">
               {student.course && (
               <div className="info-item">
-                <span className="info-label">Course</span>
+                <span className="info-label">{courseLabels.course}</span>
                 <span className="info-value">{student.course}</span>
               </div>
               )}
-              {student.courseType && (
+              {courseLabels.showCourseType && student.courseType && (
               <div className="info-item">
                 <span className="info-label">Course Type</span>
                 <span className="info-value">{student.courseType}</span>
@@ -2253,6 +2305,11 @@ export default function QR() {
                             studentId: student.id,
                             type: 'homework',
                             lesson: selectedLesson,
+                            source: {
+                              kind: 'classroom_homework_status',
+                              id: selectedLesson,
+                              label: selectedLesson,
+                            },
                             data: { hwDone: "Not Completed", previousHwDone }
                           });
                           // Refetch student data to update score
@@ -2311,6 +2368,11 @@ export default function QR() {
                               studentId: student.id,
                               type: 'homework',
                               lesson: selectedLesson,
+                              source: {
+                                kind: 'classroom_homework_status',
+                                id: selectedLesson,
+                                label: selectedLesson,
+                              },
                               data: { 
                                 hwDone: false,
                                 previousHwDone: previousHwDone,
@@ -2669,6 +2731,11 @@ export default function QR() {
                               studentId: student.id,
                               type: 'quiz',
                               lesson: selectedLesson,
+                              source: {
+                                kind: 'classroom_quiz_degree',
+                                id: selectedLesson,
+                                label: selectedLesson,
+                              },
                               data: { percentage: 0, previousPercentage }
                             });
                             // Refetch student data to update score
@@ -2747,6 +2814,11 @@ export default function QR() {
                                 studentId: student.id,
                                 type: 'quiz',
                                 lesson: selectedLesson,
+                                source: {
+                                  kind: 'classroom_quiz_degree',
+                                  id: selectedLesson,
+                                  label: selectedLesson,
+                                },
                                 data: { 
                                   percentage: 0,
                                   previousPercentage: previousPercentage,

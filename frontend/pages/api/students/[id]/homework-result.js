@@ -118,10 +118,23 @@ export default async function handler(req, res) {
       );
     }
 
-    // Push the homework result
+    const currentOnlineHomeworks = Array.isArray(student.online_homeworks) ? [...student.online_homeworks] : [];
+    const existingHomeworkIndex = currentOnlineHomeworks.findIndex(
+      (item) => String(item?.homework_id ?? '') === String(homework_id)
+    );
+    if (existingHomeworkIndex >= 0) {
+      currentOnlineHomeworks[existingHomeworkIndex] = {
+        ...currentOnlineHomeworks[existingHomeworkIndex],
+        ...homeworkResult,
+      };
+    } else {
+      currentOnlineHomeworks.push(homeworkResult);
+    }
+
+    // Replace existing result for the same homework instead of duplicating it
     const updateResult = await db.collection('students').updateOne(
       { id: student_id },
-      { $push: { online_homeworks: homeworkResult } }
+      { $set: { online_homeworks: currentOnlineHomeworks } }
     );
 
     if (updateResult.matchedCount === 0) {
