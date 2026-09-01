@@ -186,6 +186,7 @@ export default function StudentInfo() {
   const isScoringEnabled = systemConfig?.scoring_system === true || systemConfig?.scoring_system === 'true';
   const isPaymentSystemEnabled = systemConfig?.payment_system === true || systemConfig?.payment_system === 'true';
   const isMockExamsEnabled = systemConfig?.mock_exams === true || systemConfig?.mock_exams === 'true';
+  const isHomeworksVideosEnabled = systemConfig?.homeworks_videos === true || systemConfig?.homeworks_videos === 'true';
 
   // Get all students for name-based search (only if authenticated)
   const { data: allStudents } = useStudents({}, { 
@@ -555,7 +556,7 @@ export default function StudentInfo() {
 
   // Helper function to get attendance status for a lesson
   const getLessonAttendance = (lessonName) => {
-    if (!currentStudent || !currentStudent.lessons) return { attended: false, hwDone: false, homework_degree: null, quizDegree: null, message_state: false, parent_message_state: false, lastAttendance: null };
+    if (!currentStudent || !currentStudent.lessons) return { attended: false, hwDone: false, homework_degree: null, quizDegree: null, message_state: false, parent_message_state: false, lastAttendance: null, view_homework_video: false };
     
     // Handle both new object format and old array format for backward compatibility
     let lessonData;
@@ -571,7 +572,7 @@ export default function StudentInfo() {
       lessonData = weekIndex >= 0 ? currentStudent.weeks[weekIndex] : null;
     }
     
-    if (!lessonData) return { attended: false, hwDone: false, homework_degree: null, quizDegree: null, message_state: false, parent_message_state: false, lastAttendance: null };
+    if (!lessonData) return { attended: false, hwDone: false, homework_degree: null, quizDegree: null, message_state: false, parent_message_state: false, lastAttendance: null, view_homework_video: false };
     
     return {
       attended: lessonData.attended || false,
@@ -581,7 +582,8 @@ export default function StudentInfo() {
       comment: lessonData.comment || null,
       message_state: lessonData.message_state || false,
       parent_message_state: lessonData.parent_message_state || false,
-      lastAttendance: lessonData.lastAttendance || null
+      lastAttendance: lessonData.lastAttendance || null,
+      view_homework_video: lessonData.view_homework_video || false
     };
   };
 
@@ -611,6 +613,14 @@ export default function StudentInfo() {
     }
     
     return [];
+  };
+
+  const hasHomeworkVideoForLesson = (lessonName) => {
+    const normalizedLesson = String(lessonName || '').trim().toLowerCase();
+    return Array.isArray(currentStudent?.homework_video_lessons) &&
+      currentStudent.homework_video_lessons.some(
+        (name) => String(name || '').trim().toLowerCase() === normalizedLesson
+      );
   };
 
   // Helper to compute totals for the student across all lessons
@@ -1362,7 +1372,7 @@ export default function StudentInfo() {
               )}
                 <div className="detail-item">
                 <div className="detail-label">School</div>
-                <div className="detail-value">{currentStudent.school || 'N/A'}</div>
+                <div className="detail-value">{currentStudent.school || 'No School'}</div>
                 </div>
               {isPaymentSystemEnabled && (
                 <div className="detail-item">
@@ -1486,6 +1496,9 @@ export default function StudentInfo() {
                       <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Lesson</Table.Th>
                       <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Attendance Info</Table.Th>
                       <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Homework</Table.Th>
+                      {isHomeworksVideosEnabled && (
+                        <Table.Th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>Homework Video</Table.Th>
+                      )}
                       
                       <Table.Th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>Quiz Degree</Table.Th>
                       <Table.Th style={{ width: '200px', minWidth: '200px', textAlign: 'center' }}>Comment</Table.Th>
@@ -1552,6 +1565,23 @@ export default function StudentInfo() {
                               }
                             })()}
                           </Table.Td>
+                          {isHomeworksVideosEnabled && (
+                            <Table.Td style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>
+                              {!hasHomeworkVideoForLesson(lessonName) ? (
+                                <span style={{ color: '#6c757d', fontWeight: 'bold', fontSize: '1rem' }}>
+                                  🚫 No Homework Video
+                                </span>
+                              ) : lessonData.view_homework_video === true ? (
+                                <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '1rem' }}>
+                                  ✅ Viewed
+                                </span>
+                              ) : (
+                                <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '1rem' }}>
+                                  ❌ Not Viewed
+                                </span>
+                              )}
+                            </Table.Td>
+                          )}
                           
                           <Table.Td style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>
                             {(() => {
@@ -1604,18 +1634,41 @@ export default function StudentInfo() {
               <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#495057', marginBottom: '20px', textAlign: 'center', borderBottom: '2px solid #1FA8DC', paddingBottom: '10px' }}>
                 Mock Exam Results
               </div>
-              {currentStudent.mockExams && Array.isArray(currentStudent.mockExams) && currentStudent.mockExams.some(exam => exam && (exam.examDegree !== null || exam.percentage !== null)) ? (
+              {currentStudent.mockExams && Array.isArray(currentStudent.mockExams) && currentStudent.mockExams.some(exam => exam && (
+                (exam.mathDegree !== null && exam.mathDegree !== undefined) ||
+                (exam.englishDegree !== null && exam.englishDegree !== undefined) ||
+                (exam.examDegree !== null && exam.examDegree !== undefined) ||
+                (exam.percentage !== null && exam.percentage !== undefined)
+              )) ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                   {currentStudent.mockExams.map((exam, index) => {
-                    if (exam && (exam.examDegree !== null || exam.percentage !== null)) {
+                    if (exam && (
+                      (exam.mathDegree !== null && exam.mathDegree !== undefined) ||
+                      (exam.englishDegree !== null && exam.englishDegree !== undefined) ||
+                      (exam.examDegree !== null && exam.examDegree !== undefined) ||
+                      (exam.percentage !== null && exam.percentage !== undefined)
+                    )) {
                       return (
                         <div key={index} className="detail-item" style={{ padding: '12px' }}>
-                          <div className="detail-label">Exam {index + 1}</div>
+                          <div className="detail-label">Mock Exam {index + 1}</div>
                           <div className="detail-value">
-                            {exam.examDegree !== null && exam.outOf !== null && (
+                            {exam.mathDegree !== null && exam.mathDegree !== undefined &&
+                              exam.mathOutOf !== null && exam.mathOutOf !== undefined && (
+                              <div>Math Mock Exam: {exam.mathDegree} / {exam.mathOutOf} ({exam.mathPercentage}%)</div>
+                            )}
+                            {exam.englishDegree !== null && exam.englishDegree !== undefined &&
+                              exam.englishOutOf !== null && exam.englishOutOf !== undefined && (
+                              <div>English Mock Exam: {exam.englishDegree} / {exam.englishOutOf} ({exam.englishPercentage}%)</div>
+                            )}
+                            {(exam.mathDegree === null || exam.mathDegree === undefined) &&
+                              (exam.englishDegree === null || exam.englishDegree === undefined) &&
+                              exam.examDegree !== null && exam.examDegree !== undefined &&
+                              exam.outOf !== null && exam.outOf !== undefined && (
                               <div>Degree: {exam.examDegree} / {exam.outOf}</div>
                             )}
-                            {exam.percentage !== null && (
+                            {(exam.mathPercentage === null || exam.mathPercentage === undefined) &&
+                              (exam.englishPercentage === null || exam.englishPercentage === undefined) &&
+                              exam.percentage !== null && exam.percentage !== undefined && (
                               <div style={{ color: '#28a745', fontWeight: 'bold', marginTop: '3px', marginBottom: '3px' }}>
                                 Percentage: {exam.percentage}%
                               </div>

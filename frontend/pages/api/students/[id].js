@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { getCookieValue } from '../../../lib/cookies';
 import { authMiddleware, isAuthError } from "../../../lib/authMiddleware";
+import { getHomeworkVideoLessonsForStudent } from '../../../lib/homeworkVideoLessons';
 
 // Load environment variables from env.config
 function loadEnvConfig() {
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
       }
       
       let lastAttendance = currentLesson.lastAttendance;
-      if (currentLesson.lastAttendance && currentLesson.lastAttendanceCenter) {
+      if (currentLesson.lastAttendance && currentLesson.lastAttendanceCenter && !/\bat\s+\d{1,2}:\d{2}\s+(?:AM|PM)\b/i.test(currentLesson.lastAttendance)) {
         // Try to parse the date part and reformat
         const dateMatch = currentLesson.lastAttendance.match(/(\d{2})[-/](\d{2})[-/](\d{4})/);
         let dateStr = currentLesson.lastAttendance;
@@ -91,6 +92,15 @@ export default async function handler(req, res) {
         { projection: { email: 1 } }
       );
       const studentEmail = (userAccount?.email && String(userAccount.email).trim()) || null;
+      const homeworkVideoSessions = await db.collection('homeworks_videos')
+        .find({})
+        .project({ lesson: 1, course: 1, courseType: 1, state: 1, account_state: 1 })
+        .toArray();
+      const homeworkVideoLessons = getHomeworkVideoLessonsForStudent(
+        homeworkVideoSessions,
+        student,
+        NATIONAL_SYSTEM
+      );
 
       res.json({
         id: student.id,
@@ -121,6 +131,7 @@ export default async function handler(req, res) {
         payment: student.payment || null, // Include payment data
         online_sessions: student.online_sessions || [], // Include online_sessions for VVC restore
         homeworks_videos: student.homeworks_videos || [], // Include homeworks_videos for VHC restore
+        homework_video_lessons: homeworkVideoLessons,
         online_homeworks: student.online_homeworks || [], // Include online_homeworks for degree lookup
         online_quizzes: student.online_quizzes || [], // Include online_quizzes for degree lookup
         online_mock_exams: student.online_mock_exams || [], // Include online_mock_exams for degree lookup
@@ -215,12 +226,14 @@ export default async function handler(req, res) {
         if (!normalizedPhone || normalizedPhone.length < 8) {
           return res.status(400).json({ error: 'Please enter a valid student phone number' });
         }
-        const phoneTaken = await db.collection('students').findOne({
-          phone: { $in: phoneVariants(normalizedPhone) },
-          id: { $ne: student_id },
-        });
-        if (phoneTaken) {
-          return res.status(409).json({ error: 'This phone number is already used by another student' });
+        if (NATIONAL_SYSTEM) {
+          const phoneTaken = await db.collection('students').findOne({
+            phone: { $in: phoneVariants(normalizedPhone) },
+            id: { $ne: student_id },
+          });
+          if (phoneTaken) {
+            return res.status(409).json({ error: 'This phone number is already used by another student' });
+          }
         }
         update.phone = normalizedPhone;
       }
@@ -241,8 +254,8 @@ export default async function handler(req, res) {
       if (gender !== undefined && gender !== null) {
         update.gender = gender;
       }
-      if (school !== undefined && school !== null) {
-        update.school = school;
+      if (school !== undefined) {
+        update.school = school === null || school === '' ? null : String(school).trim();
       }
       if (main_comment !== undefined) {
         update.main_comment = main_comment; // allow null or string

@@ -504,7 +504,7 @@ export default function VerificationHomeworkCodes() {
         minHeight: "100vh", 
         padding: "20px 5px 20px 5px"
       }}>
-        <div style={{ maxWidth: 800, margin: "40px auto", padding: "12px" }}>
+        <div style={{ maxWidth: 1000, margin: "40px auto", padding: "12px" }}>
           <Title href="/dashboard/manage_online_system" backText="Back">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Image src="/lock-cog.svg" alt="VHC" width={32} height={32} />
@@ -522,7 +522,7 @@ export default function VerificationHomeworkCodes() {
       minHeight: "100vh", 
       padding: "20px 5px 20px 5px" 
     }}>
-      <div ref={containerRef} className="page-content" style={{ maxWidth: 800, margin: "40px auto", padding: "20px 5px 20px 5px" }}>
+      <div ref={containerRef} className="page-content" style={{ maxWidth: 1000, margin: "40px auto", padding: "20px 5px 20px 5px" }}>
           <Title href="/dashboard/manage_online_system" backText="Back">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Image src="/lock-cog.svg" alt="VHC" width={32} height={32} />
@@ -702,7 +702,7 @@ export default function VerificationHomeworkCodes() {
           ) : (
             <ScrollArea h={400} type="hover" className={styles.scrolled}>
               <div style={{ overflowX: 'auto' }}>
-                <Table striped highlightOnHover withTableBorder withColumnBorders style={{ minWidth: '800px' }}>
+                <Table striped highlightOnHover withTableBorder withColumnBorders style={{ minWidth: '1000px' }}>
                 <Table.Thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa'}}>
                   <Table.Tr>
                     <Table.Th style={{ width: '8%', textAlign: 'center' }}>Copy</Table.Th>
@@ -722,6 +722,7 @@ export default function VerificationHomeworkCodes() {
                 <Table.Tbody>
                   {vhcs.map((vhc, index) => {
                     const codeSettings = vhc.code_settings || 'number_of_views';
+                    const isPaid = String(vhc.payment_state || '').toLowerCase() === 'paid';
                     // Helper to format date string (YYYY-MM-DD) to MM/DD/YYYY
                     const formatDateString = (dateStr) => {
                       if (!dateStr) return 'N/A';
@@ -761,45 +762,49 @@ export default function VerificationHomeworkCodes() {
                     return (
                     <Table.Tr key={`${vhc._id}-${index}`}>
                       <Table.Td style={{ textAlign: 'center' }}>
-                        <button
-                          onClick={() => handleCopyCode(vhc.VHC, vhc._id.toString())}
-                          style={{
-                            padding: '6px',
-                            backgroundColor: copiedCodeId === vhc._id.toString() ? '#28a745' : '#d71d1d',
-                            border: copiedCodeId === vhc._id.toString() ? '1px solid #28a745' : '1px solid #d71d1d',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s ease',
-                            minWidth: '36px',
-                            minHeight: '36px'
-                          }}
-                          onMouseEnter={(e) => {
-                            if (copiedCodeId !== vhc._id.toString()) {
-                              e.target.style.backgroundColor = '#b91c1c';
-                              e.target.style.borderColor = '#b91c1c';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (copiedCodeId !== vhc._id.toString()) {
-                              e.target.style.backgroundColor = '#d71d1d';
-                              e.target.style.borderColor = '#d71d1d';
-                            }
-                          }}
-                          title={copiedCodeId === vhc._id.toString() ? 'Copied!' : 'Copy code'}
-                        >
-                          <Image 
-                            src="/copy2.svg" 
-                            alt="Copy" 
-                            width={18} 
-                            height={18} 
-                            style={{ display: 'inline-block' }} 
-                          />
-                        </button>
+                        {isPaid ? (
+                          <span style={{ color: '#6c757d', fontWeight: '600' }}>—</span>
+                        ) : (
+                          <button
+                            onClick={() => handleCopyCode(vhc.VHC, vhc._id.toString())}
+                            style={{
+                              padding: '6px',
+                              backgroundColor: copiedCodeId === vhc._id.toString() ? '#28a745' : '#d71d1d',
+                              border: copiedCodeId === vhc._id.toString() ? '1px solid #28a745' : '1px solid #d71d1d',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              minWidth: '36px',
+                              minHeight: '36px'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (copiedCodeId !== vhc._id.toString()) {
+                                e.target.style.backgroundColor = '#b91c1c';
+                                e.target.style.borderColor = '#b91c1c';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (copiedCodeId !== vhc._id.toString()) {
+                                e.target.style.backgroundColor = '#d71d1d';
+                                e.target.style.borderColor = '#d71d1d';
+                              }
+                            }}
+                            title={copiedCodeId === vhc._id.toString() ? 'Copied!' : 'Copy code'}
+                          >
+                            <Image
+                              src="/copy2.svg"
+                              alt="Copy"
+                              width={18}
+                              height={18}
+                              style={{ display: 'inline-block' }}
+                            />
+                          </button>
+                        )}
                       </Table.Td>
-                      <Table.Td style={{ fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center', fontWeight: 'bold' }}>{vhc.VHC}</Table.Td>
+                      <Table.Td style={{ fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center', fontWeight: 'bold', textDecoration: isPaid ? 'line-through' : 'none' }}>{vhc.VHC}</Table.Td>
                       <Table.Td style={{ textAlign: 'center', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{settingsDisplay}</Table.Td>
                       <Table.Td style={{ textAlign: 'center' }}>
                         {vhc.viewed ? (
