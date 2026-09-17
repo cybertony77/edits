@@ -7,6 +7,7 @@ import {
   computeAccessDeadlineDate,
 } from '../../../lib/codeNumberOfDays';
 import { isDeadlinePassedEgypt } from '../../../lib/deadlineTimeEgypt';
+import { formatEgyptDateTime } from '../../../lib/egyptDateTime';
 import { CODE_ERROR, codeErrorPayload } from '../../../lib/verificationCodeMessages';
 import { recordPaymentSessionChange } from '../../../lib/paymentHistoryServer';
 
@@ -49,19 +50,9 @@ function normalizeLessonName(value) {
     .toLowerCase();
 }
 
+// DD/MM/YYYY at hh:mm AM/PM in Africa/Cairo (never the server's local clock)
 function formatDate(date) {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-
-  let hours = date.getHours();
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  const hoursStr = String(hours).padStart(2, '0');
-
-  return `${day}/${month}/${year} at ${hoursStr}:${minutes} ${ampm}`;
+  return formatEgyptDateTime(date);
 }
 
 function sameId(a, b) {
@@ -308,10 +299,17 @@ export default async function handler(req, res) {
     );
     const isNewStudentUnlock = existingSessionIndex === -1;
 
+    // Code settings are mirrored onto the student entry so the dashboard can show the
+    // remaining views / days / deadline even before the code details are re-fetched.
+    const latestVhc = await db.collection('VHC').findOne({ _id: vhcRecord._id });
     const newSessionEntry = {
       video_id: sessionIdStr,
       vhc_id: codeIdStr,
       date: formatDate(new Date()),
+      code_settings: codeSettings,
+      number_of_days: latestVhc?.number_of_days ?? null,
+      access_started_at: latestVhc?.access_started_at || null,
+      deadline_date: codeSettings === 'deadline_date' ? latestVhc?.deadline_date || null : null,
       ...(codeSettings === 'number_of_views'
         ? {
             views_per_video_limit: Number(vhcRecord.number_of_views) || 0,
@@ -368,6 +366,14 @@ export default async function handler(req, res) {
         ? computeAccessDeadlineDate(accessStartedAt, numberOfDays)
         : updatedVhc.deadline_date || null;
 
+    const studentAfter = await db.collection('students').findOne(
+      { id: studentId },
+      { projection: { homeworks_videos: 1 } }
+    );
+    const entryAfter = (studentAfter?.homeworks_videos || []).find((s) =>
+      sameId(s.video_id, session_id)
+    );
+
     return res.status(200).json({
       success: true,
       valid: true,
@@ -375,11 +381,17 @@ export default async function handler(req, res) {
       vhc_id: codeIdStr,
       code_settings: codeSettings,
       number_of_views: updatedVhc.number_of_views || null,
+      views_per_video_limit:
+        codeSettings === 'number_of_views'
+          ? Number(entryAfter?.views_per_video_limit ?? updatedVhc.number_of_views) || 0
+          : null,
       number_of_days: numberOfDays,
       access_started_at: accessStartedAt,
       deadline_date: computedDeadline,
       code_lesson: codeLesson,
       opened_session_id: updatedVhc.opened_session_id || sessionIdStr,
+      entry: entryAfter || null,
+      part_views: entryAfter?.part_views || {},
     });
   } catch (error) {
     console.error('❌ Error in VHC check API:', error);
